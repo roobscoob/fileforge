@@ -1,0 +1,8 @@
+[package]
+name = "fileforge-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fileforge-lib = { path = "../fileforge-lib" }
+heapless = "0.8.0"

@@ -1,0 +1,72 @@
+thread 'rustc' panicked at compiler\rustc_hir\src\definitions.rs:389:13:
+("Failed to extract DefId", def_kind, PackedFingerprint(Fingerprint(4563956112857261596, 17580995411854450864)))
+stack backtrace:
+   0:     0x7ffd2852d6e3 - std::backtrace_rs::backtrace::dbghelp64::trace
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\..\..\backtrace\src\backtrace\dbghelp64.rs:91
+   1:     0x7ffd2852d6e3 - std::backtrace_rs::backtrace::trace_unsynchronized
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\..\..\backtrace\src\backtrace\mod.rs:66
+   2:     0x7ffd2852d6e3 - std::backtrace::Backtrace::create
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\backtrace.rs:331
+   3:     0x7ffd2852d62a - std::backtrace::Backtrace::force_capture
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\backtrace.rs:312
+   4:     0x7ffd169e3eb7 - __longjmp_internal
+   5:     0x7ffd285473f7 - alloc::boxed::impl$50::call
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\alloc\src\boxed.rs:2036
+   6:     0x7ffd285473f7 - std::panicking::rust_panic_with_hook
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\panicking.rs:799
+   7:     0x7ffd28547287 - std::panicking::begin_panic_handler::closure$0
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\panicking.rs:664
+   8:     0x7ffd285447ff - std::sys_common::backtrace::__rust_end_short_backtrace<std::panicking::begin_panic_handler::closure_env$0,never$>
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\sys_common\backtrace.rs:171
+   9:     0x7ffd28546f38 - std::panicking::begin_panic_handler
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\panicking.rs:652
+  10:     0x7ffd2859d9b4 - core::panicking::panic_fmt
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\core\src\panicking.rs:72
+  11:     0x7ffd17d84247 - <rustc_hir[901aa80eb4fa7200]::definitions::Definitions>::local_def_path_hash_to_def_id::err
+  12:     0x7ffd1690bd73 - <rustc_query_system[ae8d407b6053c7ec]::dep_graph::dep_node::DepNode as rustc_middle[ba65138fd4b788a5]::dep_graph::dep_node::DepNodeExt>::extract_def_id
+  13:     0x7ffd173b40c9 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_prove_predicate_with_cause
+  14:     0x7ffd15f473e0 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_prove_predicate
+  15:     0x7ffd15f74a80 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_prove_predicate
+  16:     0x7ffd16079786 - rustc_query_impl[7fded9d5a68908bc]::plumbing::query_key_hash_verify_all
+  17:     0x7ffd157337d7 - <rustc_codegen_llvm[65b6379548ad8311]::builder::Builder as rustc_codegen_ssa[bea62ab044598712]::traits::builder::BuilderMethods>::load_operand
+  18:     0x7ffd1581fcce - rustc_hir_typeck[4bd7aa4653b13866]::typeck
+  19:     0x7ffd1607806a - rustc_query_impl[7fded9d5a68908bc]::plumbing::query_key_hash_verify_all
+  20:     0x7ffd15fd3b36 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_prove_predicate
+  21:     0x7ffd152840b8 - <dyn std[f56c4506d78a903e]::io::Write as nu_ansi_term[11ba4d5d80938f2c]::write::AnyWrite>::write_str
+  22:     0x7ffd1525f1af - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_normalize_clause
+  23:     0x7ffd15f473e0 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_prove_predicate
+  24:     0x7ffd15fd402c - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_prove_predicate
+  25:     0x7ffd16080590 - rustc_query_impl[7fded9d5a68908bc]::plumbing::query_key_hash_verify_all
+  26:     0x7ffd158c2cad - <rustc_hir_analysis[5d644b0958f1664b]::autoderef::Autoderef>::into_obligations
+  27:     0x7ffd1528636a - <dyn std[f56c4506d78a903e]::io::Write as nu_ansi_term[11ba4d5d80938f2c]::write::AnyWrite>::write_str
+  28:     0x7ffd1519f6a3 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_normalize_clause
+  29:     0x7ffd15295ddf - rustc_query_impl[7fded9d5a68908bc]::query_system
+  30:     0x7ffd158ff081 - rustc_hir_analysis[5d644b0958f1664b]::check_crate
+  31:     0x7ffd1566aa94 - <rustc_interface[4025820ee4b28fef]::passes::LintStoreExpandImpl as rustc_expand[749d1ed743574f7b]::base::LintStoreExpand>::pre_expansion_lint
+  32:     0x7ffd12696087 - rustc_interface[4025820ee4b28fef]::passes::create_global_ctxt
+  33:     0x7ffd152879aa - <dyn std[f56c4506d78a903e]::io::Write as nu_ansi_term[11ba4d5d80938f2c]::write::AnyWrite>::write_str
+  34:     0x7ffd151a6109 - rustc_traits[6f83c9d98e0acc02]::type_op::type_op_normalize_clause
+  35:     0x7ffd1528cf23 - rustc_query_impl[7fded9d5a68908bc]::query_system
+  36:     0x7ffd126532d4 - llvm::function_ref<void __cdecl(llvm::Value const * __ptr64)>::callback_fn<`llvm::Value::stripInBoundsOffsets'::`1'::<lambda_1_1> >
+  37:     0x7ffd1265069f - llvm::function_ref<void __cdecl(llvm::Value const * __ptr64)>::callback_fn<`llvm::Value::stripInBoundsOffsets'::`1'::<lambda_1_1> >
+  38:     0x7ffd12658369 - llvm::function_ref<void __cdecl(llvm::Value const * __ptr64)>::callback_fn<`llvm::Value::stripInBoundsOffsets'::`1'::<lambda_1_1> >
+  39:     0x7ffd2855850d - alloc::boxed::impl$48::call_once
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\alloc\src\boxed.rs:2022
+  40:     0x7ffd2855850d - alloc::boxed::impl$48::call_once
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\alloc\src\boxed.rs:2022
+  41:     0x7ffd2855850d - std::sys::pal::windows::thread::impl$0::new::thread_start
+                               at /rustc/f9b16149208c8a8a349c32813312716f6603eb6f/library\std\src\sys\pal\windows\thread.rs:52
+  42:     0x7ffd75ea257d - BaseThreadInitThunk
+  43:     0x7ffd769eaa48 - RtlUserThreadStart
+
+
+rustc version: 1.79.0-nightly (f9b161492 2024-04-19)
+platform: x86_64-pc-windows-msvc
+
+query stack during panic:
+#0 [type_of] computing type of `object::magic::error::MagicError::{constant#1}`
+#1 [typeck] type-checking `object::magic::error::MagicError::{constant#1}`
+#2 [used_trait_imports] finding used_trait_imports `object::magic::error::MagicError::{constant#1}`
+#3 [check_unused_traits] checking unused trait imports in crate
+#4 [analysis] running analysis passes on this crate
+end of query stack

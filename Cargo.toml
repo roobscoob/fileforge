@@ -1,0 +1,6 @@
+[workspace]
+members = [ "fileforge-cli",
+  "fileforge-lib",
+  "fileforge-test",
+]
+resolver = "2"

@@ -1,0 +1,1 @@
+pub struct WriteError<T>(pub T);
