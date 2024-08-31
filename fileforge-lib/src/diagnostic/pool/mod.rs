@@ -7,13 +7,13 @@ use super::node::{branch::DiagnosticBranch, name::DiagnosticNodeName, reference:
 pub mod field;
 pub mod entry;
 
-pub struct DiagnosticPool<'pool_lifetime, const NODE_NAME_SIZE: usize> {
-  contents: &'pool_lifetime [DiagnosticPoolEntry<NODE_NAME_SIZE>],
+pub struct DiagnosticPool<'pool, const NODE_NAME_SIZE: usize> {
+  contents: &'pool [DiagnosticPoolEntry<NODE_NAME_SIZE>],
   next_generation_to_write: Cell<u64>,
 }
 
-impl<'pool_lifetime, const NODE_NAME_SIZE: usize> DiagnosticPool<'pool_lifetime, NODE_NAME_SIZE> {
-  pub fn new(over: &'pool_lifetime mut [DiagnosticPoolEntry<NODE_NAME_SIZE>]) -> DiagnosticPool<'pool_lifetime, NODE_NAME_SIZE> {
+impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticPool<'pool, NODE_NAME_SIZE> {
+  pub fn new(over: &'pool mut [DiagnosticPoolEntry<NODE_NAME_SIZE>]) -> DiagnosticPool<'pool, NODE_NAME_SIZE> {
     DiagnosticPool {
       contents: over,
       next_generation_to_write: Cell::new(0),

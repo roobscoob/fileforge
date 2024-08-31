@@ -15,11 +15,11 @@ impl<const SIZE: usize> Magic<SIZE> {
   }
 }
 
-impl<'pool_lifetime, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize> FixedSizeReadable<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE, SIZE> for Magic<SIZE> {
+impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize> FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE> for Magic<SIZE> {
   type Argument = Magic<SIZE>;
-  type Error = MagicError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE, SIZE>;
+  type Error = MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE>;
 
-  fn read<'rl, RP: Provider>(reader: &mut Reader<'pool_lifetime, 'rl, DIAGNOSTIC_NODE_NAME_SIZE, RP>, expected: Self::Argument) -> Result<Self, ParseError<'pool_lifetime, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  fn read<'rl, RP: Provider>(reader: &mut Reader<'pool, 'rl, DIAGNOSTIC_NODE_NAME_SIZE, RP>, expected: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
     let actual = Self::from_bytes(reader.get("Bytes")?);
 
     if actual != expected {

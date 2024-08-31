@@ -4,10 +4,11 @@ pub trait Provider: Sized {
   type ReadError: ProviderError;
   type WriteError: ProviderError;
   type ReturnedProviderType: Provider<ReadError = Self::ReadError, WriteError = Self::WriteError>;
+  type DynReturnedProviderType: Provider<ReadError = Self::ReadError, WriteError = Self::WriteError>;
 
   // Mutable slice
   fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError>;
-  fn slice_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::ReturnedProviderType>, SliceOutOfBoundsError>;
+  fn slice_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError>;
 
   // Immutable read
   fn with_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a [u8; SIZE]) -> T>(&self, offset: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>>;

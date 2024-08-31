@@ -2,28 +2,13 @@ use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error
 
 use super::Magic;
 
-pub struct MagicError<'pool_lifetime, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> {
+pub struct MagicError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> {
   pub expected: Magic<MAGIC_SIZE>,
-  pub actual: TaggedDiagnosticReference<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE, Magic<MAGIC_SIZE>>
+  pub actual: TaggedDiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE, Magic<MAGIC_SIZE>>
 }
 
-impl<'pool_lifetime, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE> for MagicError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE> {
-  fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
-    if !self.actual.reference().family_exists() {
-      let line = Text::new()
-        .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
-
-      let info = Text::new()
-        .push("Expected ", &REPORT_INFO_LINE_TEXT)
-        .with(&self.expected)
-        .push(" got ", &REPORT_INFO_LINE_TEXT)
-        .with(self.actual.value());
-
-      callback(Report::new::<MagicError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE>>(ReportKind::Error, "Invalid Magic")
-        .with_flag_line(&line).unwrap()
-        .with_info_line(&info).unwrap());
-    }
-
+impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE> {
+  fn print_with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
     let info = Text::new()
       .push("Expected ", &REPORT_INFO_LINE_TEXT)
       .with(&self.expected)
@@ -34,12 +19,37 @@ impl<'pool_lifetime, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: u
       .push("Expected ", &REPORT_ERROR_TEXT)
       .with(&self.expected);
 
-    callback(Report::new::<MagicError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE>>(ReportKind::Error, "Invalid Magic")
+    callback(Report::new::<MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE>>(ReportKind::Error, "Invalid Magic")
       .with_info_line(&info).unwrap()
       .with_note(|| {
         ReportNote::new(&note)
           .with_tag(&REPORT_ERROR_TEXT)
           .with_location(self.actual.reference(), self.actual.value()).unwrap()
       }).unwrap())
+  }
+
+  fn print_with_minified_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
+    let line = Text::new()
+      .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
+
+    let info = Text::new()
+      .push("Expected ", &REPORT_INFO_LINE_TEXT)
+      .with(&self.expected)
+      .push(" got ", &REPORT_INFO_LINE_TEXT)
+      .with(self.actual.value());
+
+    callback(Report::new::<MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE>>(ReportKind::Error, "Invalid Magic")
+      .with_flag_line(&line).unwrap()
+      .with_info_line(&info).unwrap());
+  }
+}
+
+impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE> for MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE> {
+  fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, callback: Cb) {
+    if !self.actual.reference().family_exists() {
+      self.print_with_minified_report(callback)
+    } else {
+      self.print_with_report(callback)
+    }
   }
 }

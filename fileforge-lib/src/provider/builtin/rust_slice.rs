@@ -1,10 +1,10 @@
 use crate::provider::{error::{never::Never, read_error::ReadError, write_error::WriteError}, out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider}, r#trait::Provider};
 
-pub struct RustSliceBinaryProvider<'underlying_lifetime> {
-  underlying_data: &'underlying_lifetime [u8],
+pub struct RustSliceBinaryProvider<'underlying> {
+  underlying_data: &'underlying [u8],
 }
 
-impl<'underlying_lifetime> RustSliceBinaryProvider<'underlying_lifetime> {
+impl<'underlying> RustSliceBinaryProvider<'underlying> {
   pub fn over<'a>(data: &'a [u8]) -> RustSliceBinaryProvider<'a> {
     RustSliceBinaryProvider { underlying_data: data }
   }
@@ -52,10 +52,11 @@ impl<'underlying_lifetime> RustSliceBinaryProvider<'underlying_lifetime> {
   }
 }
 
-impl<'underlying_lifetime> Provider for RustSliceBinaryProvider<'underlying_lifetime> {
+impl<'underlying> Provider for RustSliceBinaryProvider<'underlying> {
   type ReadError = Never;
   type WriteError = Never;
   type ReturnedProviderType = Self;
+  type DynReturnedProviderType = Self;
 
   fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self>, SliceOutOfBoundsError>
     { self.slice_internal(offset) }

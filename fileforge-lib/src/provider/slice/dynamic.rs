@@ -8,10 +8,11 @@ pub struct DynamicSliceProvider<'a, T: Provider> {
   pub(crate) size: u64,
 }
 
-impl<'underlying_lifetime, UnderlyingProvider: Provider> Provider for DynamicSliceProvider<'underlying_lifetime, UnderlyingProvider> {
+impl<'underlying, UnderlyingProvider: Provider> Provider for DynamicSliceProvider<'underlying, UnderlyingProvider> {
   type ReadError = UnderlyingProvider::ReadError;
   type WriteError = UnderlyingProvider::WriteError;
   type ReturnedProviderType = UnderlyingProvider;
+  type DynReturnedProviderType = UnderlyingProvider;
 
   fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, UnderlyingProvider>, SliceOutOfBoundsError> {
     SliceOutOfBoundsError::assert_in_bounds(offset, SIZE as u64, self.size)?;

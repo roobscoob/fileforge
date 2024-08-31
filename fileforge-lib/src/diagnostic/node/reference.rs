@@ -5,13 +5,13 @@ use crate::diagnostic::pool::DiagnosticPool;
 use super::{branch::DiagnosticBranch, name::DiagnosticNodeName, DiagnosticNode};
 
 #[derive(Clone, Copy)]
-pub struct DiagnosticReference<'pool_lifetime, const NODE_NAME_SIZE: usize> {
+pub struct DiagnosticReference<'pool, const NODE_NAME_SIZE: usize> {
   pub(crate) index: usize,
   pub(crate) generation: u64,
-  pub(crate) pool: &'pool_lifetime DiagnosticPool<'pool_lifetime, NODE_NAME_SIZE>
+  pub(crate) pool: &'pool DiagnosticPool<'pool, NODE_NAME_SIZE>
 }
 
-impl<'pool_lifetime, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool_lifetime, NODE_NAME_SIZE> {
+impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SIZE> {
   pub fn exists(&self) -> bool {
     self.pool.try_get(self.index, self.generation).is_some()
   }
@@ -66,7 +66,7 @@ impl<'pool_lifetime, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool_life
     self.dereference_expect(message).branch.parent().map(|p| p.relocate(self.pool).dereference_expect(message))
   }
 
-  pub fn create_physical_child(&self, offset: u64, size: u64, name: DiagnosticNodeName<NODE_NAME_SIZE>) -> DiagnosticReference<'pool_lifetime, NODE_NAME_SIZE> {
+  pub fn create_physical_child(&self, offset: u64, size: u64, name: DiagnosticNodeName<NODE_NAME_SIZE>) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     self.pool.try_create(DiagnosticBranch::Physical { parent: self.dislocate(), offset }, size, name)
   }
 
@@ -106,14 +106,14 @@ impl DislocatedDiagnosticReference {
   }
 }
 
-impl<'pool_lifetime, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool_lifetime, NODE_NAME_SIZE> {
+impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     f.write_fmt(format_args!("DiagnosticReference[{} @ {}]", self.index, self.generation))
   }
 }
 
-impl<'pool_lifetime, const NODE_NAME_SIZE: usize> Eq for DiagnosticReference<'pool_lifetime, NODE_NAME_SIZE> {}
-impl<'pool_lifetime, const NODE_NAME_SIZE: usize> PartialEq for DiagnosticReference<'pool_lifetime, NODE_NAME_SIZE> {
+impl<'pool, const NODE_NAME_SIZE: usize> Eq for DiagnosticReference<'pool, NODE_NAME_SIZE> {}
+impl<'pool, const NODE_NAME_SIZE: usize> PartialEq for DiagnosticReference<'pool, NODE_NAME_SIZE> {
   fn eq(&self, other: &Self) -> bool {
     self.dereference() == other.dereference()
   }

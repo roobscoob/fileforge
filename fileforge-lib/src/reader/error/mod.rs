@@ -10,36 +10,44 @@ pub mod out_of_bounds;
 pub mod domain;
 pub mod result;
 
-pub enum ParseError<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
-  OutOfBounds(ReadOutOfBoundsError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>),
-  UnderlyingProviderReadError(Re, DiagnosticReference<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>),
+pub enum ParseError<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
+  OutOfBounds(ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>),
+  UnderlyingProviderReadError(Re, DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>),
   DomainSpecific(T),
 }
 
-impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> ParseError<'pool_lifetime, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+impl<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> ParseError<'pool, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
   pub fn domain_err(value: T) -> Self {
     ParseError::DomainSpecific(value)
   }
 
-  pub fn from_read_error(value: ReadError<Re>, location: DiagnosticReference<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
+  pub fn from_read_error(value: ReadError<Re>, location: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
     Self::UnderlyingProviderReadError(value.0, location)
+  }
+
+  pub fn map_domains<N: Error<DIAGNOSTIC_NODE_NAME_SIZE>, M: FnOnce(T) -> N>(self, mapper: M) -> ParseError<'pool, N, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+    match self {
+      Self::DomainSpecific(t) => ParseError::<'pool, N, Re, DIAGNOSTIC_NODE_NAME_SIZE>::domain_err(mapper(t)),
+      Self::OutOfBounds(e) => ParseError::<'pool, N, Re, DIAGNOSTIC_NODE_NAME_SIZE>::OutOfBounds(e),
+      Self::UnderlyingProviderReadError(re, refr) => ParseError::<'pool, N, Re, DIAGNOSTIC_NODE_NAME_SIZE>::UnderlyingProviderReadError(re, refr)
+    }
   }
 }
 
-impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<ReadOutOfBoundsError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>> for ParseError<'pool_lifetime, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
-  fn from(value: ReadOutOfBoundsError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
+impl<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>> for ParseError<'pool, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+  fn from(value: ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
     Self::OutOfBounds(value)
   }
 }
 
-impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<DomainError<T>> for ParseError<'pool_lifetime, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+impl<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<DomainError<T>> for ParseError<'pool, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
   fn from(value: DomainError<T>) -> Self {
     Self::DomainSpecific(value.0)
   }
 }
 
-impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<ParsePrimitiveError<'pool_lifetime, Re, DIAGNOSTIC_NODE_NAME_SIZE>> for ParseError<'pool_lifetime, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
-  fn from(value: ParsePrimitiveError<'pool_lifetime, Re, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
+impl<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<ParsePrimitiveError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>> for ParseError<'pool, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+  fn from(value: ParsePrimitiveError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
     match value {
       ParsePrimitiveError::UnderlyingProviderReadError(re, l) => Self::UnderlyingProviderReadError(re, l),
       ParsePrimitiveError::OutOfBounds(oob) => Self::OutOfBounds(oob),
@@ -47,7 +55,7 @@ impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, con
   }
 }
 
-impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE> for ParseError<'pool_lifetime, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+impl<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE> for ParseError<'pool, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
   fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, callback: Cb) {
     match self {
       Self::OutOfBounds(oob) => oob.with_report(callback),
@@ -58,7 +66,7 @@ impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, con
 }
 
 #[cfg(feature = "alloc")]
-impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Debug for ParseError<'pool_lifetime, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+impl<'pool, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Debug for ParseError<'pool, T, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut result = Ok(());
 
@@ -103,19 +111,19 @@ impl<'pool_lifetime, T: Error<DIAGNOSTIC_NODE_NAME_SIZE>, Re: ProviderError, con
   }
 }
 
-pub enum ParsePrimitiveError<'pool_lifetime, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
-  OutOfBounds(ReadOutOfBoundsError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>),
-  UnderlyingProviderReadError(Re, DiagnosticReference<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>),
+pub enum ParsePrimitiveError<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
+  OutOfBounds(ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>),
+  UnderlyingProviderReadError(Re, DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>),
 }
 
-impl<'pool_lifetime, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> ParsePrimitiveError<'pool_lifetime, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
-  pub fn from_read_error(value: ReadError<Re>, location: DiagnosticReference<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
+impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> ParsePrimitiveError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+  pub fn from_read_error(value: ReadError<Re>, location: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
     Self::UnderlyingProviderReadError(value.0, location)
   }
 }
 
-impl<'pool_lifetime, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<ReadOutOfBoundsError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>> for ParsePrimitiveError<'pool_lifetime, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
-  fn from(value: ReadOutOfBoundsError<'pool_lifetime, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
+impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> From<ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>> for ParsePrimitiveError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
+  fn from(value: ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>) -> Self {
     Self::OutOfBounds(value)
   }
 }

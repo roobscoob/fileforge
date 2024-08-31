@@ -7,8 +7,8 @@ use super::{grapheme::Grapheme, position::RenderPosition};
 pub mod cell;
 pub mod canvas;
 
-pub struct RenderBuffer<'buffer_lifetime, 'tag_lifetime> {
-  buffer: &'buffer_lifetime mut [RenderBufferCell<'tag_lifetime>],
+pub struct RenderBuffer<'buffer, 'tag> {
+  buffer: &'buffer mut [RenderBufferCell<'tag>],
   line_width: usize,
   line_offset: usize,
   height: usize,
@@ -17,14 +17,14 @@ pub struct RenderBuffer<'buffer_lifetime, 'tag_lifetime> {
   is_dry: bool,
 }
 
-impl<'buffer_lifetime, 'tag_lifetime> RenderBuffer<'buffer_lifetime, 'tag_lifetime> {
+impl<'buffer, 'tag> RenderBuffer<'buffer, 'tag> {
   pub fn with_stack_alloc<const SIZE: usize, T>(line_width: usize, line_offset: usize, callback: impl FnOnce(RenderBuffer) -> T) -> T {
-    let mut raw_buffer: [RenderBufferCell<'tag_lifetime>; SIZE] = [Default::default(); SIZE];
+    let mut raw_buffer: [RenderBufferCell<'tag>; SIZE] = [Default::default(); SIZE];
 
     callback(RenderBuffer::new(&mut raw_buffer, line_width, line_offset))
   }
 
-  pub fn new(buffer: &'buffer_lifetime mut [RenderBufferCell<'tag_lifetime>], line_width: usize, line_offset: usize) -> Self {
+  pub fn new(buffer: &'buffer mut [RenderBufferCell<'tag>], line_width: usize, line_offset: usize) -> Self {
     let buffer_len = buffer.len();
 
     Self {
@@ -64,7 +64,7 @@ impl<'buffer_lifetime, 'tag_lifetime> RenderBuffer<'buffer_lifetime, 'tag_lifeti
 
   /// returns `true` if the write was successful
   /// returns `false` if the write failed
-  pub fn set_char(&mut self, position: RenderPosition, c: RenderBufferCell<'tag_lifetime>) -> bool {
+  pub fn set_char(&mut self, position: RenderPosition, c: RenderBufferCell<'tag>) -> bool {
     if position.line() > self.lowest_written_line {
       self.lowest_written_line = position.line();
     }
@@ -147,7 +147,7 @@ impl<'buffer_lifetime, 'tag_lifetime> RenderBuffer<'buffer_lifetime, 'tag_lifeti
     Ok(())
   }
 
-  pub fn canvas_at<'a>(&'a mut self, position: RenderPosition) -> RenderBufferCanvas<'a, 'buffer_lifetime, 'tag_lifetime> {
+  pub fn canvas_at<'a>(&'a mut self, position: RenderPosition) -> RenderBufferCanvas<'a, 'buffer, 'tag> {
     RenderBufferCanvas {
       buffer: self,
       position,

@@ -7,16 +7,16 @@ pub mod kind;
 pub mod location;
 
 #[derive(Default)]
-pub struct Report<'t, 'l, 'pool_lifetime, const NODE_NAME_SIZE: usize> {
+pub struct Report<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> {
   kind: ReportKind,
   info_name: &'static str,
   info_typename: &'static str,
   info_lines: heapless::Vec<&'l dyn Renderable<'t>, 0x10>,
   flag_lines: heapless::Vec<&'l dyn Renderable<'t>, 0x10>,
-  notes: ReportNoteSet<'t, 'l, 'pool_lifetime, NODE_NAME_SIZE>,
+  notes: ReportNoteSet<'t, 'l, 'pool, NODE_NAME_SIZE>,
 }
 
-impl<'t, 'l, 'pool_lifetime, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool_lifetime, NODE_NAME_SIZE> {
+impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME_SIZE> {
   pub fn new<T>(kind: ReportKind, name: &'static str) -> Self {
     Report { kind, info_name: name, info_typename: core::any::type_name::<T>(), .. Default::default() }
   }
@@ -31,13 +31,13 @@ impl<'t, 'l, 'pool_lifetime, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool_l
     Ok(self)
   }
 
-  pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool_lifetime, NODE_NAME_SIZE>>(mut self, builder: Cb) -> Result<Self, ()> {
+  pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>>(mut self, builder: Cb) -> Result<Self, ()> {
     self.notes.add(builder()).map_err(|_| {})?;
     Ok(self)
   }
 }
 
-impl<'t, 'l, 'pool_lifetime, const NODE_NAME_SIZE: usize> Renderable<'t> for Report<'t, 'l, 'pool_lifetime, NODE_NAME_SIZE> {
+impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t> for Report<'t, 'l, 'pool, NODE_NAME_SIZE> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     match self.kind {
       ReportKind::Error => {

@@ -5,12 +5,12 @@ use self::tag::CellTag;
 pub mod tag;
 
 #[derive(Default, Clone, Copy)]
-pub struct RenderBufferCell<'tag_lifetime> {
+pub struct RenderBufferCell<'tag> {
   contents: Grapheme,
-  tag: Option<&'tag_lifetime dyn CellTag>,
+  tag: Option<&'tag dyn CellTag>,
 }
 
-impl<'tag_lifetime> RenderBufferCell<'tag_lifetime> {
+impl<'tag> RenderBufferCell<'tag> {
   pub fn new(contents: Grapheme) -> Self {
     Self { contents, tag: None }
   }
@@ -24,7 +24,7 @@ impl<'tag_lifetime> RenderBufferCell<'tag_lifetime> {
     Self::new(Grapheme::from_str(grapheme))
   }
 
-  pub fn with_tag(self, tag: &'tag_lifetime dyn CellTag) -> Self {
+  pub fn with_tag(self, tag: &'tag dyn CellTag) -> Self {
     Self { contents: self.contents, tag: Some(tag) }
   }
 
@@ -32,7 +32,7 @@ impl<'tag_lifetime> RenderBufferCell<'tag_lifetime> {
     &self.contents
   }
 
-  pub fn tag(&self) -> Option<&'tag_lifetime dyn CellTag> {
+  pub fn tag(&self) -> Option<&'tag dyn CellTag> {
     self.tag
   }
 

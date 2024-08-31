@@ -2,15 +2,16 @@ use crate::provider::{error::{read_error::ReadError, write_error::WriteError}, o
 
 use super::dynamic::DynamicSliceProvider;
 
-pub struct FixedSliceProvider<'underlying_lifetime, const SIZE: usize, T: Provider> {
-  pub(crate) underlying_provider: &'underlying_lifetime mut T,
+pub struct FixedSliceProvider<'underlying, const SIZE: usize, T: Provider> {
+  pub(crate) underlying_provider: &'underlying mut T,
   pub(crate) offset: u64,
 }
 
-impl<'underlying_lifetime, const SELF_SIZE: usize, UnderlyingProvider: Provider> Provider for FixedSliceProvider<'underlying_lifetime, SELF_SIZE, UnderlyingProvider> {
+impl<'underlying, const SELF_SIZE: usize, UnderlyingProvider: Provider> Provider for FixedSliceProvider<'underlying, SELF_SIZE, UnderlyingProvider> {
   type ReadError = UnderlyingProvider::ReadError;
   type WriteError = UnderlyingProvider::WriteError;
   type ReturnedProviderType = UnderlyingProvider;
+  type DynReturnedProviderType = UnderlyingProvider;
 
   fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, UnderlyingProvider>, SliceOutOfBoundsError> {
     SliceOutOfBoundsError::assert_in_bounds(offset, SIZE as u64, SELF_SIZE as u64)?;
