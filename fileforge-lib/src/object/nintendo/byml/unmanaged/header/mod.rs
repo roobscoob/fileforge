@@ -16,7 +16,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> FixedSizeReadable<'pool, DIA
   type Argument = ();
   type Error = BymlHeaderError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>;
 
-  fn read<'rl, RP: Provider>(reader: &mut Reader<'pool, 'rl, DIAGNOSTIC_NODE_NAME_SIZE, RP>, argument: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  fn read<RP: Provider>(reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>, argument: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
     let endianness_marker: EndiannessMarker<2> = reader.read_with(DiagnosticNodeName::from("Endianness"), EndiannessMarker::big(*b"BY"))
       .map_err(|e| e.map_domains(BymlHeaderError::Endianness))?;
 

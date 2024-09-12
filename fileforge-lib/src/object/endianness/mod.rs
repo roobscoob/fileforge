@@ -37,7 +37,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize> FixedSize
   type Argument = EndiannessMarker<SIZE>;
   type Error = EndiannessMarkerError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE>;
 
-  fn read<'rl, RP: Provider>(reader: &mut Reader<'pool, 'rl, DIAGNOSTIC_NODE_NAME_SIZE, RP>, expected: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  fn read<RP: Provider>(reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>, expected: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
     let mut bytes: [u8; SIZE] = reader.get("Endianness")?;
 
     if bytes == expected.bytes {

@@ -1,4 +1,4 @@
-use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::{render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT}, builtin::text::Text}, report::{kind::ReportKind, note::ReportNote, Report}, Error}, structure::magic::Magic};
+use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::{render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT}, builtin::text::Text}, report::{kind::ReportKind, note::ReportNote, Report}, Error}, object::magic::Magic};
 
 use super::EndiannessMarker;
 
