@@ -1,6 +1,6 @@
-use crate::{diagnostic::{node::{branch::DiagnosticBranch, name::DiagnosticNodeName, reference::DiagnosticReference}, pool::DiagnosticPool}, provider::{out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider}, r#trait::Provider}};
+use crate::{diagnostic::{node::{branch::DiagnosticBranch, name::DiagnosticNodeName, reference::DiagnosticReference}, pool::DiagnosticPool}, provider::{out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider}, r#trait::Provider}, error::render::{builtin::text::Text, buffer::cell::tag::CellTag, r#trait::renderable::Renderable}};
 
-use self::{endianness::Endianness, error::{out_of_bounds::ReadOutOfBoundsError, ParseError, ParsePrimitiveError}, r#trait::{none_sized_argument::NoneSizedArgument, primitive::Primitive, readable::{DynamicSizeReadable, FixedSizeReadable}}};
+use self::{endianness::Endianness, error::{out_of_bounds::ReadOutOfBoundsError, ParseError, ParsePrimitiveError, ExpectPrimitiveError, ExpectationFailedError}, r#trait::{none_sized_argument::NoneSizedArgument, primitive::Primitive, readable::{DynamicSizeReadable, FixedSizeReadable}}};
 
 pub mod error;
 pub mod r#trait;
@@ -42,6 +42,10 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     }
   }
 
+  pub fn offset(&self) -> u64 {
+    self.offset
+  }
+
   pub fn set_endianness(&mut self, endianness: Endianness) {
     self.endianness = endianness;
   }
@@ -80,6 +84,25 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     })
       .map_err(|e| ParsePrimitiveError::from_read_error(e, self.diagnostic_reference().create_physical_child(self.offset, PRIMITIVE_SIZE as u64, DiagnosticNodeName::from(name))))?
       .map_err(|e| ReadOutOfBoundsError::from_slice_out_of_bounds_error(e, self.diagnostic_reference().create_physical_child(self.offset, PRIMITIVE_SIZE as u64, DiagnosticNodeName::from(name))))?)
+  }
+
+  pub fn expect<const PRIMITIVE_SIZE: usize, P: Primitive<PRIMITIVE_SIZE>, ErrorFn: for <'primitive, 'closure> Fn(&'primitive P, &'closure mut dyn for <'text, 'tag> FnMut(Text<'text, 'tag>, &'tag dyn CellTag, Option<&'text dyn Renderable<'tag>>) -> ()) -> ()>(&mut self, name: &'static str, expect_fn: impl FnOnce(&P) -> bool, error_fn: ErrorFn) -> Result<P, ExpectPrimitiveError<'pool, UnderlyingProvider::ReadError, ErrorFn, P, PRIMITIVE_SIZE, DIAGNOSTIC_NODE_NAME_SIZE>> {
+    let v = self.provider.with_read(self.offset, |data: &[u8; PRIMITIVE_SIZE]| {
+      match self.endianness {
+        Endianness::Big => P::read_be(data),
+        Endianness::Little => P::read_le(data),
+      }
+    })
+      .map_err(|e| ParsePrimitiveError::from_read_error(e, self.diagnostic_reference().create_physical_child(self.offset, PRIMITIVE_SIZE as u64, DiagnosticNodeName::from(name))))?
+      .map_err(|e| ReadOutOfBoundsError::from_slice_out_of_bounds_error(e, self.diagnostic_reference().create_physical_child(self.offset, PRIMITIVE_SIZE as u64, DiagnosticNodeName::from(name))))?;
+
+    if expect_fn(&v) {
+      return Ok(v)
+    };
+
+    let dr = self.diagnostic_reference().create_physical_child(self.offset, PRIMITIVE_SIZE as u64, DiagnosticNodeName::from(name));
+
+    Err(ExpectPrimitiveError::ExpectationFailed(ExpectationFailedError(v, dr, error_fn)))
   }
 
   pub fn read<const TYPE_SIZE: usize, T: FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, TYPE_SIZE>>(&mut self, name: DiagnosticNodeName<DIAGNOSTIC_NODE_NAME_SIZE>) -> Result<T, ParseError<'pool, T::Error, UnderlyingProvider::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>

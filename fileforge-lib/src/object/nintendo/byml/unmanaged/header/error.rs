@@ -6,6 +6,8 @@ pub enum BymlHeaderError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
 
 impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE> for BymlHeaderError<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
   fn with_report<Cb: FnMut(crate::error::report::Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, callback: Cb) {
-    
+    match self {
+      BymlHeaderError::Endianness(eme) => eme.with_report(callback)
+    }
   }
 }

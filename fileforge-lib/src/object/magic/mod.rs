@@ -4,7 +4,7 @@ use self::error::MagicError;
 
 pub mod error;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Magic<const SIZE: usize> {
   bytes: [u8; SIZE],
 }

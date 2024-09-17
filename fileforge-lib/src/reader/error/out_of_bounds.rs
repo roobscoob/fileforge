@@ -1,5 +1,6 @@
 use crate::{diagnostic::node::reference::DiagnosticReference, error::{render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT}, builtin::{number::formatted_unsigned::FormattedUnsigned, text::Text}}, report::{kind::ReportKind, note::ReportNote, Report}, Error}, provider::out_of_bounds::SliceOutOfBoundsError};
 
+#[derive(Clone)]
 pub struct ReadOutOfBoundsError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
   pub read_offset: u64,
   pub read_size: u64,

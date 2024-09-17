@@ -1,3 +1,5 @@
+use std::println;
+
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag}, r#trait::renderable::Renderable};
@@ -30,12 +32,16 @@ impl<'l, 't> Text<'l, 't> {
 impl<'l, 't> Renderable<'t> for Text<'l, 't> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     let start = canvas.get_position();
-
     for element in self.segments.iter() {
       match element {
         TextSegment::Renderable(renderable) => { canvas.write(*renderable)?; },
         TextSegment::Segment(text, tag) => {
           for grapheme in text.graphemes(true) {
+            if grapheme == "\n" {
+              canvas.cursor_down().set_column(start.column());
+              continue;
+            }
+
             if !canvas.set_tagged_char(grapheme, *tag) {
               canvas.cursor_down().set_column(start.column()).set_char(grapheme);
             };

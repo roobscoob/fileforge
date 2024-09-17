@@ -73,7 +73,7 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t> for Report<'t, '
     canvas.cursor_down().set_column(0);
 
     for flag in self.flag_lines.iter() {
-      canvas.set_tagged_char("⚑ ", &REPORT_FLAG_LINE_SYMBOL);
+      canvas.set_tagged_str("⚑ ", &REPORT_FLAG_LINE_SYMBOL);
       canvas.write(*flag)?;
       canvas.cursor_down().cursor_down().set_column(0);
     }

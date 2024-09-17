@@ -9,6 +9,9 @@ pub struct MagicError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC
 
 impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE> {
   fn print_with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
+    let magic_info = Text::new()
+      .push("A broken magic indicates the slice is entirely invalid or corrupt.", &REPORT_FLAG_LINE_TEXT);
+
     let info = Text::new()
       .push("Expected ", &REPORT_INFO_LINE_TEXT)
       .with(&self.expected)
@@ -21,6 +24,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> Mag
 
     callback(Report::new::<MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE>>(ReportKind::Error, "Invalid Magic")
       .with_info_line(&info).unwrap()
+      .with_flag_line(&magic_info).unwrap()
       .with_note(|| {
         ReportNote::new(&note)
           .with_tag(&REPORT_ERROR_TEXT)
@@ -32,6 +36,9 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> Mag
     let line = Text::new()
       .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
 
+    let magic_info = Text::new()
+      .push("A broken magic indicates the slice is entirely invalid or corrupt.", &REPORT_FLAG_LINE_TEXT);
+
     let info = Text::new()
       .push("Expected ", &REPORT_INFO_LINE_TEXT)
       .with(&self.expected)
@@ -40,7 +47,8 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const MAGIC_SIZE: usize> Mag
 
     callback(Report::new::<MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, MAGIC_SIZE>>(ReportKind::Error, "Invalid Magic")
       .with_flag_line(&line).unwrap()
-      .with_info_line(&info).unwrap());
+      .with_info_line(&info).unwrap()
+      .with_flag_line(&magic_info).unwrap());
   }
 }
 

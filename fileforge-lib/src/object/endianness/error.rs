@@ -10,6 +10,9 @@ pub struct EndiannessMarkerError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, 
 impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const ENDIANNESS_SIZE: usize> EndiannessMarkerError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, ENDIANNESS_SIZE> {
   fn print_with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
     let inverted = self.expected.inverse_clone();
+
+    let magic_info = Text::new()
+      .push("A broken endianness marker indicates the slice is entirely invalid or corrupt.", &REPORT_FLAG_LINE_TEXT);
     
     let info = Text::new()
       .push("Expected ", &REPORT_INFO_LINE_TEXT)
@@ -27,6 +30,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const ENDIANNESS_SIZE: usize
 
     callback(Report::new::<EndiannessMarkerError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, ENDIANNESS_SIZE>>(ReportKind::Error, "Invalid Endianness")
       .with_info_line(&info).unwrap()
+      .with_flag_line(&magic_info).unwrap()
       .with_note(|| {
         ReportNote::new(&note)
           .with_tag(&REPORT_ERROR_TEXT)
@@ -38,6 +42,9 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const ENDIANNESS_SIZE: usize
     let line = Text::new()
       .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
 
+    let magic_info = Text::new()
+      .push("A broken endianness marker indicates the slice is entirely invalid or corrupt.", &REPORT_FLAG_LINE_TEXT);
+    
     let inverted = self.expected.inverse_clone();
 
     let info = Text::new()
@@ -50,6 +57,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const ENDIANNESS_SIZE: usize
 
     callback(Report::new::<EndiannessMarkerError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, ENDIANNESS_SIZE>>(ReportKind::Error, "Invalid Endianness")
       .with_flag_line(&line).unwrap()
+      .with_flag_line(&magic_info).unwrap()
       .with_info_line(&info).unwrap());
   }
 }
