@@ -25,6 +25,4 @@
     "Tipc",
     "zerocopy"
   ],
-  "rust-analyzer.cargo.target": "x86_64-pc-windows-msvc",
-  "rust-analyzer.check.targets": "x86_64-pc-windows-msvc",
 }

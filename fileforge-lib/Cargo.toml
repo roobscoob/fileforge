@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bitfield-struct = "0.6.1"
+fileforge-macros = { version = "0.1.0", path = "../fileforge-macros" }
 heapless = "0.8.0"
 intx = "0.1.0"
 unicode-segmentation = "1.11.0"
