@@ -187,7 +187,7 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
   quote! {
     {
-      #(let _ = #logging;)*
+      // #(let _ = #logging;)*
       #(#remaps)*
       #(#block)*
     }
