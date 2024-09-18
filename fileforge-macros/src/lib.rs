@@ -1,6 +1,6 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, fmt::Write, str::FromStr};
 
-use proc_macro2::{Group, Span, TokenStream};
+use proc_macro2::{Delimiter, Group, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::{
   parse::{Parse, ParseStream, Parser},
@@ -9,7 +9,7 @@ use syn::{
   ExprAssign, LitStr, Token,
 };
 
-struct Segment(Tag, LitStr);
+struct Segment(Option<TokenStream>, Tag, LitStr);
 
 #[derive(Clone)]
 struct Tag(TokenStream);
@@ -17,8 +17,21 @@ impl ToTokens for Tag {
   fn to_tokens(&self, tokens: &mut TokenStream) { tokens.extend(self.0.clone()); }
 }
 
+fn parse_condition(input: ParseStream) -> syn::Result<TokenStream> {
+  let group: Group = input.parse()?;
+
+  if group.delimiter() != Delimiter::Brace {
+    return Err(syn::Error::new(Span::call_site(), "what why "));
+  }
+
+  Ok(group.stream())
+}
 fn parse_tag(input: ParseStream) -> syn::Result<Tag> {
   let group: Group = input.parse()?;
+
+  if group.delimiter() != Delimiter::Bracket {
+    return Err(syn::Error::new(Span::call_site(), "huh "));
+  }
 
   Ok(Tag(group.stream()))
 }
@@ -28,32 +41,65 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let input: proc_macro2::TokenStream = input.into();
 
   let mut iter = input.into_iter().peekable();
-  let Some(tag) = iter.next() else {
+  let Some(mut tag) = iter.next() else {
     return syn::Error::new(Span::call_site(), "no tag specified")
       .into_compile_error()
       .into();
   };
+
+  let mut current_condition =
+    if let Some(condition) = parse_condition.parse2(tag.to_token_stream()).ok() {
+      let Some(new_tag) = iter.next() else {
+        return syn::Error::new(Span::call_site(), "no tag specified")
+          .into_compile_error()
+          .into();
+      };
+
+      tag = new_tag;
+      Some(condition)
+    } else {
+      None
+    };
 
   let mut tag = match parse_tag.parse2(tag.into_token_stream()) {
     Ok(tag) => tag,
     Err(error) => return error.into_compile_error().into(),
   };
 
-  let mut elements = vec![];
+  let mut conditions = vec![];
+  let mut logging = Vec::new();
 
   while let Some(token) = iter.next() {
+    if let Ok(condition) = parse_condition.parse2(token.to_token_stream()) {
+      current_condition = Some(condition);
+      continue;
+    }
+
     if let Ok(new_tag) = parse_tag.parse2(token.to_token_stream()) {
       tag = new_tag;
       continue;
     }
 
     if let Ok(str) = <LitStr as Parse>::parse.parse2(token.to_token_stream()) {
-      elements.push(Segment(tag.clone(), str));
+      conditions.push(Segment(current_condition, tag.clone(), str));
+      current_condition = None;
       continue;
     }
 
     match <Token![,]>::parse.parse2(token.into_token_stream()) {
-      Ok(_) => break,
+      Ok(_) => {
+        let a = iter
+          .peek()
+          .map(ToTokens::into_token_stream)
+          .unwrap_or_else(TokenStream::new);
+        let res = Group::parse.parse2(a.clone()).is_ok();
+        logging.push(format!("testing {res} {a:?}"));
+        if res {
+          continue;
+        } else {
+          break;
+        }
+      }
       Err(error) => return error.into_compile_error().into(),
     }
   }
@@ -77,9 +123,11 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
   }
 
-  let mut output = quote!(crate::error::render::builtin::text::Text::new());
+  let mut block = Vec::new();
 
-  for Segment(tag, text) in elements {
+  for Segment(condition, tag, text) in conditions {
+    let mut output = quote!(crate::error::render::builtin::text::Text::new());
+
     let text = text.value();
     let mut in_expr = 0;
     let mut start = 0;
@@ -118,11 +166,30 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     if substring.len() > 0 {
       output.extend(quote!(.push(#substring, #tag)));
     }
+
+    let (pre, post) = if let Some(condition) = condition {
+      (quote! { if #condition }, quote! { else })
+    } else {
+      (quote!(), quote!())
+    };
+
+    block.push(quote! {
+      #pre {
+        #output
+      } #post
+    });
   }
+
+  let remaps = remaps
+    .into_iter()
+    .map(|(name, tokens)| (syn::Ident::new(&name, Span::call_site()), tokens))
+    .map(|(name, tokens)| quote!( let #name = #tokens; ));
 
   quote! {
     {
-      #output
+      #(let _ = #logging;)*
+      #(#remaps)*
+      #(#block)*
     }
   }
   .into()
