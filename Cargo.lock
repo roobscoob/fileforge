@@ -147,6 +147,7 @@ name = "fileforge-test"
 version = "0.1.0"
 dependencies = [
  "fileforge-lib",
+ "fileforge-macros",
  "heapless",
 ]
 

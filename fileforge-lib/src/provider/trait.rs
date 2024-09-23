@@ -1,18 +1,30 @@
-use super::{error::{read_error::ReadError, write_error::WriteError, ProviderError}, out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider}};
+use super::{error::{read_error::ReadError, write_error::WriteError, ProviderError}, out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::{DynamicSliceProvider, DynamicMutSliceProvider}, fixed::{FixedMutSliceProvider, FixedSliceProvider}}};
 
 pub trait Provider: Sized {
   type ReadError: ProviderError;
-  type WriteError: ProviderError;
-  type ReturnedProviderType: Provider<ReadError = Self::ReadError, WriteError = Self::WriteError>;
-  type DynReturnedProviderType: Provider<ReadError = Self::ReadError, WriteError = Self::WriteError>;
+  type ReturnedProviderType: Provider<ReadError = Self::ReadError>;
+  type DynReturnedProviderType: Provider<ReadError = Self::ReadError>;
 
-  // Mutable slice
-  fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError>;
-  fn slice_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError>;
+  // Immutable slice
+  fn slice<const SIZE: usize>(&self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError>;
+  fn slice_dyn(&self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError>;
 
   // Immutable read
   fn with_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a [u8; SIZE]) -> T>(&self, offset: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>>;
   fn with_read_dyn<T, CB: for<'a> FnOnce(&'a [u8]) -> T>(&self, offset: u64, size: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>>;
+
+  // Meta-information
+  fn len(&self) -> u64;
+}
+
+pub trait MutProvider: Provider {
+  type WriteError: ProviderError;
+  type ReturnedMutProviderType: MutProvider<ReadError = Self::ReadError, WriteError = Self::WriteError>;
+  type DynReturnedMutProviderType: MutProvider<ReadError = Self::ReadError, WriteError = Self::WriteError>;
+
+  // Mutable slice
+  fn slice_mut<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedMutSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError>;
+  fn slice_mut_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicMutSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError>;
 
   // Mutable read
   fn with_mut_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a mut [u8; SIZE]) -> T>(&mut self, offset: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, WriteError<Self::WriteError>>;
@@ -20,22 +32,18 @@ pub trait Provider: Sized {
 
   // Flush
   fn flush(&mut self) -> Result<(), Self::WriteError>;
-
-  // Meta-information
-  fn len(&self) -> u64;
 }
 
-impl<P: Provider> Provider for &mut P {
+impl<P: Provider> Provider for &P {
   type ReadError = P::ReadError;
-  type WriteError = P::WriteError;
   type ReturnedProviderType = P::ReturnedProviderType;
   type DynReturnedProviderType = P::DynReturnedProviderType;
 
-  fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError> {
+  fn slice<const SIZE: usize>(&self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError> {
     (**self).slice(offset)
   }
 
-  fn slice_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError> {
+  fn slice_dyn(&self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError> {
     (**self).slice_dyn(offset, size)
   }
 
@@ -45,6 +53,50 @@ impl<P: Provider> Provider for &mut P {
 
   fn with_read_dyn<T, CB: for<'a> FnOnce(&'a [u8]) -> T>(&self, offset: u64, size: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>> {
     (**self).with_read_dyn(offset, size, callback)
+  }
+
+  fn len(&self) -> u64 {
+    (**self).len()
+  }
+}
+
+impl<P: Provider> Provider for &mut P {
+  type ReadError = P::ReadError;
+  type ReturnedProviderType = P::ReturnedProviderType;
+  type DynReturnedProviderType = P::DynReturnedProviderType;
+
+  fn slice<const SIZE: usize>(&self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError> {
+    (**self).slice(offset)
+  }
+
+  fn slice_dyn(&self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError> {
+    (**self).slice_dyn(offset, size)
+  }
+
+  fn with_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a [u8; SIZE]) -> T>(&self, offset: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>> {
+    (**self).with_read(offset, callback)
+  }
+
+  fn with_read_dyn<T, CB: for<'a> FnOnce(&'a [u8]) -> T>(&self, offset: u64, size: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>> {
+    (**self).with_read_dyn(offset, size, callback)
+  }
+
+  fn len(&self) -> u64 {
+    (**self).len()
+  }
+}
+
+impl<P: MutProvider> MutProvider for &mut P {
+  type WriteError = P::WriteError;
+  type ReturnedMutProviderType = P::ReturnedMutProviderType;
+  type DynReturnedMutProviderType = P::DynReturnedMutProviderType;
+  
+  fn slice_mut<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedMutSliceProvider<SIZE, Self::ReturnedProviderType>, SliceOutOfBoundsError> {
+    (**self).slice_mut(offset)
+  }
+
+  fn slice_mut_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicMutSliceProvider<Self::DynReturnedProviderType>, SliceOutOfBoundsError> {
+    (**self).slice_mut_dyn(offset, size)
   }
 
   fn with_mut_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a mut [u8; SIZE]) -> T>(&mut self, offset: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, WriteError<Self::WriteError>> {
@@ -59,7 +111,4 @@ impl<P: Provider> Provider for &mut P {
     (**self).flush()
   }
 
-  fn len(&self) -> u64 {
-    (**self).len()
-  }
 }

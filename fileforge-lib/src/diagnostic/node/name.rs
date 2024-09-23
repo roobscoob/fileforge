@@ -2,6 +2,8 @@ use core::fmt::Debug;
 
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::error::render::builtin::number::formatted_unsigned::FormattedUnsigned;
+
 #[derive(Clone, Copy)]
 pub struct DiagnosticNodeName<const SIZE: usize> {
   // UNSAFE: We need to validate this is *ALWAYS* valid utf-8
@@ -15,6 +17,8 @@ pub struct DiagnosticNodeName<const SIZE: usize> {
   // when rendering, show an ellipsis: e.g. "Hello" -> DiagnosticNodeName<3> -> "Hel..."
   total_length: usize,
 }
+
+const CHARS: [u8; 10] = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9'];
 
 impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
   pub fn from(text: &str) -> DiagnosticNodeName<SIZE> {
@@ -33,6 +37,40 @@ impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
     }
 
     name
+  }
+
+  pub fn from_index(index: u64) -> DiagnosticNodeName<SIZE> {
+    let mut name = DiagnosticNodeName { contents: [0; SIZE], used_length: 0, total_length: 0 };
+
+    name.push(b'[');
+
+    let mut my_index = index;
+
+    if SIZE > 0 {
+      if my_index == 0 {
+        name.push(b'0');
+      }
+
+      while my_index > 0 {
+        let current_digit_index = my_index / (10u64.pow(my_index.ilog10()));
+        let current_digit = CHARS.get(current_digit_index as usize).unwrap();
+        my_index = my_index % (10u64.pow(my_index.ilog10()));
+        name.push(*current_digit);
+      }
+    };
+
+    name.push(b']');
+
+    name
+  }
+
+  fn push(&mut self, char: u8) {
+    self.total_length += 1;
+
+    if self.used_length < SIZE {
+      self.contents[self.used_length] = char;
+      self.used_length += 1;
+    }
   }
 
   fn remaining_size(&self) -> usize { SIZE - self.used_length }

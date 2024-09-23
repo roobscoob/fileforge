@@ -1,6 +1,6 @@
 use error::EndiannessMarkerError;
 
-use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::render::{buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned, r#trait::renderable::Renderable}, provider::r#trait::Provider, reader::{self, error::ParseError, r#trait::readable::FixedSizeReadable, Reader}};
+use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::render::{buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned, r#trait::renderable::Renderable}, provider::r#trait::Provider, reader::{self, error::parse::ParseError, r#trait::readable::FixedSizeReadable, Reader}};
 
 use super::magic::Magic;
 

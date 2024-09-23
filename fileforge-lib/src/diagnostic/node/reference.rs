@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::{fmt::Debug, u64, usize};
 
 use crate::diagnostic::pool::DiagnosticPool;
 
@@ -11,9 +11,23 @@ pub struct DiagnosticReference<'pool, const NODE_NAME_SIZE: usize> {
   pub(crate) pool: &'pool DiagnosticPool<'pool, NODE_NAME_SIZE>
 }
 
+impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    Debug::fmt(&self.dereference(), f)
+  }
+}
+
 impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SIZE> {
   pub fn exists(&self) -> bool {
     self.pool.try_get(self.index, self.generation).is_some()
+  }
+
+  pub fn new_invalid(&self) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+    DiagnosticReference {
+      index: usize::MAX,
+      generation: u64::MAX,
+      pool: self.pool,
+    }
   }
 
   pub fn family_exists(&self) -> bool {
@@ -51,6 +65,10 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
     self.dereference()?.branch.parent().map(|p| p.relocate(self.pool).dereference()).flatten()
   }
 
+  pub fn parent_reference(&self) -> Option<DiagnosticReference<NODE_NAME_SIZE>> {
+    self.dereference()?.branch.parent().map(|p| p.relocate(self.pool))
+  }
+
   pub fn expect_root(&self, message: &str) -> DiagnosticNode<NODE_NAME_SIZE> {
     let own = self.dereference_expect(message);
     let own_parent = own.branch.parent().map(|p| p.relocate(self.pool));
@@ -67,6 +85,8 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
   }
 
   pub fn create_physical_child(&self, offset: u64, size: u64, name: DiagnosticNodeName<NODE_NAME_SIZE>) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+    if !self.exists() { return self.new_invalid() }
+
     self.pool.try_create(DiagnosticBranch::Physical { parent: self.dislocate(), offset }, size, name)
   }
 
@@ -106,11 +126,11 @@ impl DislocatedDiagnosticReference {
   }
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    f.write_fmt(format_args!("DiagnosticReference[{} @ {}]", self.index, self.generation))
-  }
-}
+// impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
+//   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//     f.write_fmt(format_args!("DiagnosticReference[{} @ {}]", self.index, self.generation))
+//   }
+// }
 
 impl<'pool, const NODE_NAME_SIZE: usize> Eq for DiagnosticReference<'pool, NODE_NAME_SIZE> {}
 impl<'pool, const NODE_NAME_SIZE: usize> PartialEq for DiagnosticReference<'pool, NODE_NAME_SIZE> {

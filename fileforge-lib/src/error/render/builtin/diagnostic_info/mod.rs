@@ -1,3 +1,7 @@
+use core::fmt::Debug;
+
+use heapless::Vec;
+
 use crate::{
   diagnostic::node::{
     branch::DiagnosticBranch, name::DiagnosticNodeName, reference::DiagnosticReference,
@@ -49,10 +53,30 @@ pub enum DiagnosticInfoTail<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
     bool,
     &'l ReportNote<'t, 'a, 'b, NAME_SIZE>,
     Option<&'l dyn Renderable<'t>>,
+    heapless::Vec<
+      (
+        Option<Transformation>,
+        &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
+      ),
+      0x10,
+    >,
   ),
   None,
 }
 
+impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Debug for DiagnosticInfoTail<'l, 't, 'a, 'b, NAME_SIZE> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    match self {
+      DiagnosticInfoTail::Arrow(..) => f.write_str("DiagnosticInfoTail::Arrow(..)"),
+      DiagnosticInfoTail::Diagnostic(..) => f.write_str("DiagnosticInfoTail::Diagnostic(..)"),
+      DiagnosticInfoTail::None => f.write_str("DiagnosticInfoTail::None"),
+      DiagnosticInfoTail::PathSeparator(..) => f.write_str("DiagnosticInfoTail::PathSeparator(..)"),
+      DiagnosticInfoTail::Transformation(..) => f.write_str("DiagnosticInfoTail::Transformation(..)"),
+    }
+  }
+}
+
+#[derive(Debug)]
 pub struct DiagnosticInfo<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
   name: DiagnosticNodeName<NAME_SIZE>,
   offset_in_parent: u64,
@@ -62,6 +86,7 @@ pub struct DiagnosticInfo<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
 }
 
 impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE> {
+  // turns each diagnostic into a DiagnosticInfo
   fn local_transform_diagnostic<
     Cb: for<'x> FnOnce(
       Option<
@@ -72,6 +97,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
       >,
     ),
   >(
+    note_set: &'l ReportNoteSet<'t, 'a, 'b, NAME_SIZE>,
     note: &'l ReportNote<'t, 'a, 'b, NAME_SIZE>,
     index: usize,
     previous: Option<
@@ -89,6 +115,16 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
     let c = note.locations().skip(index).next().unwrap();
     let v = c.dereference_expect("Expected valid reference when building a report");
 
+    // if we are a parent of any other node
+    // english:
+    //   of all locations that are not a note location (unless they are a parent of a note location)
+    //   find if any of those locations are our current location
+    if note_set.notes.iter().flat_map(|note| note.locations()).flat_map(|l| l.reference.parents()).any(|p| p == v) {
+      // skip (will create later!)
+      Self::local_transform_diagnostic(note_set, note, index + 1, previous, callback);
+      return;
+    }
+
     let should_render_note = note.locations.last().eq(&Some(c));
 
     let d = DiagnosticInfo {
@@ -104,7 +140,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
         DiagnosticBranch::Logical { .. } => false,
         DiagnosticBranch::Physical { offset, parent } => offset + v.size != parent.relocate(c.reference.pool).dereference_expect("Expected valid reference when building a report").size,
       },
-      tail: DiagnosticInfoTail::Diagnostic(should_render_note, note, c.value),
+      tail: DiagnosticInfoTail::Diagnostic(should_render_note, note, c.value, Vec::new())
     };
 
     let l = StackSinglyLinkedList {
@@ -112,9 +148,10 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
       previous,
     };
 
-    Self::local_transform_diagnostic(note, index + 1, Some(&l), callback)
+    Self::local_transform_diagnostic(note_set, note, index + 1, Some(&l), callback)
   }
 
+  // calls local_transform_diagnostic for each diagnostic, storing the result in a stack linked list
   fn local_transform_diagnostics<
     Cb: for<'x> FnOnce(
       Option<
@@ -141,7 +178,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
 
     let note = notes.notes.get(index).unwrap();
 
-    Self::local_transform_diagnostic(note, 0, previous, |l| {
+    Self::local_transform_diagnostic(notes, note, 0, previous, |l| {
       Self::local_transform_diagnostics(notes, index + 1, l, callback);
     });
   }
@@ -211,7 +248,11 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             DiagnosticBranch::Logical { .. } => false,
             DiagnosticBranch::Physical { offset, parent: parent2 } => offset + parent.size != parent2.relocate(reference.pool).dereference_expect("Expected valid reference when building a report").size,
           },
-          tail: DiagnosticInfoTail::None,
+          tail: if let Some(x) = notes.notes.iter().find(|note| note.locations().any(|l| l.reference == parent_reference)) {
+            DiagnosticInfoTail::Diagnostic(x.locations().last().unwrap().reference == parent_reference, x, x.locations().find(|l| l.reference == parent_reference).unwrap().value, Vec::new())
+          } else {
+            DiagnosticInfoTail::None
+          },
         };
 
         let mut indent = 1;
@@ -312,7 +353,21 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
           let (reference, info) = child.unwrap();
 
           match &mut new.tail {
-            DiagnosticInfoTail::Diagnostic(..) => unreachable!(),
+            DiagnosticInfoTail::Diagnostic(_, _, _, ref mut vec) => {
+              match reference
+                .dereference_expect("Expected valid parent reference when building a report")
+                .branch
+              {
+                DiagnosticBranch::None => unreachable!(),
+                DiagnosticBranch::Logical { name, .. } => vec
+                  .push((Some(Transformation { name }), info))
+                  .map_err(|_| {})
+                  .unwrap(),
+                DiagnosticBranch::Physical { .. } => {
+                  vec.push((None, info)).map_err(|_| {}).unwrap()
+                }
+              };
+            },
 
             DiagnosticInfoTail::None => {
               new.tail = match reference
@@ -473,7 +528,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
         canvas.write(*next)?;
       }
 
-      DiagnosticInfoTail::Diagnostic(should_render_note, note, value) => {
+      DiagnosticInfoTail::Diagnostic(should_render_note, note, value, children) => {
         let result = if let Some(value) = value {
           canvas.cursor_right();
           canvas.set_tagged_char("=", &DIAGNOSTIC_VALUE_SEPARATOR);
@@ -482,6 +537,8 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
         } else { None };
 
         // draw ~~~
+
+        let indent = canvas.get_start_position().column();
 
         canvas.set_position(canvas.get_start_position()).cursor_down();
 
@@ -518,12 +575,45 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
             }
           }
         }
+        
+        let pos = canvas.get_position();
 
-        if *should_render_note {
-          canvas.set_column(canvas.start_position.column()).cursor_down();
+        let result = if *should_render_note {
+          canvas.set_column(canvas.start_position.column()).cursor_down().cursor_right_by(if children.len() == 0 { 0 } else { 2 });
 
-          canvas.write(note.message)?;
+          canvas.write(note.message)?.get_line_height() 
+        } else { 0 };
+
+        canvas.set_position(pos);
+        canvas.set_column(canvas.start_position.column());
+
+        let mut next_arrow = SecondaryArrow {
+          height: result,
+          transformation: None,
+          replace_last: false,
         };
+
+        let mut next_arrow_position = canvas.get_position().down(1);
+
+        for (transformation, element) in children.iter() {
+          canvas.set_position(next_arrow_position);
+
+          let arrow_result = canvas.write(&SecondaryArrow {
+            transformation: *transformation,
+            height: next_arrow.height,
+            replace_last: next_arrow.replace_last,
+          })?;
+          let element_result = canvas.write(*element)?;
+
+          next_arrow = SecondaryArrow {
+            height: element_result.get_line_height() - 1,
+            transformation: None,
+            replace_last: true,
+          };
+          next_arrow_position = RenderPosition::new(arrow_result.end_position.line(), indent);
+        }
+
+        canvas.cursor_down_by(2);
       }
 
       DiagnosticInfoTail::Arrow(indent, list) => {
@@ -544,6 +634,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
           next_arrow = EitherArrow::Secondary(SecondaryArrow {
             height: element_result.get_line_height() - 1,
             transformation: None,
+            replace_last: true,
           });
           next_arrow_position = RenderPosition::new(arrow_result.end_position.line(), *indent);
         }

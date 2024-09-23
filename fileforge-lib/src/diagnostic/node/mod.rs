@@ -7,7 +7,7 @@ pub mod branch;
 pub mod reference;
 pub mod tagged_reference;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DiagnosticNode<const NAME_SIZE: usize> {
   pub(crate) branch: DiagnosticBranch,
   pub(crate) size: u64,

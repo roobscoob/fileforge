@@ -1,4 +1,4 @@
-use crate::provider::{error::{never::Never, read_error::ReadError, write_error::WriteError}, out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider}, r#trait::Provider};
+use crate::provider::{error::{never::Never, read_error::ReadError}, out_of_bounds::SliceOutOfBoundsError, slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider}, r#trait::Provider};
 
 pub struct RustSliceBinaryProvider<'underlying> {
   underlying_data: &'underlying [u8],
@@ -9,13 +9,13 @@ impl<'underlying> RustSliceBinaryProvider<'underlying> {
     RustSliceBinaryProvider { underlying_data: data }
   }
 
-  fn slice_internal<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self>, SliceOutOfBoundsError> {
+  fn slice_internal<const SIZE: usize>(&self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self>, SliceOutOfBoundsError> {
     SliceOutOfBoundsError::assert_in_bounds(offset, SIZE as u64, self.underlying_data.len() as u64)?;
 
     Ok(FixedSliceProvider { underlying_provider: self, offset })
   }
   
-  fn slice_dyn_internal(&mut self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self>, SliceOutOfBoundsError> {
+  fn slice_dyn_internal(&self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self>, SliceOutOfBoundsError> {
     SliceOutOfBoundsError::assert_in_bounds(offset, size, self.underlying_data.len() as u64)?;
 
     Ok(DynamicSliceProvider { underlying_provider: self, offset, size })
@@ -54,14 +54,13 @@ impl<'underlying> RustSliceBinaryProvider<'underlying> {
 
 impl<'underlying> Provider for RustSliceBinaryProvider<'underlying> {
   type ReadError = Never;
-  type WriteError = Never;
   type ReturnedProviderType = Self;
   type DynReturnedProviderType = Self;
 
-  fn slice<const SIZE: usize>(&mut self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self>, SliceOutOfBoundsError>
+  fn slice<const SIZE: usize>(&self, offset: u64) -> Result<FixedSliceProvider<SIZE, Self>, SliceOutOfBoundsError>
     { self.slice_internal(offset) }
 
-  fn slice_dyn(&mut self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self>, SliceOutOfBoundsError>
+  fn slice_dyn(&self, offset: u64, size: u64) -> Result<DynamicSliceProvider<Self>, SliceOutOfBoundsError>
     { self.slice_dyn_internal(offset, size) }
 
   fn with_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a [u8; SIZE]) -> T>(&self, offset: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>>
@@ -69,15 +68,6 @@ impl<'underlying> Provider for RustSliceBinaryProvider<'underlying> {
 
   fn with_read_dyn<T, CB: for<'a> FnOnce(&'a [u8]) -> T>(&self, offset: u64, size: u64, callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, ReadError<Self::ReadError>>
     { Ok(self.with_read_dyn_internal(offset, size, callback)) }
-
-  fn with_mut_read<const SIZE: usize, T, CB: for<'a> FnOnce(&'a mut [u8; SIZE]) -> T>(&mut self, _offset: u64, _callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, WriteError<Self::WriteError>>
-    { todo!() }
-
-  fn with_mut_read_dyn<T, CB: for<'a> FnOnce(&'a mut [u8]) -> T>(&mut self, _offset: u64, _size: u64, _callback: CB) -> Result<Result<T, SliceOutOfBoundsError>, WriteError<Self::WriteError>>
-    { todo!() }
-
-  fn flush(&mut self) -> Result<(), Self::WriteError>
-    { Ok(()) }
 
   fn len(&self) -> u64
     { self.underlying_data.len() as u64 }

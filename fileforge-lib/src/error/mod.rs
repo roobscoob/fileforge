@@ -15,7 +15,7 @@ pub trait Error<const NODE_NAME_SIZE: usize> {
 }
 
 #[cfg(feature = "alloc")]
-pub struct DisplayableError<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>>(E);
+pub struct DisplayableError<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>>(pub E);
 
 #[cfg(feature = "alloc")]
 impl<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>> Debug for DisplayableError<DIAGNOSTIC_NODE_NAME_SIZE, E> {

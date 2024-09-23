@@ -1,4 +1,4 @@
-use crate::{error::Error, provider::r#trait::Provider, reader::{error::ParseError, Reader}};
+use crate::{error::Error, provider::r#trait::Provider, reader::{error::parse::ParseError, Reader}};
 
 pub trait DynamicSizeReadable<
   'pool,

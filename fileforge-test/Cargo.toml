@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 fileforge-lib = { path = "../fileforge-lib" }
+fileforge-macros = { path = "../fileforge-macros" }
 heapless = "0.8.0"

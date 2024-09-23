@@ -1,6 +1,20 @@
+use core::fmt::Debug;
+
 pub struct StackSinglyLinkedList<'l, T> {
   pub contents: T,
   pub previous: Option<&'l StackSinglyLinkedList<'l, T>>
+}
+
+impl<'l, T: Debug> Debug for StackSinglyLinkedList<'l, T> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str("StackSinglyLinkedList ").unwrap();
+
+    let mut list = f.debug_list();
+
+    self.iter().for_each(|el| { list.entry(el); });
+
+    list.finish()
+  }
 }
 
 impl<'l, T> StackSinglyLinkedList<'l, T> {

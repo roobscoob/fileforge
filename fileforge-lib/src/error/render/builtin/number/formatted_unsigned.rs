@@ -8,12 +8,13 @@ pub struct FormattedUnsigned<'tag> {
   padding: usize,
   is_uppercase: bool,
   tag: Option<&'tag dyn CellTag>,
-  separator: Option<Separator>
+  separator: Option<Separator>,
+  prefix: Option<&'static str>,
 }
 
 impl<'tag> FormattedUnsigned<'tag> {
   pub fn new(value: u64) -> FormattedUnsigned<'tag> {
-    FormattedUnsigned { value, base: 10, padding: 1, is_uppercase: false, tag: None, separator: None }
+    FormattedUnsigned { value, base: 10, padding: 1, is_uppercase: false, tag: None, separator: None, prefix: None }
   }
 
   pub fn with_base(mut self, base: usize) -> Self {
@@ -46,6 +47,11 @@ impl<'tag> FormattedUnsigned<'tag> {
     self
   }
 
+  pub fn with_prefix(mut self, prefix: &'static str) -> Self {
+    self.prefix = Some(prefix);
+    self
+  }
+
   pub fn length_excluding_separator(&self) -> usize {
     let mut i = 0;
 
@@ -56,7 +62,7 @@ impl<'tag> FormattedUnsigned<'tag> {
       i += 1;
     }
 
-    usize::max(i, self.padding)
+    usize::max(i, self.padding) + self.prefix.map(|v| v.len()).unwrap_or(0)
   }
 
   pub fn length(&self) -> usize {
@@ -83,17 +89,27 @@ impl<'tag> FormattedUnsigned<'tag> {
       idx += 1;
     }
 
-    usize::max(i, self.padding)
+    usize::max(i, self.padding) + self.prefix.map(|v| v.len()).unwrap_or(0)
   }
 }
 
 impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
-    let length = self.length();
+    let mut length = self.length();
+
+    if let Some(prefix) = self.prefix {
+      if let Some(tag) = self.tag.as_ref() {
+        canvas.set_tagged_str(prefix, *tag);
+      } else {
+        canvas.set_str(prefix);
+      }
+
+      length -= prefix.len();
+    }
 
     let digits = if self.is_uppercase { DIGITS_UPPER } else { DIGITS_LOWER };
 
-    for _ in 0..self.length() {
+    for _ in 0..length {
       if let Some(tag) = self.tag.as_ref() {
         canvas.set_tagged_char(digits[0], *tag);
       } else {

@@ -1,5 +1,3 @@
-use std::println;
-
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag}, r#trait::renderable::Renderable};

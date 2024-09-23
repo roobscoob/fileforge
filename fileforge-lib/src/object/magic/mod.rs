@@ -1,4 +1,4 @@
-use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::render::{buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned, r#trait::renderable::Renderable}, provider::r#trait::Provider, reader::{error::ParseError, r#trait::readable::FixedSizeReadable, Reader}};
+use crate::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::render::{buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned, r#trait::renderable::Renderable}, provider::r#trait::Provider, reader::{error::parse::ParseError, r#trait::readable::FixedSizeReadable, Reader}};
 
 use self::error::MagicError;
 

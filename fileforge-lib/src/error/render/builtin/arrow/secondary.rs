@@ -3,11 +3,12 @@ use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::built
 pub struct SecondaryArrow {
   pub (crate) height: usize,
   pub (crate) transformation: Option<Transformation>,
+  pub (crate) replace_last: bool,
 }
 
 impl<'t> Renderable<'t> for SecondaryArrow {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
-    canvas.set_tagged_char("├", &ARROW_BODY);
+    canvas.set_tagged_char(if self.replace_last { "├" } else { "│" }, &ARROW_BODY);
     canvas.cursor_left().cursor_down();
 
     for _ in 0..self.height {

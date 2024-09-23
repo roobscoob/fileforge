@@ -1,4 +1,4 @@
-use crate::{error::Error, provider::error::ProviderError, reader::error::ParseError, object::endianness::error::EndiannessMarkerError};
+use crate::{error::Error, object::endianness::error::EndiannessMarkerError};
 
 pub enum BymlHeaderError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
   Endianness(EndiannessMarkerError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, 2>)

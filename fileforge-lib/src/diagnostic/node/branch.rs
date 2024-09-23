@@ -18,4 +18,12 @@ impl DiagnosticBranch {
       DiagnosticBranch::Logical { parent, .. } => Some(*parent)
     }
   }
+
+  pub fn offset(&self) -> Option<u64> {
+    match self {
+      DiagnosticBranch::None => None,
+      DiagnosticBranch::Physical { offset, .. } => Some(*offset),
+      DiagnosticBranch::Logical { .. } => None,
+    }
+  }
 }
