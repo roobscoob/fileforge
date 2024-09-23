@@ -9,7 +9,8 @@ use syn::{
   ExprAssign, LitStr, Token,
 };
 
-struct Segment(Option<TokenStream>, Tag, LitStr);
+struct Path(Option<TokenStream>, Vec<Segment>);
+struct Segment(Tag, LitStr);
 
 #[derive(Clone)]
 struct Tag(TokenStream);
@@ -47,7 +48,7 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
       .into();
   };
 
-  let mut current_condition =
+  let current_condition =
     if let Some(condition) = parse_condition.parse2(tag.to_token_stream()).ok() {
       let Some(new_tag) = iter.next() else {
         return syn::Error::new(Span::call_site(), "no tag specified")
@@ -67,13 +68,14 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
   };
 
   let mut conditions = vec![];
+  let mut path = Path(current_condition, Vec::new());
   let mut logging = Vec::new();
 
   while let Some(token) = iter.next() {
-    if let Ok(condition) = parse_condition.parse2(token.to_token_stream()) {
-      current_condition = Some(condition);
-      continue;
-    }
+    // if let Ok(condition) = parse_condition.parse2(token.to_token_stream()) {
+    //   path.0 = Some(condition);
+    //   continue;
+    // }
 
     if let Ok(new_tag) = parse_tag.parse2(token.to_token_stream()) {
       tag = new_tag;
@@ -81,20 +83,34 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
 
     if let Ok(str) = <LitStr as Parse>::parse.parse2(token.to_token_stream()) {
-      conditions.push(Segment(current_condition, tag.clone(), str));
-      current_condition = None;
+      path.1.push(Segment(tag.clone(), str));
       continue;
     }
 
     match <Token![,]>::parse.parse2(token.into_token_stream()) {
       Ok(_) => {
-        let a = iter
+        let next = iter
           .peek()
           .map(ToTokens::into_token_stream)
           .unwrap_or_else(TokenStream::new);
-        let res = Group::parse.parse2(a.clone()).is_ok();
-        logging.push(format!("testing {res} {a:?}"));
+        let res = Group::parse.parse2(next.clone()).is_ok();
+        logging.push(format!("testing {res} {next:?}"));
+        if path.1.len() > 0 {}
+
         if res {
+          let current_condition = if let Some(condition) = parse_condition.parse2(next).ok() {
+            let Some(_) = iter.next() else {
+              return syn::Error::new(Span::call_site(), "no tag specified")
+                .into_compile_error()
+                .into();
+            };
+
+            Some(condition)
+          } else {
+            None
+          };
+          conditions.push(path);
+          path = Path(current_condition, vec![]);
           continue;
         } else {
           break;
@@ -103,6 +119,8 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
       Err(error) => return error.into_compile_error().into(),
     }
   }
+
+  conditions.push(path);
 
   let mut remaps: HashMap<String, TokenStream> = HashMap::new();
 
@@ -125,46 +143,48 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
   let mut block = Vec::new();
 
-  for Segment(condition, tag, text) in conditions {
+  for Path(condition, segments) in conditions {
     let mut output = quote!(crate::error::render::builtin::text::Text::new());
 
-    let text = text.value();
-    let mut in_expr = 0;
-    let mut start = 0;
-    let iter = text.as_str().char_indices();
-    for (index, ele) in iter {
-      if ele == '{' {
-        if in_expr == 0 {
-          let substring = &text.as_str()[start..index];
-          output.extend(quote!(.push(#substring, #tag)));
-          start = index + 1;
-        }
-        in_expr += 1;
-      } else if ele == '}' {
-        if in_expr == 0 {
-          return quote!(compile_error!("unbalanced amount of curly braces")).into();
-        }
+    for Segment(tag, text) in segments {
+      let text = text.value();
+      let mut in_expr = 0;
+      let mut start = 0;
+      let iter = text.as_str().char_indices();
+      for (index, ele) in iter {
+        if ele == '{' {
+          if in_expr == 0 {
+            let substring = &text.as_str()[start..index];
+            output.extend(quote!(.push(#substring, #tag)));
+            start = index + 1;
+          }
+          in_expr += 1;
+        } else if ele == '}' {
+          if in_expr == 0 {
+            return quote!(compile_error!("unbalanced amount of curly braces")).into();
+          }
 
-        in_expr -= 1;
-        if in_expr == 0 {
-          let substring = &text.as_str()[start..index];
-          let tokens = remaps
-            .get(substring)
-            .cloned()
-            .unwrap_or_else(|| TokenStream::from_str(substring).unwrap());
-          output.extend(quote!(.with(#tokens)));
-          start = index + 1;
+          in_expr -= 1;
+          if in_expr == 0 {
+            let substring = &text.as_str()[start..index];
+            let tokens = remaps
+              .get(substring)
+              .cloned()
+              .unwrap_or_else(|| TokenStream::from_str(substring).unwrap());
+            output.extend(quote!(.with(#tokens)));
+            start = index + 1;
+          }
         }
       }
-    }
 
-    if in_expr != 0 {
-      return quote!(compile_error!("unbalanced amount of curly braces")).into();
-    }
+      if in_expr != 0 {
+        return quote!(compile_error!("unbalanced amount of curly braces")).into();
+      }
 
-    let substring = &text.as_str()[start..];
-    if substring.len() > 0 {
-      output.extend(quote!(.push(#substring, #tag)));
+      let substring = &text.as_str()[start..];
+      if substring.len() > 0 {
+        output.extend(quote!(.push(#substring, #tag)));
+      }
     }
 
     let (pre, post) = if let Some(condition) = condition {
