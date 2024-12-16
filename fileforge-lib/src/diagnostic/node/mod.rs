@@ -9,9 +9,9 @@ pub mod tagged_reference;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DiagnosticNode<const NAME_SIZE: usize> {
-  pub(crate) branch: DiagnosticBranch,
-  pub(crate) size: u64,
-  pub(crate) name: DiagnosticNodeName<NAME_SIZE>,
+  pub branch: DiagnosticBranch,
+  pub size: u64,
+  pub name: DiagnosticNodeName<NAME_SIZE>,
 }
 
 impl<const NAME_SIZE: usize> DiagnosticNode<NAME_SIZE> {

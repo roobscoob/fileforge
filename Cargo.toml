@@ -4,5 +4,7 @@ members = [
   "fileforge-lib",
   "fileforge-macros",
   "fileforge-test",
+  "fileforge-std",
+  "fileforge-byml",
 ]
 resolver = "2"

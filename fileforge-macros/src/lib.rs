@@ -144,7 +144,12 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let mut block = Vec::new();
 
   for Path(condition, segments) in conditions {
-    let mut output = quote!(crate::error::render::builtin::text::Text::new());
+    
+    let mut output = if std::env::var("CARGO_CRATE_NAME").is_ok_and(|v| v.eq("fileforge_lib")) {
+      quote!(crate::error::render::builtin::text::Text::new()) 
+    } else {
+      quote!(::fileforge_lib::error::render::builtin::text::Text::new())
+    };
 
     for Segment(tag, text) in segments {
       let text = text.value();

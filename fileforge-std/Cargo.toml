@@ -1,0 +1,7 @@
+[package]
+name = "fileforge-std"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fileforge-lib = { version = "0.1.0", path = "../fileforge-lib" }
