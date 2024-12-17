@@ -4,4 +4,4 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-fileforge-lib = { version = "0.1.2", path = "../fileforge-lib", registry = "eepy", default-features = false }
+fileforge-lib = { version = "0.1.3", path = "../fileforge-lib", registry = "eepy", default-features = false }
