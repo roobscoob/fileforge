@@ -37,7 +37,7 @@ impl<const NO_ALLOC_SIZE: usize> ByteDisplay<NO_ALLOC_SIZE> {
 
     #[cfg(not(feature = "alloc"))]
     {
-      let stack_data: [u8; NO_ALLOC_SIZE] = [0; NO_ALLOC_SIZE];
+      let mut stack_data: [u8; NO_ALLOC_SIZE] = [0; NO_ALLOC_SIZE];
 
       stack_data[0..min(NO_ALLOC_SIZE, data.len())]
         .copy_from_slice(&data[0..min(NO_ALLOC_SIZE, data.len())]);
