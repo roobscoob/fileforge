@@ -64,14 +64,18 @@ pub enum DiagnosticInfoTail<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
   None,
 }
 
-impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Debug for DiagnosticInfoTail<'l, 't, 'a, 'b, NAME_SIZE> {
+impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Debug
+  for DiagnosticInfoTail<'l, 't, 'a, 'b, NAME_SIZE>
+{
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
       DiagnosticInfoTail::Arrow(..) => f.write_str("DiagnosticInfoTail::Arrow(..)"),
       DiagnosticInfoTail::Diagnostic(..) => f.write_str("DiagnosticInfoTail::Diagnostic(..)"),
       DiagnosticInfoTail::None => f.write_str("DiagnosticInfoTail::None"),
       DiagnosticInfoTail::PathSeparator(..) => f.write_str("DiagnosticInfoTail::PathSeparator(..)"),
-      DiagnosticInfoTail::Transformation(..) => f.write_str("DiagnosticInfoTail::Transformation(..)"),
+      DiagnosticInfoTail::Transformation(..) => {
+        f.write_str("DiagnosticInfoTail::Transformation(..)")
+      }
     }
   }
 }
@@ -119,7 +123,13 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
     // english:
     //   of all locations that are not a note location (unless they are a parent of a note location)
     //   find if any of those locations are our current location
-    if note_set.notes.iter().flat_map(|note| note.locations()).flat_map(|l| l.reference.parents()).any(|p| p == v) {
+    if note_set
+      .notes
+      .iter()
+      .flat_map(|note| note.locations())
+      .flat_map(|l| l.reference.parents())
+      .any(|p| p == v)
+    {
       // skip (will create later!)
       Self::local_transform_diagnostic(note_set, note, index + 1, previous, callback);
       return;
@@ -138,9 +148,15 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
       should_display_length: match v.branch {
         DiagnosticBranch::None => false,
         DiagnosticBranch::Logical { .. } => false,
-        DiagnosticBranch::Physical { offset, parent } => offset + v.size != parent.relocate(c.reference.pool).dereference_expect("Expected valid reference when building a report").size,
+        DiagnosticBranch::Physical { offset, parent } => {
+          offset + v.size
+            != parent
+              .relocate(c.reference.pool)
+              .dereference_expect("Expected valid reference when building a report")
+              .size
+        }
       },
-      tail: DiagnosticInfoTail::Diagnostic(should_render_note, note, c.value, Vec::new())
+      tail: DiagnosticInfoTail::Diagnostic(should_render_note, note, c.value, Vec::new()),
     };
 
     let l = StackSinglyLinkedList {
@@ -231,7 +247,11 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
         let parent = parent_reference
           .dereference_expect("Expected valid parent reference when building a report");
 
-        if array.iter().flat_map(|v| v.iter()).any(|i| { i.0.dereference_expect("Expected valid reference when building a report") == parent}) {
+        if array.iter().flat_map(|v| v.iter()).any(|i| {
+          i.0
+            .dereference_expect("Expected valid reference when building a report")
+            == parent
+        }) {
           continue;
         }
 
@@ -246,10 +266,31 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
           should_display_length: match parent.branch {
             DiagnosticBranch::None => false,
             DiagnosticBranch::Logical { .. } => false,
-            DiagnosticBranch::Physical { offset, parent: parent2 } => offset + parent.size != parent2.relocate(reference.pool).dereference_expect("Expected valid reference when building a report").size,
+            DiagnosticBranch::Physical {
+              offset,
+              parent: parent2,
+            } => {
+              offset + parent.size
+                != parent2
+                  .relocate(reference.pool)
+                  .dereference_expect("Expected valid reference when building a report")
+                  .size
+            }
           },
-          tail: if let Some(x) = notes.notes.iter().find(|note| note.locations().any(|l| l.reference == parent_reference)) {
-            DiagnosticInfoTail::Diagnostic(x.locations().last().unwrap().reference == parent_reference, x, x.locations().find(|l| l.reference == parent_reference).unwrap().value, Vec::new())
+          tail: if let Some(x) = notes
+            .notes
+            .iter()
+            .find(|note| note.locations().any(|l| l.reference == parent_reference))
+          {
+            DiagnosticInfoTail::Diagnostic(
+              x.locations().last().unwrap().reference == parent_reference,
+              x,
+              x.locations()
+                .find(|l| l.reference == parent_reference)
+                .unwrap()
+                .value,
+              Vec::new(),
+            )
           } else {
             DiagnosticInfoTail::None
           },
@@ -268,10 +309,15 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             .filter(|l| {
               l.branch
                 .parent()
-                .map(|p| p.relocate(reference.pool).dereference_expect("Expected valid parent reference when building a report").eq(&parent_of))
+                .map(|p| {
+                  p.relocate(reference.pool)
+                    .dereference_expect("Expected valid parent reference when building a report")
+                    .eq(&parent_of)
+                })
                 .unwrap_or(false)
-            }).enumerate() {
-
+            })
+            .enumerate()
+          {
             'checking_dupes: for (other_child_index, other_child) in notes
               .notes
               .iter()
@@ -280,16 +326,21 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
               .filter(|l| {
                 l.branch
                   .parent()
-                  .map(|p| p.relocate(reference.pool).dereference_expect("Expected valid parent reference when building a report").eq(&parent_of))
+                  .map(|p| {
+                    p.relocate(reference.pool)
+                      .dereference_expect("Expected valid parent reference when building a report")
+                      .eq(&parent_of)
+                  })
                   .unwrap_or(false)
-              }).enumerate() {
-              
+              })
+              .enumerate()
+            {
               if other_child == child && other_child_index != child_index {
                 continue 'counting;
               }
 
               if other_child == child {
-                break  'checking_dupes;
+                break 'checking_dupes;
               }
             }
 
@@ -301,7 +352,9 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
           }
         }
 
-        'itera: for (child_index, child) in notes.notes.iter()
+        'itera: for (child_index, child) in notes
+          .notes
+          .iter()
           .flat_map(|v| v.locations())
           .flat_map(|l| l.reference.parents_incl_self())
           .filter(|l| {
@@ -322,14 +375,15 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
                 .parent()
                 .map(|p| p.relocate(reference.pool).eq(&parent_reference))
                 .unwrap_or(false)
-            }).enumerate() {
-            
+            })
+            .enumerate()
+          {
             if other_child == child && other_child_index != child_index {
               continue 'itera;
             }
 
             if other_child == child {
-              break  'checking_dupes;
+              break 'checking_dupes;
             }
           }
 
@@ -337,7 +391,11 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             None => None,
             Some(i) => 'pl: {
               for v in i.iter() {
-                if v.0.dereference_expect("Expected valid parent reference when building a report") == child {
+                if v
+                  .0
+                  .dereference_expect("Expected valid parent reference when building a report")
+                  == child
+                {
                   break 'pl Some(v);
                 }
               }
@@ -367,7 +425,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
                   vec.push((None, info)).map_err(|_| {}).unwrap()
                 }
               };
-            },
+            }
 
             DiagnosticInfoTail::None => {
               new.tail = match reference
@@ -494,15 +552,15 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
 
       if self.offset_in_parent != 0 {
         canvas.set_tagged_str("0×", &DIAGNOSTIC_LOCATION_SEPARATOR);
-    
+
         canvas.write(&start_offset)?;
       }
-  
+
       canvas.set_tagged_str("..", &DIAGNOSTIC_LOCATION_SEPARATOR);
-  
+
       if self.should_display_length {
         canvas.set_tagged_str("0×", &DIAGNOSTIC_LOCATION_SEPARATOR);
-    
+
         canvas.write(&end_offset)?;
       }
 
@@ -534,19 +592,23 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
           canvas.set_tagged_char("=", &DIAGNOSTIC_VALUE_SEPARATOR);
           canvas.cursor_right();
           Some(canvas.write(*value)?)
-        } else { None };
+        } else {
+          None
+        };
 
         // draw ~~~
 
         let indent = canvas.get_start_position().column();
 
-        canvas.set_position(canvas.get_start_position()).cursor_down();
+        canvas
+          .set_position(canvas.get_start_position())
+          .cursor_down();
 
         let mut current_char: &'static str = "^";
 
         for column in canvas.start_position.column()..end_position.column() {
           canvas.set_column(column);
-          
+
           if let Some(tag) = note.tag {
             canvas.set_tagged_char(current_char, tag);
           } else {
@@ -566,7 +628,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
 
             for column in result.start_position.column()..result.end_position.column() {
               canvas.set_column(column);
-              
+
               if let Some(tag) = note.tag {
                 canvas.set_tagged_char("~", tag);
               } else {
@@ -575,14 +637,19 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
             }
           }
         }
-        
+
         let pos = canvas.get_position();
 
         let result = if *should_render_note {
-          canvas.set_column(canvas.start_position.column()).cursor_down().cursor_right_by(if children.len() == 0 { 0 } else { 2 });
+          canvas
+            .set_column(canvas.start_position.column())
+            .cursor_down()
+            .cursor_right_by(if children.len() == 0 { 0 } else { 2 });
 
-          canvas.write(note.message)?.get_line_height() 
-        } else { 0 };
+          canvas.write(note.message)?.get_line_height()
+        } else {
+          0
+        };
 
         canvas.set_position(pos);
         canvas.set_column(canvas.start_position.column());

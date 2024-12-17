@@ -1,6 +1,9 @@
-use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::arrow::CRADLE}, r#trait::renderable::Renderable};
+use crate::error::render::{
+  buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::arrow::CRADLE},
+  r#trait::renderable::Renderable,
+};
 
-pub (super) struct Cradle {
+pub(super) struct Cradle {
   pub width: usize,
 }
 

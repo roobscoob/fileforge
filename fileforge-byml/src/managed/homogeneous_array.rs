@@ -1,3 +1,1 @@
-pub struct HomogeneousArray {
-  
-}
+pub struct HomogeneousArray {}

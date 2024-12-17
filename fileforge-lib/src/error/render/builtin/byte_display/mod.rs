@@ -39,7 +39,8 @@ impl<const NO_ALLOC_SIZE: usize> ByteDisplay<NO_ALLOC_SIZE> {
     {
       let stack_data: [u8; NO_ALLOC_SIZE] = [0; NO_ALLOC_SIZE];
 
-      stack_data[0..min(NO_ALLOC_SIZE, data.len())].copy_from_slice(data[0..min(NO_ALLOC_SIZE, data.len())]);
+      stack_data[0..min(NO_ALLOC_SIZE, data.len())]
+        .copy_from_slice(data[0..min(NO_ALLOC_SIZE, data.len())]);
 
       ByteDisplay {
         data: stack_data,
@@ -53,12 +54,20 @@ impl<'t, const NO_ALLOC_SIZE: usize> Renderable<'t> for ByteDisplay<NO_ALLOC_SIZ
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     let max_len = FormattedUnsigned::new(self.len()).length();
 
-    for (byte_row, row) in self.data.chunks(16).zip(0..) {      
-      canvas.write(&FormattedUnsigned::new(row as u64).with_base(16).with_padding(max_len));
+    for (byte_row, row) in self.data.chunks(16).zip(0..) {
+      canvas.write(
+        &FormattedUnsigned::new(row as u64)
+          .with_base(16)
+          .with_padding(max_len),
+      );
       canvas.set_str(" | ");
 
       for (byte, col) in byte_row.iter().zip(0..) {
-        canvas.write(&FormattedUnsigned::new(*byte as u64).with_base(16).with_padding(2));
+        canvas.write(
+          &FormattedUnsigned::new(*byte as u64)
+            .with_base(16)
+            .with_padding(2),
+        );
 
         if col != 15 {
           canvas.set_char(" ");
@@ -67,7 +76,7 @@ impl<'t, const NO_ALLOC_SIZE: usize> Renderable<'t> for ByteDisplay<NO_ALLOC_SIZ
 
       canvas.cursor_down();
       canvas.set_column(canvas.get_start_position().column());
-    };
+    }
 
     Ok(())
   }

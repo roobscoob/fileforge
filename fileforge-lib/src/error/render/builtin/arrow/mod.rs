@@ -23,7 +23,7 @@ impl EitherArrow {
       Self::Secondary(sa) => EitherArrow::Secondary(SecondaryArrow {
         transformation,
         ..sa
-      })
+      }),
     }
   }
 }

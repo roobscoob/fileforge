@@ -1,6 +1,14 @@
 use error::EndiannessMarkerError;
 
-use fileforge_lib::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::render::{buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned, r#trait::renderable::Renderable}, provider::r#trait::Provider, reader::{self, error::parse::ParseError, r#trait::readable::FixedSizeReadable, Reader}};
+use fileforge_lib::{
+  diagnostic::node::tagged_reference::TaggedDiagnosticReference,
+  error::render::{
+    buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned,
+    r#trait::renderable::Renderable,
+  },
+  provider::r#trait::Provider,
+  reader::{self, error::parse::ParseError, r#trait::readable::FixedSizeReadable, Reader},
+};
 
 use super::magic::Magic;
 
@@ -14,45 +22,60 @@ pub struct EndiannessMarker<const SIZE: usize> {
 
 impl<const SIZE: usize> EndiannessMarker<SIZE> {
   pub fn big(bytes: [u8; SIZE]) -> Self {
-    Self { bytes, endianness: reader::endianness::Endianness::Big }
+    Self {
+      bytes,
+      endianness: reader::endianness::Endianness::Big,
+    }
   }
 
   pub fn little(bytes: [u8; SIZE]) -> Self {
-    Self { bytes, endianness: reader::endianness::Endianness::Little }
+    Self {
+      bytes,
+      endianness: reader::endianness::Endianness::Little,
+    }
   }
 
-  pub fn endianness(&self) -> reader::endianness::Endianness {
-    self.endianness
-  }
+  pub fn endianness(&self) -> reader::endianness::Endianness { self.endianness }
 
   pub fn inverse_clone(&self) -> EndiannessMarker<SIZE> {
     let mut bytes_clone = self.bytes;
     bytes_clone.reverse();
 
-    EndiannessMarker { bytes: bytes_clone, endianness: self.endianness.inverse() }
+    EndiannessMarker {
+      bytes: bytes_clone,
+      endianness: self.endianness.inverse(),
+    }
   }
 }
 
-impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize> FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE> for EndiannessMarker<SIZE> {
+impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize>
+  FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE> for EndiannessMarker<SIZE>
+{
   type Argument = EndiannessMarker<SIZE>;
   type Error = EndiannessMarkerError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE>;
 
-  fn read<RP: Provider>(reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>, expected: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  fn read<RP: Provider>(
+    reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
+    expected: Self::Argument,
+  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
     let mut bytes: [u8; SIZE] = reader.get("Endianness")?;
 
     if bytes == expected.bytes {
-      return Ok(expected)
+      return Ok(expected);
     }
 
     bytes.reverse();
 
     if bytes == expected.bytes {
-      return Ok(EndiannessMarker::little(bytes))
+      return Ok(EndiannessMarker::little(bytes));
     }
 
     Err(ParseError::domain_err(EndiannessMarkerError {
       expected,
-      actual: TaggedDiagnosticReference::tag(Magic::from_bytes(bytes), reader.diagnostic_reference())
+      actual: TaggedDiagnosticReference::tag(
+        Magic::from_bytes(bytes),
+        reader.diagnostic_reference(),
+      ),
     }))
   }
 }
@@ -74,7 +97,12 @@ impl<'t, const SIZE: usize> Renderable<'t> for EndiannessMarker<SIZE> {
         canvas.set_char("0x");
 
         for (index, byte) in self.bytes.iter().enumerate() {
-          canvas.write(&FormattedUnsigned::new(*byte as u64).with_padding(2).with_base(16).with_uppercase())?;
+          canvas.write(
+            &FormattedUnsigned::new(*byte as u64)
+              .with_padding(2)
+              .with_base(16)
+              .with_uppercase(),
+          )?;
 
           if index != SIZE - 1 {
             canvas.set_char(" ");

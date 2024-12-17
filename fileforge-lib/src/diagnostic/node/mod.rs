@@ -2,8 +2,8 @@ use self::{branch::DiagnosticBranch, name::DiagnosticNodeName};
 
 use super::pool::DiagnosticPool;
 
-pub mod name;
 pub mod branch;
+pub mod name;
 pub mod reference;
 pub mod tagged_reference;
 
@@ -15,14 +15,20 @@ pub struct DiagnosticNode<const NAME_SIZE: usize> {
 }
 
 impl<const NAME_SIZE: usize> DiagnosticNode<NAME_SIZE> {
-  pub fn is_family_of<'l>(&self, other: Option<&DiagnosticNode<NAME_SIZE>>, pool: &DiagnosticPool<'l, NAME_SIZE>) -> bool {
+  pub fn is_family_of<'l>(
+    &self,
+    other: Option<&DiagnosticNode<NAME_SIZE>>,
+    pool: &DiagnosticPool<'l, NAME_SIZE>,
+  ) -> bool {
     if other.is_none() {
       return false;
     }
 
     let other = other.unwrap();
 
-    if other == self { return true }
+    if other == self {
+      return true;
+    }
 
     let parent = other.branch.parent();
 

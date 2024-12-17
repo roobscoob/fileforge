@@ -1,8 +1,11 @@
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag}, r#trait::renderable::Renderable};
+use crate::error::render::{
+  buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag},
+  r#trait::renderable::Renderable,
+};
 
-pub enum TextSegment<'l, 't> { 
+pub enum TextSegment<'l, 't> {
   Renderable(&'l dyn Renderable<'t>),
   Segment(&'l str, &'t dyn CellTag),
 }
@@ -13,16 +16,26 @@ pub struct Text<'l, 't> {
 
 impl<'l, 't> Text<'l, 't> {
   pub fn new() -> Text<'l, 't> {
-    Text { segments: heapless::Vec::new() }
+    Text {
+      segments: heapless::Vec::new(),
+    }
   }
 
   pub fn with(mut self, value: &'l dyn Renderable<'t>) -> Self {
-    self.segments.push(TextSegment::Renderable(value)).map_err(|_| {}).expect("Failed to push Renderable, Text full.");
+    self
+      .segments
+      .push(TextSegment::Renderable(value))
+      .map_err(|_| {})
+      .expect("Failed to push Renderable, Text full.");
     self
   }
 
   pub fn push(mut self, text: &'l str, tag: &'t dyn CellTag) -> Self {
-    self.segments.push(TextSegment::Segment(text, tag)).map_err(|_| {}).expect("Failed to push Segment. Text full.");
+    self
+      .segments
+      .push(TextSegment::Segment(text, tag))
+      .map_err(|_| {})
+      .expect("Failed to push Segment. Text full.");
     self
   }
 }
@@ -32,7 +45,9 @@ impl<'l, 't> Renderable<'t> for Text<'l, 't> {
     let start = canvas.get_position();
     for element in self.segments.iter() {
       match element {
-        TextSegment::Renderable(renderable) => { canvas.write(*renderable)?; },
+        TextSegment::Renderable(renderable) => {
+          canvas.write(*renderable)?;
+        }
         TextSegment::Segment(text, tag) => {
           for grapheme in text.graphemes(true) {
             if grapheme == "\n" {
@@ -41,12 +56,15 @@ impl<'l, 't> Renderable<'t> for Text<'l, 't> {
             }
 
             if !canvas.set_tagged_char(grapheme, *tag) {
-              canvas.cursor_down().set_column(start.column()).set_char(grapheme);
+              canvas
+                .cursor_down()
+                .set_column(start.column())
+                .set_char(grapheme);
             };
-          };
+          }
         }
       }
-    };
+    }
 
     Ok(())
   }

@@ -8,7 +8,12 @@ pub mod builtin;
 pub mod context;
 
 pub trait CellTag {
-  fn render_into(&self, writable: &mut dyn Write, grapheme: Grapheme, context: CellTagContext) -> Result<(), core::fmt::Error> {
+  fn render_into(
+    &self,
+    writable: &mut dyn Write,
+    grapheme: Grapheme,
+    context: CellTagContext,
+  ) -> Result<(), core::fmt::Error> {
     match context.mode {
       RenderMode::PlainText => writable.write_str(grapheme.as_str())?,
 
@@ -38,7 +43,7 @@ pub trait CellTag {
         };
       }
     }
-        
+
     Ok(())
   }
 
@@ -46,7 +51,12 @@ pub trait CellTag {
   fn get_rgba_color(&self, grapheme: Grapheme, context: CellTagContext) -> (u8, u8, u8, u8);
   fn get_html_class_name(&self, grapheme: Grapheme, context: CellTagContext) -> &'static str;
 
-  fn write_hover_text(&self, writable: &mut dyn Write, grapheme: Grapheme, context: CellTagContext) -> Result<(), core::fmt::Error>;
+  fn write_hover_text(
+    &self,
+    writable: &mut dyn Write,
+    grapheme: Grapheme,
+    context: CellTagContext,
+  ) -> Result<(), core::fmt::Error>;
 
   /// Should return `core::any::type_name<Self>()`
   /// cannot do this in the trait implementation because it would

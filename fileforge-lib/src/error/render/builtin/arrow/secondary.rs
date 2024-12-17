@@ -1,9 +1,13 @@
-use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::arrow::ARROW_BODY}, builtin::transformation::Transformation, r#trait::renderable::Renderable};
+use crate::error::render::{
+  buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::arrow::ARROW_BODY},
+  builtin::transformation::Transformation,
+  r#trait::renderable::Renderable,
+};
 
 pub struct SecondaryArrow {
-  pub (crate) height: usize,
-  pub (crate) transformation: Option<Transformation>,
-  pub (crate) replace_last: bool,
+  pub(crate) height: usize,
+  pub(crate) transformation: Option<Transformation>,
+  pub(crate) replace_last: bool,
 }
 
 impl<'t> Renderable<'t> for SecondaryArrow {

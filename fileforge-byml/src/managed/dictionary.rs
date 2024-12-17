@@ -1,3 +1,1 @@
-pub struct Dictionary {
-  
-}
+pub struct Dictionary {}

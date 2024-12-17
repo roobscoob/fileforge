@@ -5,9 +5,15 @@ pub enum DiagnosticBranch {
   #[default]
   None,
 
-  Physical { parent: DislocatedDiagnosticReference, offset: u64 },
+  Physical {
+    parent: DislocatedDiagnosticReference,
+    offset: u64,
+  },
 
-  Logical { parent: DislocatedDiagnosticReference, name: &'static str },
+  Logical {
+    parent: DislocatedDiagnosticReference,
+    name: &'static str,
+  },
 }
 
 impl DiagnosticBranch {
@@ -15,7 +21,7 @@ impl DiagnosticBranch {
     match self {
       DiagnosticBranch::None => None,
       DiagnosticBranch::Physical { parent, .. } => Some(*parent),
-      DiagnosticBranch::Logical { parent, .. } => Some(*parent)
+      DiagnosticBranch::Logical { parent, .. } => Some(*parent),
     }
   }
 

@@ -8,7 +8,7 @@ use super::{branch::DiagnosticBranch, name::DiagnosticNodeName, DiagnosticNode};
 pub struct DiagnosticReference<'pool, const NODE_NAME_SIZE: usize> {
   pub(crate) index: usize,
   pub(crate) generation: u64,
-  pub(crate) pool: &'pool DiagnosticPool<'pool, NODE_NAME_SIZE>
+  pub(crate) pool: &'pool DiagnosticPool<'pool, NODE_NAME_SIZE>,
 }
 
 impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
@@ -18,9 +18,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NO
 }
 
 impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SIZE> {
-  pub fn exists(&self) -> bool {
-    self.pool.try_get(self.index, self.generation).is_some()
-  }
+  pub fn exists(&self) -> bool { self.pool.try_get(self.index, self.generation).is_some() }
 
   pub fn new_invalid(&self) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     DiagnosticReference {
@@ -31,11 +29,15 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
   }
 
   pub fn family_exists(&self) -> bool {
-    if !self.exists() { return false }
+    if !self.exists() {
+      return false;
+    }
 
     let parent = self.dereference().unwrap().branch.parent();
 
-    if parent.is_none() { return true }
+    if parent.is_none() {
+      return true;
+    }
 
     let parent = parent.unwrap();
 
@@ -56,50 +58,107 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
 
     if let Some(parent) = own_parent {
       parent.root()
-    } else { 
+    } else {
       Some(own)
     }
   }
 
   pub fn parent(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> {
-    self.dereference()?.branch.parent().map(|p| p.relocate(self.pool).dereference()).flatten()
+    self
+      .dereference()?
+      .branch
+      .parent()
+      .map(|p| p.relocate(self.pool).dereference())
+      .flatten()
   }
 
   pub fn parent_reference(&self) -> Option<DiagnosticReference<NODE_NAME_SIZE>> {
-    self.dereference()?.branch.parent().map(|p| p.relocate(self.pool))
+    self
+      .dereference()?
+      .branch
+      .parent()
+      .map(|p| p.relocate(self.pool))
   }
 
   pub fn expect_root(&self, message: &str) -> DiagnosticNode<NODE_NAME_SIZE> {
     let own = self.dereference_expect(message);
     let own_parent = own.branch.parent().map(|p| p.relocate(self.pool));
 
-    if let Some(parent) = own_parent { 
+    if let Some(parent) = own_parent {
       parent.expect_root(message)
-    } else { 
+    } else {
       own
     }
   }
 
   pub fn expect_parent(&self, message: &str) -> Option<DiagnosticNode<NODE_NAME_SIZE>> {
-    self.dereference_expect(message).branch.parent().map(|p| p.relocate(self.pool).dereference_expect(message))
+    self
+      .dereference_expect(message)
+      .branch
+      .parent()
+      .map(|p| p.relocate(self.pool).dereference_expect(message))
   }
 
-  pub fn create_physical_child(&self, offset: u64, size: u64, name: DiagnosticNodeName<NODE_NAME_SIZE>) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
-    if !self.exists() { return self.new_invalid() }
+  pub fn create_physical_child(
+    &self,
+    offset: u64,
+    size: u64,
+    name: DiagnosticNodeName<NODE_NAME_SIZE>,
+  ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+    if !self.exists() {
+      return self.new_invalid();
+    }
 
-    self.pool.try_create(DiagnosticBranch::Physical { parent: self.dislocate(), offset }, size, name)
+    self.pool.try_create(
+      DiagnosticBranch::Physical {
+        parent: self.dislocate(),
+        offset,
+      },
+      size,
+      name,
+    )
   }
 
-  pub fn parents<'capture>(&'capture self) -> core::iter::Successors<DiagnosticNode<NODE_NAME_SIZE>, impl FnMut (&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture> {
-    core::iter::successors(self.parent(), |v| v.branch.parent().map(|v| v.relocate(self.pool).dereference()).flatten())
+  pub fn parents<'capture>(
+    &'capture self,
+  ) -> core::iter::Successors<
+    DiagnosticNode<NODE_NAME_SIZE>,
+    impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture,
+  > {
+    core::iter::successors(self.parent(), |v| {
+      v.branch
+        .parent()
+        .map(|v| v.relocate(self.pool).dereference())
+        .flatten()
+    })
   }
 
-  pub fn parents_incl_self<'capture>(&'capture self) -> core::iter::Successors<DiagnosticNode<NODE_NAME_SIZE>, impl FnMut (&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture> {
-    core::iter::successors(self.dereference(), |v| v.branch.parent().map(|v| v.relocate(self.pool).dereference()).flatten())
+  pub fn parents_incl_self<'capture>(
+    &'capture self,
+  ) -> core::iter::Successors<
+    DiagnosticNode<NODE_NAME_SIZE>,
+    impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture,
+  > {
+    core::iter::successors(self.dereference(), |v| {
+      v.branch
+        .parent()
+        .map(|v| v.relocate(self.pool).dereference())
+        .flatten()
+    })
   }
 
-  pub fn expect_parents<'capture>(&'capture self, message: &'capture str) -> core::iter::Successors<DiagnosticNode<NODE_NAME_SIZE>, impl FnMut (&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture> {
-    core::iter::successors(self.expect_parent(message), |v| v.branch.parent().map(|v| v.relocate(self.pool).dereference_expect(message)))
+  pub fn expect_parents<'capture>(
+    &'capture self,
+    message: &'capture str,
+  ) -> core::iter::Successors<
+    DiagnosticNode<NODE_NAME_SIZE>,
+    impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture,
+  > {
+    core::iter::successors(self.expect_parent(message), |v| {
+      v.branch
+        .parent()
+        .map(|v| v.relocate(self.pool).dereference_expect(message))
+    })
   }
 
   pub fn dislocate(&self) -> DislocatedDiagnosticReference {
@@ -117,7 +176,10 @@ pub struct DislocatedDiagnosticReference {
 }
 
 impl DislocatedDiagnosticReference {
-  pub fn relocate<'pl, const NODE_NAME_SIZE: usize>(&self, pool: &'pl DiagnosticPool<'pl, NODE_NAME_SIZE>) -> DiagnosticReference<'pl, NODE_NAME_SIZE> {
+  pub fn relocate<'pl, const NODE_NAME_SIZE: usize>(
+    &self,
+    pool: &'pl DiagnosticPool<'pl, NODE_NAME_SIZE>,
+  ) -> DiagnosticReference<'pl, NODE_NAME_SIZE> {
     DiagnosticReference {
       index: self.index,
       generation: self.generation,
@@ -134,7 +196,5 @@ impl DislocatedDiagnosticReference {
 
 impl<'pool, const NODE_NAME_SIZE: usize> Eq for DiagnosticReference<'pool, NODE_NAME_SIZE> {}
 impl<'pool, const NODE_NAME_SIZE: usize> PartialEq for DiagnosticReference<'pool, NODE_NAME_SIZE> {
-  fn eq(&self, other: &Self) -> bool {
-    self.dereference() == other.dereference()
-  }
+  fn eq(&self, other: &Self) -> bool { self.dereference() == other.dereference() }
 }

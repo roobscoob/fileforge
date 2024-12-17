@@ -1,4 +1,7 @@
-use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag}, r#trait::renderable::Renderable};
+use crate::error::render::{
+  buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag},
+  r#trait::renderable::Renderable,
+};
 
 use super::{separator::Separator, DIGITS_LOWER, DIGITS_UPPER};
 
@@ -14,7 +17,15 @@ pub struct FormattedUnsigned<'tag> {
 
 impl<'tag> FormattedUnsigned<'tag> {
   pub fn new(value: u64) -> FormattedUnsigned<'tag> {
-    FormattedUnsigned { value, base: 10, padding: 1, is_uppercase: false, tag: None, separator: None, prefix: None }
+    FormattedUnsigned {
+      value,
+      base: 10,
+      padding: 1,
+      is_uppercase: false,
+      tag: None,
+      separator: None,
+      prefix: None,
+    }
   }
 
   pub fn with_base(mut self, base: usize) -> Self {
@@ -78,7 +89,7 @@ impl<'tag> FormattedUnsigned<'tag> {
       if let Some(ref separator) = self.separator {
         if i != 0 {
           let character_index = length - idx;
-  
+
           if character_index % separator.width == 0 {
             i += 1;
           }
@@ -107,7 +118,11 @@ impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
       length -= prefix.len();
     }
 
-    let digits = if self.is_uppercase { DIGITS_UPPER } else { DIGITS_LOWER };
+    let digits = if self.is_uppercase {
+      DIGITS_UPPER
+    } else {
+      DIGITS_LOWER
+    };
 
     for _ in 0..length {
       if let Some(tag) = self.tag.as_ref() {
@@ -116,7 +131,7 @@ impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
         canvas.set_char(digits[0]);
       }
     }
-    
+
     let mut value = self.value;
 
     let mut index = 0;
@@ -127,7 +142,7 @@ impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
       if let Some(ref separator) = self.separator {
         if index != 0 {
           let character_index = length - index;
-  
+
           if character_index % separator.width == 0 {
             if let Some(tag) = self.tag.as_ref() {
               canvas.set_tagged_str(&separator.text, *tag);
@@ -148,9 +163,9 @@ impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
         canvas.set_char(digits[digit as usize]);
       }
       canvas.cursor_left_by(2);
-       
+
       index += 1;
-    };
+    }
 
     canvas.set_position(canvas.start_position);
     canvas.cursor_right_by(self.length());

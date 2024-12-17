@@ -1,16 +1,38 @@
 use core::{fmt::Debug, ops::Deref};
 
-use fileforge_lib::{provider::error::ProviderError, diagnostic::node::reference::DiagnosticReference, error::{Error, render::{builtin::{diagnostic_info::DiagnosticInfo, text::Text, number::formatted_unsigned::FormattedUnsigned}, buffer::cell::tag::builtin::report::{REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT}}, report::{Report, kind::ReportKind, note::ReportNote}}, reader::endianness::Endianness};
+use fileforge_lib::{
+  diagnostic::node::reference::DiagnosticReference,
+  error::{
+    render::{
+      buffer::cell::tag::builtin::report::{REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT},
+      builtin::{number::formatted_unsigned::FormattedUnsigned, text::Text},
+    },
+    report::{kind::ReportKind, note::ReportNote, Report},
+    Error,
+  },
+  provider::error::ProviderError,
+  reader::endianness::Endianness,
+};
 
 use super::get_header::GetHeaderError;
 
 pub enum LoadError<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
   HeaderGetError(GetHeaderError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>),
-  UnsupportedVersion(u16, Endianness, DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>)
+  UnsupportedVersion(
+    u16,
+    Endianness,
+    DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
+  ),
 }
 
-impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
-  pub fn assert_supported<Cb: FnOnce() -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(version: u16, endianness: Endianness, make_dr: Cb) -> Result<(), LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>> {
+impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+  LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>
+{
+  pub fn assert_supported<Cb: FnOnce() -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(
+    version: u16,
+    endianness: Endianness,
+    make_dr: Cb,
+  ) -> Result<(), LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>> {
     if version > 10 {
       Err(Self::UnsupportedVersion(version, endianness, make_dr()))
     } else {
@@ -19,8 +41,10 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> LoadError
   }
 }
 
-impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE> for LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE> {
-  fn with_report<Cb: FnMut(fileforge_lib::error::report::Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
+impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+  Error<DIAGNOSTIC_NODE_NAME_SIZE> for LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>
+{
+  fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
     match self {
       LoadError::HeaderGetError(e) => e.with_report(callback),
       LoadError::UnsupportedVersion(version, native_endianness, dr) => {
@@ -37,7 +61,7 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIA
           .with_base(16)
           .with_padding(4)
           .with_tag(&REPORT_INFO_LINE_TEXT);
-        
+
         let version_swap_formatted = FormattedUnsigned::new(version.swap_bytes() as u64)
           .with_separator(3, ",")
           .with_tag(&REPORT_INFO_LINE_TEXT);
@@ -47,7 +71,12 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIA
           .with_padding(4)
           .with_tag(&REPORT_INFO_LINE_TEXT);
 
-        let endianness_swap_flag: Option<Text> = if let Ok(()) = LoadError::<Re, DIAGNOSTIC_NODE_NAME_SIZE>::assert_supported(version.swap_bytes(), *native_endianness, || *dr) {
+        let endianness_swap_flag: Option<Text> = if let Ok(()) =
+          LoadError::<Re, DIAGNOSTIC_NODE_NAME_SIZE>::assert_supported(
+            version.swap_bytes(),
+            *native_endianness,
+            || *dr,
+          ) {
           // The endianness defined in the header, or the endianness the version was written with might be wrong!
           // When swapping the byte-order of the version from the file-defined Big (0x0300, 768) to Little (0x0003, 3) the version becomes valid!
 
@@ -62,14 +91,21 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIA
             .push(", ", &REPORT_FLAG_LINE_TEXT)
             .with(&version_swap_formatted)
             .push(") the version becomes valid!", &REPORT_FLAG_LINE_TEXT))
-        } else { None };
+        } else {
+          None
+        };
 
         if dr.family_exists() {
-          let report = Report::new::<LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>>(ReportKind::Error, "Failed to load BYML")
-            .with_note(|| {
-              ReportNote::new(&text)
-                .with_location(*dr, &version_formatted).unwrap()
-            }).unwrap();
+          let report = Report::new::<LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>>(
+            ReportKind::Error,
+            "Failed to load BYML",
+          )
+          .with_note(|| {
+            ReportNote::new(&text)
+              .with_location(*dr, &version_formatted)
+              .unwrap()
+          })
+          .unwrap();
 
           if let Some(sf) = endianness_swap_flag {
             callback(report.with_flag_line(&sf).unwrap());
@@ -80,9 +116,14 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIA
           let line = Text::new()
             .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
 
-          let report = Report::new::<LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>>(ReportKind::Error, "Failed to load BYML")
-            .with_flag_line(&line).unwrap()
-            .with_info_line(&text).unwrap();
+          let report = Report::new::<LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>>(
+            ReportKind::Error,
+            "Failed to load BYML",
+          )
+          .with_flag_line(&line)
+          .unwrap()
+          .with_info_line(&text)
+          .unwrap();
 
           if let Some(sf) = endianness_swap_flag {
             callback(report.with_flag_line(&sf).unwrap());

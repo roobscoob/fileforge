@@ -16,7 +16,7 @@ impl<const SIZE: usize> TryFrom<&str> for FixedCString<SIZE> {
     let bytes = value.as_bytes();
 
     if bytes.len() > SIZE {
-      return Err(())
+      return Err(());
     }
 
     let mut contents = [0; SIZE];

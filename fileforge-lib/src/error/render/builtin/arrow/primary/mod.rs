@@ -1,18 +1,24 @@
-use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::arrow::ARROW_BODY}, builtin::transformation::Transformation, r#trait::renderable::Renderable};
+use crate::error::render::{
+  buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::arrow::ARROW_BODY},
+  builtin::transformation::Transformation,
+  r#trait::renderable::Renderable,
+};
 
 use self::cradle::Cradle;
 
 pub mod cradle;
 
 pub struct PrimaryArrow {
-  pub (crate) cradle_width: usize,
-  pub (crate) indent: usize,
-  pub (crate) transformation: Option<Transformation>,
+  pub(crate) cradle_width: usize,
+  pub(crate) indent: usize,
+  pub(crate) transformation: Option<Transformation>,
 }
 
 impl<'t> Renderable<'t> for PrimaryArrow {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
-    canvas.write(&Cradle { width: self.cradle_width })?;
+    canvas.write(&Cradle {
+      width: self.cradle_width,
+    })?;
 
     if canvas.get_start_position().column() + self.cradle_width <= self.indent {
       panic!("Down and Right (DaR) arrows are unsupported");
@@ -38,7 +44,7 @@ impl<'t> Renderable<'t> for PrimaryArrow {
       }
 
       canvas.cursor_right();
-      
+
       return Ok(());
     };
 
@@ -63,7 +69,7 @@ impl<'t> Renderable<'t> for PrimaryArrow {
     }
 
     canvas.set_tagged_char("╯", &ARROW_BODY);
-    
+
     canvas.cursor_down().set_column(self.indent);
 
     canvas.set_tagged_char("╰", &ARROW_BODY);

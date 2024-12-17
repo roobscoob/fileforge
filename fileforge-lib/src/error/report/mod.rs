@@ -1,10 +1,23 @@
-use self::{kind::ReportKind, note::{set::ReportNoteSet, ReportNote}};
+use self::{
+  kind::ReportKind,
+  note::{set::ReportNoteSet, ReportNote},
+};
 
-use super::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::report::{REPORT_ERROR_HEADER, REPORT_FLAG_LINE_SYMBOL, REPORT_INFO_LINE_SYMBOL, REPORT_INFO_NAME, REPORT_INFO_SYMBOL, REPORT_INFO_TYPENAME, REPORT_INFO_TYPENAME_CELL, REPORT_WARNING_HEADER}}, builtin::diagnostic_info::DiagnosticInfo, r#trait::renderable::Renderable};
+use super::render::{
+  buffer::{
+    canvas::RenderBufferCanvas,
+    cell::tag::builtin::report::{
+      REPORT_ERROR_HEADER, REPORT_FLAG_LINE_SYMBOL, REPORT_INFO_LINE_SYMBOL, REPORT_INFO_NAME,
+      REPORT_INFO_SYMBOL, REPORT_INFO_TYPENAME, REPORT_INFO_TYPENAME_CELL, REPORT_WARNING_HEADER,
+    },
+  },
+  builtin::diagnostic_info::DiagnosticInfo,
+  r#trait::renderable::Renderable,
+};
 
-pub mod note;
 pub mod kind;
 pub mod location;
+pub mod note;
 
 #[derive(Default)]
 pub struct Report<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> {
@@ -18,7 +31,12 @@ pub struct Report<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> {
 
 impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME_SIZE> {
   pub fn new<T>(kind: ReportKind, name: &'static str) -> Self {
-    Report { kind, info_name: name, info_typename: core::any::type_name::<T>(), .. Default::default() }
+    Report {
+      kind,
+      info_name: name,
+      info_typename: core::any::type_name::<T>(),
+      ..Default::default()
+    }
   }
 
   pub fn with_info_line(mut self, line: &'l dyn Renderable<'t>) -> Result<Self, ()> {
@@ -31,13 +49,18 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME
     Ok(self)
   }
 
-  pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>>(mut self, builder: Cb) -> Result<Self, ()> {
+  pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>>(
+    mut self,
+    builder: Cb,
+  ) -> Result<Self, ()> {
     self.notes.add(builder()).map_err(|_| {})?;
     Ok(self)
   }
 }
 
-impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t> for Report<'t, 'l, 'pool, NODE_NAME_SIZE> {
+impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t>
+  for Report<'t, 'l, 'pool, NODE_NAME_SIZE>
+{
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     match self.kind {
       ReportKind::Error => {
@@ -69,7 +92,7 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t> for Report<'t, '
       canvas.write(*info)?;
       canvas.cursor_down().set_column(indent);
     }
-    
+
     canvas.cursor_down().set_column(0);
 
     for flag in self.flag_lines.iter() {

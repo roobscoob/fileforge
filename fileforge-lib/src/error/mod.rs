@@ -1,24 +1,41 @@
 use core::fmt::Debug;
 
-use self::{report::Report, render::{buffer::{RenderBuffer, cell::{tag::context::RenderMode, RenderBufferCell}}, position::RenderPosition}};
+use self::{
+  render::{
+    buffer::{
+      cell::{tag::context::RenderMode, RenderBufferCell},
+      RenderBuffer,
+    },
+    position::RenderPosition,
+  },
+  report::Report,
+};
 
-pub mod report;
 pub mod render;
+pub mod report;
 
 pub trait Error<const NODE_NAME_SIZE: usize> {
   fn with_report<Cb: FnMut(Report<NODE_NAME_SIZE>) -> ()>(&self, callback: Cb);
-  
+
   #[cfg(feature = "alloc")]
-  fn into_display(self) -> DisplayableError<NODE_NAME_SIZE, Self> where Self: Sized {
+  fn into_display(self) -> DisplayableError<NODE_NAME_SIZE, Self>
+  where
+    Self: Sized,
+  {
     DisplayableError(self)
   }
 }
 
 #[cfg(feature = "alloc")]
-pub struct DisplayableError<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>>(pub E);
+pub struct DisplayableError<
+  const DIAGNOSTIC_NODE_NAME_SIZE: usize,
+  E: Error<DIAGNOSTIC_NODE_NAME_SIZE>,
+>(pub E);
 
 #[cfg(feature = "alloc")]
-impl<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>> Debug for DisplayableError<DIAGNOSTIC_NODE_NAME_SIZE, E> {
+impl<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>> Debug
+  for DisplayableError<DIAGNOSTIC_NODE_NAME_SIZE, E>
+{
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut result = Ok(());
 
@@ -34,7 +51,7 @@ impl<const DIAGNOSTIC_NODE_NAME_SIZE: usize, E: Error<DIAGNOSTIC_NODE_NAME_SIZE>
       let mut vec = alloc::vec![RenderBufferCell::default(); width];
       let mut slice = vec.as_mut_slice();
       let mut i = 0;
-      
+
       loop {
         let mut buffer = RenderBuffer::new(&mut slice, width, i);
         let mut canvas = buffer.canvas_at(RenderPosition::zero());

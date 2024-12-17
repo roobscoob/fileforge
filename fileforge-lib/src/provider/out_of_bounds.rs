@@ -5,8 +5,16 @@ pub struct SliceOutOfBoundsError {
 }
 
 impl SliceOutOfBoundsError {
-  pub fn assert_in_bounds(read_offset: u64, read_size: u64, provider_size: u64) -> Result<u64, SliceOutOfBoundsError> {
-    let error = SliceOutOfBoundsError { read_offset, read_size, provider_size };
+  pub fn assert_in_bounds(
+    read_offset: u64,
+    read_size: u64,
+    provider_size: u64,
+  ) -> Result<u64, SliceOutOfBoundsError> {
+    let error = SliceOutOfBoundsError {
+      read_offset,
+      read_size,
+      provider_size,
+    };
 
     if let Some(read_end) = error.read_end() {
       if read_end > provider_size {
@@ -21,7 +29,5 @@ impl SliceOutOfBoundsError {
     }
   }
 
-  pub fn read_end(&self) -> Option<u64> {
-    self.read_offset.checked_add(self.read_size)
-  }
+  pub fn read_end(&self) -> Option<u64> { self.read_offset.checked_add(self.read_size) }
 }

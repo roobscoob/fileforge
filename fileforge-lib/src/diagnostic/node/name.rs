@@ -22,7 +22,11 @@ const CHARS: [u8; 10] = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b
 
 impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
   pub fn from(text: &str) -> DiagnosticNodeName<SIZE> {
-    let mut name = DiagnosticNodeName { contents: [0; SIZE], used_length: 0, total_length: text.as_bytes().len() };
+    let mut name = DiagnosticNodeName {
+      contents: [0; SIZE],
+      used_length: 0,
+      total_length: text.as_bytes().len(),
+    };
 
     for grapheme in text.graphemes(true) {
       let bytes = grapheme.as_bytes();
@@ -40,7 +44,11 @@ impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
   }
 
   pub fn from_index(index: u64) -> DiagnosticNodeName<SIZE> {
-    let mut name = DiagnosticNodeName { contents: [0; SIZE], used_length: 0, total_length: 0 };
+    let mut name = DiagnosticNodeName {
+      contents: [0; SIZE],
+      used_length: 0,
+      total_length: 0,
+    };
 
     name.push(b'[');
 
@@ -84,9 +92,7 @@ impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
 
 impl<const SIZE: usize> Eq for DiagnosticNodeName<SIZE> {}
 impl<const SIZE: usize> PartialEq for DiagnosticNodeName<SIZE> {
-  fn eq(&self, other: &Self) -> bool {
-    self.as_str() == other.as_str()
-  }
+  fn eq(&self, other: &Self) -> bool { self.as_str() == other.as_str() }
 }
 
 impl<const SIZE: usize> Debug for DiagnosticNodeName<SIZE> {

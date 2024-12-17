@@ -5,17 +5,11 @@ pub struct RenderPosition {
 }
 
 impl RenderPosition {
-  pub fn new(line: usize, column: usize) -> Self {
-    Self { line, column }
-  }
+  pub fn new(line: usize, column: usize) -> Self { Self { line, column } }
 
-  pub fn line_start(line: usize) -> Self {
-    Self::new(line, 0)
-  }
+  pub fn line_start(line: usize) -> Self { Self::new(line, 0) }
 
-  pub fn zero() -> Self {
-    Self::new(0, 0)
-  }
+  pub fn zero() -> Self { Self::new(0, 0) }
 
   pub fn try_left(&self, count: usize) -> Option<Self> {
     if self.column < count {
@@ -25,9 +19,7 @@ impl RenderPosition {
     }
   }
 
-  pub fn right(&self, count: usize) -> Self {
-    Self::new(self.line, self.column + count)
-  }
+  pub fn right(&self, count: usize) -> Self { Self::new(self.line, self.column + count) }
 
   pub fn try_up(&self, count: usize) -> Option<Self> {
     if self.line < count {
@@ -37,9 +29,7 @@ impl RenderPosition {
     }
   }
 
-  pub fn down(&self, count: usize) -> Self {
-    Self::new(self.line + count, self.column)
-  }
+  pub fn down(&self, count: usize) -> Self { Self::new(self.line + count, self.column) }
 
   pub fn to<'a>(&'a self, other: &Self) -> impl Iterator<Item = RenderPosition> + 'a {
     MagicIter::new(*self, *other)

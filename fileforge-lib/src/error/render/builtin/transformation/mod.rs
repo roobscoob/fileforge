@@ -1,8 +1,14 @@
-use crate::error::render::{buffer::{canvas::RenderBufferCanvas, cell::tag::builtin::transformation::{TRANSFORMATION_NAME, TRANSFORMATION_SEPARATOR}}, r#trait::renderable::Renderable};
+use crate::error::render::{
+  buffer::{
+    canvas::RenderBufferCanvas,
+    cell::tag::builtin::transformation::{TRANSFORMATION_NAME, TRANSFORMATION_SEPARATOR},
+  },
+  r#trait::renderable::Renderable,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Transformation {
-  pub (crate) name: &'static str,
+  pub(crate) name: &'static str,
 }
 
 impl<'t> Renderable<'t> for Transformation {

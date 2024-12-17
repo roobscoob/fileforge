@@ -1,4 +1,12 @@
-use fileforge_lib::{diagnostic::node::tagged_reference::TaggedDiagnosticReference, error::render::{buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned, r#trait::renderable::Renderable}, provider::r#trait::Provider, reader::{error::parse::ParseError, r#trait::readable::FixedSizeReadable, Reader}};
+use fileforge_lib::{
+  diagnostic::node::tagged_reference::TaggedDiagnosticReference,
+  error::render::{
+    buffer::canvas::RenderBufferCanvas, builtin::number::formatted_unsigned::FormattedUnsigned,
+    r#trait::renderable::Renderable,
+  },
+  provider::r#trait::Provider,
+  reader::{error::parse::ParseError, r#trait::readable::FixedSizeReadable, Reader},
+};
 
 use self::error::MagicError;
 
@@ -10,22 +18,25 @@ pub struct Magic<const SIZE: usize> {
 }
 
 impl<const SIZE: usize> Magic<SIZE> {
-  pub fn from_bytes(bytes: [u8; SIZE]) -> Magic<SIZE> {
-    Self { bytes }
-  }
+  pub fn from_bytes(bytes: [u8; SIZE]) -> Magic<SIZE> { Self { bytes } }
 }
 
-impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize> FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE> for Magic<SIZE> {
+impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize>
+  FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE> for Magic<SIZE>
+{
   type Argument = Magic<SIZE>;
   type Error = MagicError<'pool, DIAGNOSTIC_NODE_NAME_SIZE, SIZE>;
 
-  fn read<RP: Provider>(reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>, expected: Self::Argument) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  fn read<RP: Provider>(
+    reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
+    expected: Self::Argument,
+  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
     let actual = Self::from_bytes(reader.get("Bytes")?);
 
     if actual != expected {
       return Err(ParseError::domain_err(MagicError {
         expected,
-        actual: TaggedDiagnosticReference::tag(actual, reader.diagnostic_reference())
+        actual: TaggedDiagnosticReference::tag(actual, reader.diagnostic_reference()),
       }));
     }
 
@@ -49,7 +60,12 @@ impl<'t, const SIZE: usize> Renderable<'t> for Magic<SIZE> {
         canvas.set_char("0x");
 
         for (index, byte) in self.bytes.iter().enumerate() {
-          canvas.write(&FormattedUnsigned::new(*byte as u64).with_padding(2).with_base(16).with_uppercase())?;
+          canvas.write(
+            &FormattedUnsigned::new(*byte as u64)
+              .with_padding(2)
+              .with_base(16)
+              .with_uppercase(),
+          )?;
 
           if index != SIZE - 1 {
             canvas.set_char(" ");
