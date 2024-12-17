@@ -1,7 +1,5 @@
 use core::fmt::Debug;
 
-use alloc::vec::Vec;
-
 use self::{
   render::{
     buffer::{
@@ -34,7 +32,7 @@ pub struct DisplayableError<
 
 struct S<'a> {
   #[cfg(feature = "alloc")]
-  c: Vec<RenderBufferCell<'a>>,
+  c: alloc::vec::Vec<RenderBufferCell<'a>>,
 
   #[cfg(not(feature = "alloc"))]
   c: [RenderBufferCell<'a>; 80],
