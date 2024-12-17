@@ -133,7 +133,7 @@ dependencies = [
 
 [[package]]
 name = "fileforge-lib"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bitfield-struct",
  "fileforge-macros",
