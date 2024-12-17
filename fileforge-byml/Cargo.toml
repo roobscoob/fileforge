@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 fileforge-lib = { version = "0.1.0", path = "../fileforge-lib", registry = "eepy" }
-fileforge-macros = { path = "../fileforge-macros", registry = "eepy" }
-fileforge-std = { path = "../fileforge-std", registry = "eepy" }
+fileforge-macros = { version = "0.1.0", path = "../fileforge-macros", registry = "eepy" }
+fileforge-std = { version = "0.1.0", path = "../fileforge-std", registry = "eepy" }
 intx = "0.1.0"
 
 [features]
