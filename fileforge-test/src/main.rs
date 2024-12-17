@@ -1,20 +1,9 @@
 use fileforge_byml::unmanaged::BymlReader;
-use fileforge_lib::diagnostic::node::branch::DiagnosticBranch;
-use fileforge_lib::*;
 use fileforge_lib::{
-  diagnostic::{
-    node::name::DiagnosticNodeName,
-    pool::{entry::DiagnosticPoolEntry, DiagnosticPool},
-  },
-  error::{
-    render::buffer::cell::tag::builtin::report::REPORT_FLAG_LINE_TEXT,
-    report::{kind::ReportKind, note::ReportNote, Report},
-    DisplayableError, Error,
-  },
-  provider::{builtin::rust_slice::RustSliceBinaryProvider, slice::fixed::FixedMutSliceProvider},
-  reader::{endianness::Endianness, Reader},
+  diagnostic::pool::{entry::DiagnosticPoolEntry, DiagnosticPool},
+  error::Error,
+  provider::builtin::rust_slice::RustSliceBinaryProvider,
 };
-use fileforge_macros::text;
 
 fn main() {
   let bytes = include_bytes!("../binaries/real.byml");
