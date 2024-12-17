@@ -1,0 +1,6 @@
+[registry]
+global-credential-providers = ["cargo-credential-1password --account my.1password.com"]
+default = "eepy"
+
+[registries.eepy]
+index = "sparse+https://git.eepy.engineering/api/packages/NTK/cargo/"
