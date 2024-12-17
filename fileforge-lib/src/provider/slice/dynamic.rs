@@ -12,11 +12,20 @@ pub struct DynamicMutSliceProvider<'a, T: Provider> {
   pub(crate) size: u64,
 }
 
-#[derive(Clone)]
 pub struct DynamicSliceProvider<'a, T: Provider> {
   pub(crate) underlying_provider: &'a T,
   pub(crate) offset: u64,
   pub(crate) size: u64,
+}
+
+impl<'a, T: Provider> Clone for DynamicSliceProvider<'a, T> {
+  fn clone(&self) -> Self {
+    Self {
+      underlying_provider: self.underlying_provider,
+      offset: self.offset,
+      size: self.size,
+    }
+  }
 }
 
 impl<'underlying, UnderlyingProvider: Provider> Provider

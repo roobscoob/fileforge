@@ -409,7 +409,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
     }
 
     fallible_binary_search(length as usize, |index| {
-      self.try_get(index as u32, |string| string.cmp(needle))
+      self.try_get(index as u32, |string| needle.cmp(string))
     })
     .map(|v| v.map(|v| v as u32))
   }

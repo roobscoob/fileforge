@@ -245,16 +245,7 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
   pub fn root<'s>(
     &'s self,
   ) -> Result<
-    Option<
-      BymlReaderNode<
-        's,
-        'provider,
-        'pool,
-        DIAGNOSTIC_NODE_NAME_SIZE,
-        DynamicSliceProvider<'s, P::DynReturnedProviderType>,
-        P,
-      >,
-    >,
+    Option<BymlReaderNode<'s, 'provider, 'pool, DIAGNOSTIC_NODE_NAME_SIZE, P>>,
     GetRootNodeError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
   > {
     let header = self
@@ -277,21 +268,12 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
       .map_err(|_| GetRootNodeError::ReadErrorWhileReadingType())?
       .map_err(|_| GetRootNodeError::HederRootNodeOutOfBounds(HeaderRootNodeOutOfBounds {}))?;
 
-    let diagnostic_reference = self.diagnostic_root().create_physical_child(
-      header.root_data_offset as u64 + 1,
-      remaining_size,
-      DiagnosticNodeName::from("Root Node"),
-    );
-    let reader: Reader<
-      'pool,
-      DIAGNOSTIC_NODE_NAME_SIZE,
-      DynamicSliceProvider<'s, P::DynReturnedProviderType>,
-    > = Reader::at(slice, header.endianness, diagnostic_reference);
-
     Ok(Some(BymlReaderNode {
-      r#type,
-      reader,
       byml: self,
+      disable_inline: true,
+      endianness: header.endianness,
+      r#type,
+      value: header.root_data_offset,
     }))
   }
 }

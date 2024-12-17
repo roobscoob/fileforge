@@ -1,3 +1,5 @@
+use core::cell::Cell;
+
 use error::underlying_provider_read::UnderlyingProviderReadError;
 
 use crate::{
@@ -42,7 +44,7 @@ pub enum SeekFrom {
 pub struct Reader<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider> {
   pub(self) provider: P,
   pub(self) endianness: Endianness,
-  pub(self) offset: u64,
+  pub(self) offset: Cell<u64>,
   pub(self) diagnostic_reference: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
 }
 
@@ -53,7 +55,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider + Clone> Clone
     Reader {
       provider: self.provider.clone(),
       endianness: self.endianness,
-      offset: self.offset,
+      offset: Cell::new(self.offset.get()),
       diagnostic_reference: self.diagnostic_reference,
     }
   }
@@ -62,9 +64,11 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider + Clone> Clone
 impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider>
   Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, UnderlyingProvider>
 {
-  pub fn remaining(&self) -> u64 { self.provider.len() - self.offset }
+  pub fn remaining(&self) -> u64 { self.provider.len() - self.offset.get() }
 
   pub fn len(&self) -> u64 { self.provider.len() }
+
+  pub fn endianness(&self) -> Endianness { self.endianness }
 
   pub fn diagnostic_reference(&self) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.diagnostic_reference
@@ -81,7 +85,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     Reader {
       provider,
       endianness,
-      offset: 0,
+      offset: Cell::new(0),
       diagnostic_reference: reference,
     }
   }
@@ -94,12 +98,12 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     Reader {
       provider,
       endianness,
-      offset: 0,
+      offset: Cell::new(0),
       diagnostic_reference: at,
     }
   }
 
-  pub fn offset(&self) -> u64 { self.offset }
+  pub fn offset(&self) -> u64 { self.offset.get() }
 
   pub fn set_endianness(&mut self, endianness: Endianness) { self.endianness = endianness; }
 
@@ -115,18 +119,18 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     SliceOutOfBoundsError,
   > {
     let dr = self.diagnostic_reference();
-    let slice = self.provider.slice::<SIZE>(self.offset)?;
+    let slice = self.provider.slice::<SIZE>(self.offset())?;
 
     Ok(Reader {
-      diagnostic_reference: dr.create_physical_child(self.offset, SIZE as u64, name),
+      diagnostic_reference: dr.create_physical_child(self.offset(), SIZE as u64, name),
       provider: slice,
       endianness: self.endianness,
-      offset: 0,
+      offset: Cell::new(0),
     })
   }
 
   pub fn slice_dyn<'s>(
-    &'s mut self,
+    &'s self,
     name: DiagnosticNodeName<DIAGNOSTIC_NODE_NAME_SIZE>,
     size: Option<u64>,
   ) -> Result<
@@ -139,34 +143,35 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
   > {
     let dr = self.diagnostic_reference();
     let len = size.unwrap_or(self.remaining());
-    let slice = self.provider.slice_dyn(self.offset, len)?;
+    let slice = self.provider.slice_dyn(self.offset.get(), len)?;
 
     Ok(Reader {
-      diagnostic_reference: dr.create_physical_child(self.offset, len, name),
+      diagnostic_reference: dr.create_physical_child(self.offset.get(), len, name),
       provider: slice,
       endianness: self.endianness,
-      offset: 0,
+      offset: Cell::new(0),
     })
   }
 
   pub fn get<const PRIMITIVE_SIZE: usize, P: Primitive<PRIMITIVE_SIZE>>(
-    &mut self,
+    &self,
     name: &'static str,
   ) -> Result<P, ParsePrimitiveError<'pool, UnderlyingProvider::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>
   {
     let v = self
       .provider
-      .with_read(self.offset, |data: &[u8; PRIMITIVE_SIZE]| {
-        match self.endianness {
+      .with_read(
+        self.offset.get(),
+        |data: &[u8; PRIMITIVE_SIZE]| match self.endianness {
           Endianness::Big => P::read_be(data),
           Endianness::Little => P::read_le(data),
-        }
-      })
+        },
+      )
       .map_err(|e| {
         ParsePrimitiveError::from_read_error(
           e,
           self.diagnostic_reference().create_physical_child(
-            self.offset,
+            self.offset.get(),
             PRIMITIVE_SIZE as u64,
             DiagnosticNodeName::from(name),
           ),
@@ -176,20 +181,20 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
         ReadOutOfBoundsError::from_slice_out_of_bounds_error(
           e,
           self.diagnostic_reference().create_physical_child(
-            self.offset,
+            self.offset.get(),
             PRIMITIVE_SIZE as u64,
             DiagnosticNodeName::from(name),
           ),
         )
       })?;
 
-    self.offset += PRIMITIVE_SIZE as u64;
+    self.offset.set(PRIMITIVE_SIZE as u64 + self.offset());
 
     Ok(v)
   }
 
   pub fn expect<const PRIMITIVE_SIZE: usize, P: Primitive<PRIMITIVE_SIZE>>(
-    &mut self,
+    &self,
     name: &'static str,
     expect_fn: impl FnOnce(&P) -> bool,
     error_fn: for<'f, 'g> fn(
@@ -212,7 +217,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
   > {
     let v = self
       .provider
-      .with_read(self.offset, |data: &[u8; PRIMITIVE_SIZE]| {
+      .with_read(self.offset(), |data: &[u8; PRIMITIVE_SIZE]| {
         match self.endianness {
           Endianness::Big => P::read_be(data),
           Endianness::Little => P::read_le(data),
@@ -222,7 +227,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
         ParsePrimitiveError::from_read_error(
           e,
           self.diagnostic_reference().create_physical_child(
-            self.offset,
+            self.offset(),
             PRIMITIVE_SIZE as u64,
             DiagnosticNodeName::from(name),
           ),
@@ -232,7 +237,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
         ReadOutOfBoundsError::from_slice_out_of_bounds_error(
           e,
           self.diagnostic_reference().create_physical_child(
-            self.offset,
+            self.offset(),
             PRIMITIVE_SIZE as u64,
             DiagnosticNodeName::from(name),
           ),
@@ -240,13 +245,13 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
       })?;
 
     if expect_fn(&v) {
-      self.offset += PRIMITIVE_SIZE as u64;
+      self.offset.set(PRIMITIVE_SIZE as u64 + self.offset());
 
       return Ok(v);
     };
 
     let dr = self.diagnostic_reference().create_physical_child(
-      self.offset,
+      self.offset(),
       PRIMITIVE_SIZE as u64,
       DiagnosticNodeName::from(name),
     );
@@ -260,7 +265,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     const TYPE_SIZE: usize,
     T: FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, TYPE_SIZE>,
   >(
-    &mut self,
+    &self,
     name: DiagnosticNodeName<DIAGNOSTIC_NODE_NAME_SIZE>,
   ) -> Result<
     T,
@@ -273,17 +278,17 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
 
     let slice = self
       .provider
-      .slice::<TYPE_SIZE>(self.offset)
+      .slice::<TYPE_SIZE>(self.offset())
       .map_err(|e| ReadOutOfBoundsError::from_slice_out_of_bounds_error(e, dr))?;
 
     let mut child = Reader {
       provider: slice,
       endianness: self.endianness,
-      offset: 0,
-      diagnostic_reference: dr.create_physical_child(self.offset, TYPE_SIZE as u64, name),
+      offset: Cell::new(0),
+      diagnostic_reference: dr.create_physical_child(self.offset(), TYPE_SIZE as u64, name),
     };
 
-    self.offset += TYPE_SIZE as u64;
+    self.offset.set(TYPE_SIZE as u64 + self.offset());
 
     T::read(&mut child, T::Argument::from_none())
   }
@@ -292,7 +297,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     const TYPE_SIZE: usize,
     T: FixedSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, TYPE_SIZE>,
   >(
-    &mut self,
+    &self,
     name: DiagnosticNodeName<DIAGNOSTIC_NODE_NAME_SIZE>,
     argument: T::Argument,
   ) -> Result<
@@ -303,23 +308,23 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
 
     let slice = self
       .provider
-      .slice::<TYPE_SIZE>(self.offset)
+      .slice::<TYPE_SIZE>(self.offset())
       .map_err(|e| ReadOutOfBoundsError::from_slice_out_of_bounds_error(e, dr))?;
 
     let mut child = Reader {
       provider: slice,
       endianness: self.endianness,
-      offset: 0,
-      diagnostic_reference: dr.create_physical_child(self.offset, TYPE_SIZE as u64, name),
+      offset: Cell::new(0),
+      diagnostic_reference: dr.create_physical_child(self.offset(), TYPE_SIZE as u64, name),
     };
 
-    self.offset += TYPE_SIZE as u64;
+    self.offset.set(TYPE_SIZE as u64 + self.offset());
 
     T::read(&mut child, argument)
   }
 
   pub fn read_dyn<T: DynamicSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(
-    &mut self,
+    &self,
     name: DiagnosticNodeName<DIAGNOSTIC_NODE_NAME_SIZE>,
   ) -> Result<
     T,
@@ -331,25 +336,25 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     let dr = self.diagnostic_reference();
 
     let size = T::get_size(self)?.unwrap_or(self.remaining());
-    let mut slice = self
+    let slice = self
       .provider
-      .slice_dyn(self.offset, size)
+      .slice_dyn(self.offset(), size)
       .map_err(|e| ReadOutOfBoundsError::from_slice_out_of_bounds_error(e, dr))?;
 
     let mut child = Reader {
       provider: slice,
       endianness: self.endianness,
-      offset: 0,
-      diagnostic_reference: dr.create_physical_child(self.offset, size, name),
+      offset: Cell::new(0),
+      diagnostic_reference: dr.create_physical_child(self.offset(), size, name),
     };
 
-    self.offset += size;
+    self.offset.set(size + self.offset());
 
     T::read(&mut child, T::Argument::from_none())
   }
 
   pub fn read_dyn_with<T: DynamicSizeReadable<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(
-    &mut self,
+    &self,
     name: DiagnosticNodeName<DIAGNOSTIC_NODE_NAME_SIZE>,
     argument: T::Argument,
   ) -> Result<
@@ -359,26 +364,26 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     let dr = self.diagnostic_reference();
 
     let size = T::get_size(self)?.unwrap_or(self.remaining());
-    let mut slice = self
+    let slice = self
       .provider
-      .slice_dyn(self.offset, size)
+      .slice_dyn(self.offset(), size)
       .map_err(|e| ReadOutOfBoundsError::from_slice_out_of_bounds_error(e, dr))?;
 
     let mut child = Reader {
       provider: slice,
       endianness: self.endianness,
-      offset: 0,
-      diagnostic_reference: dr.create_physical_child(self.offset, size, name),
+      offset: Cell::new(0),
+      diagnostic_reference: dr.create_physical_child(self.offset(), size, name),
     };
 
-    self.offset += size;
+    self.offset.set(size + self.offset());
 
     T::read(&mut child, argument)
   }
 
   pub fn seek(&mut self, position: SeekFrom) -> Result<(), ()> {
     let (new_value, overflowed) = match position {
-      SeekFrom::Current(bytes) => self.offset.overflowing_add_signed(bytes),
+      SeekFrom::Current(bytes) => self.offset().overflowing_add_signed(bytes),
       SeekFrom::Start(bytes) => (bytes, false),
       SeekFrom::End(bytes) => self.provider.len().overflowing_add_signed(bytes),
     };
@@ -386,7 +391,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     if overflowed || new_value >= self.provider.len() {
       Err(())
     } else {
-      self.offset = new_value;
+      self.offset.set(new_value);
 
       Ok(())
     }
@@ -402,12 +407,12 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
     Ok(
       self
         .provider
-        .with_read_dyn(self.offset, length.unwrap_or(self.remaining()), callback)
+        .with_read_dyn(self.offset(), length.unwrap_or(self.remaining()), callback)
         .map_err(|re| {
           ParsePrimitiveError::UnderlyingProviderReadError(UnderlyingProviderReadError(
             re.0,
             self.diagnostic_reference.create_physical_child(
-              self.offset,
+              self.offset(),
               length.unwrap_or(self.remaining()),
               DiagnosticNodeName::from(name),
             ),
@@ -417,7 +422,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, UnderlyingProvider: Provider
           ParsePrimitiveError::OutOfBounds(ReadOutOfBoundsError::from_slice_out_of_bounds_error(
             e,
             self.diagnostic_reference.create_physical_child(
-              self.offset,
+              self.offset(),
               length.unwrap_or(self.remaining()),
               DiagnosticNodeName::from(name),
             ),

@@ -1,4 +1,4 @@
-use fileforge_byml::unmanaged::BymlReader;
+use fileforge_byml::unmanaged::{node::dictionary::BymlDictionaryNodeReader, BymlReader};
 use fileforge_lib::{
   diagnostic::pool::{entry::DiagnosticPoolEntry, DiagnosticPool},
   error::Error,
@@ -12,7 +12,7 @@ fn main() {
   let mut pool = DiagnosticPool::new(&mut pool_buffer);
   let pool_ref = &mut pool;
 
-  let mut byml_view = BymlReader::over(&mut provider, &pool_ref)
+  let byml_view = BymlReader::over(&mut provider, &pool_ref)
     .map_err(|e| e.into_display())
     .unwrap();
   let version = byml_view.version().map_err(|e| e.into_display()).unwrap();
@@ -49,5 +49,42 @@ fn main() {
     .unwrap()
   }
 
-  let root = byml_view.root().map_err(|e| e.into_display()).unwrap();
+  let mut root = byml_view
+    .root()
+    .map_err(|e| e.into_display())
+    .unwrap()
+    .unwrap()
+    .downcast::<BymlDictionaryNodeReader<32, RustSliceBinaryProvider>>()
+    .unwrap();
+
+  println!(
+    "Root (as Dict) len: {}",
+    root.length().map_err(|e| e.into_display()).unwrap()
+  );
+
+  for (i, entry) in root.iter().enumerate() {
+    match entry {
+      Err(_) => println!("{}: Err", i),
+
+      Ok(v) => {
+        let name = v.with_node_name(|name| String::from_utf8(Vec::from(name.to_bytes())));
+
+        match name {
+          Ok(Ok(n)) => println!("{} ({}): {}", i, n, v.r#type),
+          Ok(Err(_)) => println!("{}: InvalidUtf8", i),
+          Err(e) => println!("{}: NameErr {:?}", i, e.into_display()),
+        }
+      }
+    }
+  }
+
+  let node = root
+    .get(c"ELink2/elink2.Product.belnk")
+    .map_err(|e| e.into_display())
+    .unwrap();
+
+  match node {
+    None => println!("Not Found"),
+    Some(_) => println!("Found!"),
+  }
 }

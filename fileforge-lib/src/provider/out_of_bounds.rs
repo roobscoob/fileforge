@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct SliceOutOfBoundsError {
   pub(crate) read_offset: u64,
   pub(crate) read_size: u64,

@@ -13,7 +13,7 @@ pub trait DynamicSizeReadable<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize>: Si
     argument: Self::Argument,
   ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>;
   fn get_size<RP: Provider>(
-    reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
+    reader: &Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
   ) -> Result<Option<u64>, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>;
 }
 
