@@ -92,7 +92,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticPool<'pool, NODE_NAME_SIZE> {
   pub fn try_create(
     &self,
     branch: DiagnosticBranch,
-    size: u64,
+    size: Option<u64>,
     name: DiagnosticNodeName<NODE_NAME_SIZE>,
   ) -> DiagnosticReference<NODE_NAME_SIZE> {
     match self.get_space_to_consume(

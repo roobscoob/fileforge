@@ -22,15 +22,17 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> BymlHeader<'pool, DIAGNOSTIC
   pub fn size() -> u64 { 16 }
 
   pub fn endianness_diagnostic(&self) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
-    self
-      .diagnostic_reference
-      .create_physical_child(0, 2, DiagnosticNodeName::from("Endianness"))
+    self.diagnostic_reference.create_physical_child(
+      0,
+      Some(2),
+      DiagnosticNodeName::from("Endianness"),
+    )
   }
 
   pub fn version_diagnostic(&self) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self
       .diagnostic_reference
-      .create_physical_child(2, 2, DiagnosticNodeName::from("Version"))
+      .create_physical_child(2, Some(2), DiagnosticNodeName::from("Version"))
   }
 
   pub fn key_table_offset_diagnostic(
@@ -38,7 +40,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> BymlHeader<'pool, DIAGNOSTIC
   ) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.diagnostic_reference.create_physical_child(
       4,
-      4,
+      Some(4),
       DiagnosticNodeName::from("Key Table Offset"),
     )
   }
@@ -48,7 +50,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> BymlHeader<'pool, DIAGNOSTIC
   ) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.diagnostic_reference.create_physical_child(
       8,
-      4,
+      Some(4),
       DiagnosticNodeName::from("String Table Offset"),
     )
   }
@@ -58,7 +60,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> BymlHeader<'pool, DIAGNOSTIC
   ) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.diagnostic_reference.create_physical_child(
       12,
-      4,
+      Some(4),
       DiagnosticNodeName::from("Root Node Offset"),
     )
   }
@@ -73,8 +75,11 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
 
   fn read<RP: Provider>(
     reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
-    argument: Self::Argument,
-  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+    _argument: Self::Argument,
+  ) -> Result<
+    Self,
+    ParseError<'pool, Self::Error, RP::ReadError, RP::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  > {
     let dr = reader.diagnostic_reference();
 
     let endianness_marker: EndiannessMarker<2> = reader

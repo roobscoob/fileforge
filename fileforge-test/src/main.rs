@@ -1,84 +1,65 @@
-use fileforge_byml::unmanaged::{node::dictionary::BymlDictionaryNodeReader, BymlReader};
-use fileforge_lib::{
-  diagnostic::pool::{entry::DiagnosticPoolEntry, DiagnosticPool},
-  error::Error,
-  provider::builtin::rust_slice::RustSliceBinaryProvider,
+use fileforge_byml::unmanaged::{
+  node::{dictionary::BymlDictionaryNodeReader, string::BymlStringNodeReader},
+  BymlReader,
 };
+use fileforge_lib::{
+  diagnostic::{
+    node::{branch::DiagnosticBranch, name::DiagnosticNodeName},
+    pool::{entry::DiagnosticPoolEntry, DiagnosticPool},
+  },
+  error::{Error, ErrorResultExt},
+  provider::{builtin::rust_slice::RustSliceBinaryProvider, r#trait::Provider},
+};
+use fileforge_std::providers::{file::FileProvider, log::LogProvider};
 
 fn main() {
-  let bytes = include_bytes!("../binaries/real.byml");
-  let mut provider = RustSliceBinaryProvider::over(bytes);
+  let mut provider = FileProvider::open("./fileforge-test/binaries/real.byml").unwrap();
   let mut pool_buffer: [DiagnosticPoolEntry<32>; 32] = Default::default();
   let mut pool = DiagnosticPool::new(&mut pool_buffer);
   let pool_ref = &mut pool;
 
-  let byml_view = BymlReader::over(&mut provider, &pool_ref)
-    .map_err(|e| e.into_display())
-    .unwrap();
-  let version = byml_view.version().map_err(|e| e.into_display()).unwrap();
-  let endianness = byml_view
-    .endianness()
-    .map_err(|e| e.into_display())
-    .unwrap();
+  let mut log_provider = LogProvider::over(provider);
 
-  println!("version: {}", version);
-  println!("endianness: {:?}", endianness);
+  let byml_view = BymlReader::over(&mut log_provider, &pool_ref);
 
-  let mut st = byml_view
-    .string_table()
-    .map_err(|e| e.into_display())
-    .unwrap();
+  // println!(
+  //   "v{}, {:?}",
+  //   byml_view.version().unwrap_displayable(),
+  //   byml_view.endianness().unwrap_displayable()
+  // );
 
-  println!("StringTable:");
-  for i in 0..st.length().map_err(|e| e.into_display()).unwrap() {
-    st.try_get(i, |str| {
-      println!("  {i}: {str:?}");
-    })
-    .map_err(|e| e.into_display())
-    .unwrap()
-  }
+  // if let Some(mut st) = byml_view.string_table().unwrap_displayable() {
+  //   println!("StringTable:");
 
-  let mut kt = byml_view.key_table().map_err(|e| e.into_display()).unwrap();
+  //   for i in 0..st.length().unwrap_displayable() {
+  //     st.try_get(i, |str| {
+  //       println!("  {i}: {str:?}");
+  //     })
+  //     .unwrap_displayable()
+  //   }
+  // }
 
-  println!("KeyTable:");
-  for i in 0..kt.length().map_err(|e| e.into_display()).unwrap() {
-    kt.try_get(i, |str| {
-      println!("  {i}: {str:?}");
-    })
-    .map_err(|e| e.into_display())
-    .unwrap()
-  }
+  // if let Some(mut kt) = byml_view.key_table().unwrap_displayable() {
+  //   println!("KeyTable:");
 
-  let mut root = byml_view
-    .root()
-    .map_err(|e| e.into_display())
-    .unwrap()
-    .unwrap()
-    .downcast::<BymlDictionaryNodeReader<32, RustSliceBinaryProvider>>()
-    .unwrap();
+  //   for i in 0..kt.length().unwrap_displayable() {
+  //     kt.try_get(i, |str| {
+  //       println!("  {i}: {str:?}");
+  //     })
+  //     .unwrap_displayable()
+  //   }
+  // }
+
+  let root = byml_view.root().unwrap_displayable().unwrap();
+
+  let mut dict = root.downcast::<BymlDictionaryNodeReader<32, _>>().unwrap();
 
   println!(
     "Root (as Dict) len: {}",
-    root.length().map_err(|e| e.into_display()).unwrap()
+    dict.length().map_err(|e| e.into_display()).unwrap()
   );
 
-  for (i, entry) in root.iter().enumerate() {
-    match entry {
-      Err(_) => println!("{}: Err", i),
-
-      Ok(v) => {
-        let name = v.with_node_name(|name| String::from_utf8(Vec::from(name.to_bytes())));
-
-        match name {
-          Ok(Ok(n)) => println!("{} ({}): {}", i, n, v.r#type),
-          Ok(Err(_)) => println!("{}: InvalidUtf8", i),
-          Err(e) => println!("{}: NameErr {:?}", i, e.into_display()),
-        }
-      }
-    }
-  }
-
-  let node = root
+  let node = dict
     .get(c"ELink2/elink2.Product.belnk")
     .map_err(|e| e.into_display())
     .unwrap();
@@ -86,5 +67,32 @@ fn main() {
   match node {
     None => println!("Not Found"),
     Some(_) => println!("Found!"),
+  }
+
+  for (i, entry) in dict.into_iter().enumerate() {
+    match entry {
+      Err(_) => println!("{}: Err", i),
+
+      Ok(v) => {
+        let name = v
+          .with_node_name(|name| String::from_utf8(Vec::from(name.to_bytes())))
+          .unwrap_or_else(|_| panic!("Womp"))
+          .unwrap();
+
+        let value = v
+          .value()
+          .downcast::<BymlStringNodeReader<32, _>>()
+          .unwrap_or_else(|_| panic!("Womp"));
+
+        let value = value.with_content(|name| String::from_utf8(Vec::from(name.to_bytes())));
+
+        println!(
+          "{} ({}): {:?}",
+          i,
+          name,
+          value.map_err(|e| e.into_display())
+        )
+      }
+    }
   }
 }

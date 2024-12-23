@@ -28,6 +28,16 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
     }
   }
 
+  pub fn new_invalid_from_pool(
+    pool: &'pool DiagnosticPool<'pool, NODE_NAME_SIZE>,
+  ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+    DiagnosticReference {
+      index: usize::MAX,
+      generation: u64::MAX,
+      pool,
+    }
+  }
+
   pub fn family_exists(&self) -> bool {
     if !self.exists() {
       return false;
@@ -102,7 +112,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
   pub fn create_physical_child(
     &self,
     offset: u64,
-    size: u64,
+    size: Option<u64>,
     name: DiagnosticNodeName<NODE_NAME_SIZE>,
   ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     if !self.exists() {
@@ -113,6 +123,26 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
       DiagnosticBranch::Physical {
         parent: self.dislocate(),
         offset,
+      },
+      size,
+      name,
+    )
+  }
+
+  pub fn create_logical_child(
+    &self,
+    size: Option<u64>,
+    branch_name: &'static str,
+    name: DiagnosticNodeName<NODE_NAME_SIZE>,
+  ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+    if !self.exists() {
+      return self.new_invalid();
+    }
+
+    self.pool.try_create(
+      DiagnosticBranch::Logical {
+        parent: self.dislocate(),
+        name: branch_name,
       },
       size,
       name,

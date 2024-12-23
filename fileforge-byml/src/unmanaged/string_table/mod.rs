@@ -16,11 +16,13 @@ use fileforge_lib::{
       byte_display::ByteDisplay, number::formatted_unsigned::FormattedUnsigned, text::Text,
     },
   },
-  provider::r#trait::Provider,
+  provider::{error::ProviderError, r#trait::Provider},
   reader::{
     error::{
       expect_primitive::ExpectPrimitiveErrorResultExtension,
       parse_primitive::{ParsePrimitiveError, ParsePrimitiveErrorResultExtension},
+      underlying_provider_error::UnderlyingProviderError,
+      underlying_provider_stat::UnderlyingProviderStatError,
     },
     Reader, SeekFrom,
   },
@@ -40,7 +42,7 @@ pub struct StringTable<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provide
 
 pub struct DiagnosticReferenceBuilder<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
   real_value: u32,
-  real_value_size: u64,
+  real_value_size: Option<u64>,
   parent_dr: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
   real_value_offset: u64,
   real_value_name: &'static str,
@@ -82,14 +84,14 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
 {
   pub fn size(
     reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, P>,
-    byml_size: usize,
+    get_byml_size: impl Fn() -> Result<u64, UnderlyingProviderStatError<P::StatError>>,
     get_position_dr: impl Fn() -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
   ) -> Result<
     (
       u64,
       DiagnosticReferenceBuilder<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
     ),
-    StringTableSizeError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
+    StringTableSizeError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
   > {
     let kind = reader
       .expect(
@@ -114,7 +116,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
       .map_expectation_failed(|ef| StringTableSizeError::InvalidNodeKind(ef))?
       .map_out_of_bounds(|oob| {
         StringTableSizeError::NotLargeEnough(StringTableOutOfBounds {
-          byml_size,
+          byml_size: get_byml_size(),
           string_table_parent: reader.diagnostic_reference(),
           string_table_position: reader.offset() as usize,
           string_table_position_dr: get_position_dr(),
@@ -126,7 +128,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
 
     let count: U24 = reader.get("Element Count").map_out_of_bounds(|oob| {
       StringTableSizeError::NotLargeEnough(StringTableOutOfBounds {
-        byml_size,
+        byml_size: get_byml_size(),
         string_table_parent: reader.diagnostic_reference(),
         string_table_position: (reader.offset() - 1) as usize,
         string_table_position_dr: get_position_dr(),
@@ -141,28 +143,37 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
       let expected_remaining = 0x4 * Into::<u64>::into(count);
       let remaining = reader.remaining();
 
-      if remaining < expected_remaining {
-        reader
-          .seek(SeekFrom::Current(-3))
-          .expect("to be able to move 3 bytes backward (U24)");
-        return Err(StringTableSizeError::NotLargeEnough(
-          StringTableOutOfBounds {
-            byml_size,
-            string_table_parent: reader.diagnostic_reference(),
-            string_table_position: (reader.offset() - 1) as usize,
-            string_table_position_dr: get_position_dr(),
-            string_table_size: Some((expected_remaining + 4) as usize),
-            string_table_size_complete: true,
-            string_table_size_dr: Some(DiagnosticReferenceBuilder {
-              parent_dr: reader.diagnostic_reference(),
-              real_value: Into::<u32>::into(count),
-              real_value_name: "Element Count",
-              real_value_offset: reader.offset(),
-              real_value_size: 3,
-            }),
-          },
-        ));
-      }
+      match remaining {
+        Ok(remaining) => {
+          if remaining < expected_remaining {
+            reader
+              .seek(SeekFrom::Current(-3))
+              .unwrap_or_else(|_| panic!("to be able to move 3 bytes backward (U24)"));
+            return Err(StringTableSizeError::NotLargeEnough(
+              StringTableOutOfBounds {
+                byml_size: get_byml_size(),
+                string_table_parent: reader.diagnostic_reference(),
+                string_table_position: (reader.offset() - 1) as usize,
+                string_table_position_dr: get_position_dr(),
+                string_table_size: Some((expected_remaining + 4) as usize),
+                string_table_size_complete: true,
+                string_table_size_dr: Some(DiagnosticReferenceBuilder {
+                  parent_dr: reader.diagnostic_reference(),
+                  real_value: Into::<u32>::into(count),
+                  real_value_name: "Element Count",
+                  real_value_offset: reader.offset(),
+                  real_value_size: Some(3),
+                }),
+              },
+            ));
+          }
+        }
+        Err(stat_error) => {
+          return Err(StringTableSizeError::UnderlyingProviderError(
+            UnderlyingProviderError::StatError(UnderlyingProviderStatError(stat_error)),
+          ))
+        }
+      };
 
       return Ok((
         expected_remaining + 0x4,
@@ -171,59 +182,33 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
           parent_dr: reader.diagnostic_reference(),
           real_value_offset: reader.offset() - 3,
           real_value_name: "Element Count",
-          real_value_size: 3,
+          real_value_size: Some(3),
         },
       ));
     }
 
-    let remaining = reader.remaining();
     let source = Into::<u32>::into(count);
-    let expectation = source * 0x4;
-
-    reader
-      .seek(SeekFrom::Current(expectation as i64))
-      .map_err(|_| {
-        reader
-          .seek(SeekFrom::Current(-3))
-          .expect("to be able to move 3 bytes backward (U24)");
-
-        return StringTableSizeError::NotLargeEnough(StringTableOutOfBounds {
-          byml_size,
-          string_table_parent: reader.diagnostic_reference(),
-          string_table_position: (reader.offset() - 1) as usize,
-          string_table_position_dr: get_position_dr(),
-          string_table_size: Some(expectation as usize),
-          string_table_size_complete: false,
-          string_table_size_dr: Some(DiagnosticReferenceBuilder {
-            parent_dr: reader.diagnostic_reference(),
-            real_value: Into::<u32>::into(count),
-            real_value_name: "Element Count",
-            real_value_offset: reader.offset(),
-            real_value_size: 3,
-          }),
-        });
-      })?;
 
     let size: u32 = reader
-      .get("Address Table (Last Element)")
+      .get_at("Address Table (Last Element)", ((source * 0x4) + 4) as u64)
       .map_out_of_bounds(|_| {
         reader
-          .seek(SeekFrom::Current(-3 + -(expectation as i64)))
-          .expect("to be able to move 3 bytes backward (U24)");
+          .seek(SeekFrom::Current(-3 + -((source * 0x4) as i64)))
+          .unwrap_or_else(|_| panic!("to be able to move 3 bytes backward (U24)"));
 
         return StringTableSizeError::NotLargeEnough(StringTableOutOfBounds {
-          byml_size,
+          byml_size: get_byml_size(),
           string_table_parent: reader.diagnostic_reference(),
           string_table_position: (reader.offset() - 1) as usize,
           string_table_position_dr: get_position_dr(),
-          string_table_size: Some((expectation + 4) as usize),
+          string_table_size: Some(((source * 0x4) + 4) as usize),
           string_table_size_complete: false,
           string_table_size_dr: Some(DiagnosticReferenceBuilder {
             parent_dr: reader.diagnostic_reference(),
             real_value: Into::<u32>::into(count),
             real_value_name: "Element Count",
             real_value_offset: reader.offset(),
-            real_value_size: 3,
+            real_value_size: Some(3),
           }),
         });
       })??;
@@ -235,33 +220,30 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
         real_value: size,
         real_value_name: "Offset Table (Last Element)",
         real_value_offset: reader.offset() - 4,
-        real_value_size: 3,
+        real_value_size: Some(3),
       },
     ))
   }
 
   pub fn length(&mut self) -> Result<u32, GetLengthError<'pool, P, DIAGNOSTIC_NODE_NAME_SIZE>> {
-    self.reader.seek(SeekFrom::Start(1)).map_err(|_| {
-      GetLengthError::NotLargeEnough(StringTableNotLargeEnough {
-        desired_length: 1,
-        available_length: self.reader.len(),
-      })
-    })?;
-
-    let length: U24 = self.reader.get("Length").map_err(|_| {
-      GetLengthError::NotLargeEnough(StringTableNotLargeEnough {
-        desired_length: 4,
-        available_length: self.reader.len(),
-      })
-    })?;
-
-    Ok(length.into())
+    Ok(
+      self
+        .reader
+        .get_at::<3, U24>("Length", 1)
+        .map_err(|_| {
+          GetLengthError::NotLargeEnough(StringTableNotLargeEnough {
+            desired_length: Some(4),
+            available_length: self.reader.len(),
+          })
+        })?
+        .into(),
+    )
   }
 
   fn length_diagnostic_reference(&self) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.reader.diagnostic_reference().create_physical_child(
       1,
-      3,
+      Some(3),
       DiagnosticNodeName::from("Length"),
     )
   }
@@ -272,7 +254,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
   ) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.reader.diagnostic_reference().create_physical_child(
       4,
-      length as u64 * 4,
+      Some(length as u64 * 4),
       DiagnosticNodeName::from("Offset Table"),
     )
   }
@@ -283,19 +265,25 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
   ) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
     self.reader.diagnostic_reference().create_physical_child(
       4 + (length as u64 * 4),
-      self.reader.len() - (4 + (length as u64 * 4)),
-      DiagnosticNodeName::from("Offset Table"),
+      None,
+      DiagnosticNodeName::from("String Pool"),
     )
   }
 
   fn try_get_offset(
     &mut self,
     index: u32,
+    length: Option<u32>,
   ) -> Result<(u32, u32), GetOffsetError<'pool, P, DIAGNOSTIC_NODE_NAME_SIZE>> {
-    let length = self.length().map_err(|e| match e {
-      GetLengthError::NotLargeEnough(nle) => GetOffsetError::NotLargeEnough(nle),
-      GetLengthError::UnderlyingProviderError(upe) => GetOffsetError::UnderlyingProviderError(upe),
-    })?;
+    let length = match length {
+      Some(v) => v,
+      None => self.length().map_err(|e| match e {
+        GetLengthError::NotLargeEnough(nle) => GetOffsetError::NotLargeEnough(nle),
+        GetLengthError::UnderlyingProviderError(upe) => {
+          GetOffsetError::UnderlyingProviderError(upe)
+        }
+      })?,
+    };
 
     if index >= length {
       return Err(GetOffsetError::IndexOutOfBounds {
@@ -305,23 +293,13 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
       });
     };
 
-    self
-      .reader
-      .seek(SeekFrom::Start((4 + (index * 4)) as u64))
-      .map_err(|_| {
-        GetOffsetError::NotLargeEnough(StringTableNotLargeEnough {
-          desired_length: 4 + (index as u64 * 4),
-          available_length: self.reader.len(),
-        })
-      })?;
-
     let offset: u32 = self
       .reader
-      .get("Offset")
+      .get_at("Offset", (4 + (index * 4)) as u64)
       .map_out_of_bounds(|e| {
         GetOffsetError::NotLargeEnough(StringTableNotLargeEnough {
-          desired_length: e.read_offset + e.read_size,
-          available_length: e.reader_size,
+          desired_length: e.read_size.map(|read_size| e.read_offset + read_size),
+          available_length: Ok(e.reader_size),
         })
       })?
       .map_err(|e| GetOffsetError::UnderlyingProviderError(e))?;
@@ -333,8 +311,14 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
     &mut self,
     index: u32,
     cb: impl for<'s> FnOnce(&'s CStr) -> T,
-  ) -> Result<T, GetError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE, 128>> {
-    let (offset, length) = self.try_get_offset(index).map_err(|e| match e {
+  ) -> Result<T, GetError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE, 128>> {
+    println!(
+      "!!! Hello: {} {:?}",
+      index,
+      self.reader.diagnostic_reference()
+    );
+
+    let (offset, length) = self.try_get_offset(index, None).map_err(|e| match e {
       GetOffsetError::IndexOutOfBounds {
         requested_index,
         length_dr,
@@ -348,21 +332,20 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
       GetOffsetError::NotLargeEnough(nle) => GetError::NotLargeEnough(nle),
     })?;
 
-    self
-      .reader
-      .seek(SeekFrom::Start(offset as u64))
-      .map_err(|_| {
-        GetError::NotLargeEnough(StringTableNotLargeEnough {
-          desired_length: offset as u64,
-          available_length: self.reader.len(),
-        })
-      })?;
+    let next_offset = match self.try_get_offset(index + 1, Some(length)) {
+      Ok((offset, _)) => Some(offset),
+      Err(GetOffsetError::NotLargeEnough(nle)) => return Err(GetError::NotLargeEnough(nle)),
+      Err(GetOffsetError::UnderlyingProviderError(upe)) => {
+        return Err(GetError::UnderlyingProviderError(upe))
+      }
+      Err(GetOffsetError::IndexOutOfBounds { .. }) => None,
+    };
 
-    let size = self.reader.remaining();
+    let string_length_upper_bound = next_offset.map(|next_offset| (next_offset - offset) as u64);
 
     let x = self
       .reader
-      .with_dyn_bytes(Some(size), "Name", |bytes| {
+      .with_dyn_bytes_at(offset as u64, string_length_upper_bound, "Name", |bytes| {
         Ok(cb(
           CStr::from_bytes_until_nul(bytes).map_err(|e| (e, ByteDisplay::new(bytes)))?,
         ))
@@ -370,12 +353,15 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
       .map_err(|e| match e {
         ParsePrimitiveError::OutOfBounds(e) => {
           GetError::NotLargeEnough(StringTableNotLargeEnough {
-            desired_length: e.read_offset,
+            desired_length: Some(e.read_offset),
             available_length: self.reader.len(),
           })
         }
         ParsePrimitiveError::UnderlyingProviderReadError(upre) => {
-          GetError::UnderlyingProviderError(upre)
+          GetError::UnderlyingProviderError(UnderlyingProviderError::ReadError(upre))
+        }
+        ParsePrimitiveError::UnderlyingProviderStatError(upse) => {
+          GetError::UnderlyingProviderError(UnderlyingProviderError::StatError(upse))
         }
       })?
       .map_err(|(e, display)| {
@@ -385,7 +371,7 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
           e,
           string_pool.create_physical_child(
             offset as u64,
-            size,
+            string_length_upper_bound,
             DiagnosticNodeName::from_index(index as u64),
           ),
           display,
@@ -398,7 +384,10 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider>
   pub fn try_get_index(
     &mut self,
     needle: &CStr,
-  ) -> Result<Option<u32>, GetError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE, 128>> {
+  ) -> Result<
+    Option<u32>,
+    GetError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE, 128>,
+  > {
     let length = self.length().map_err(|e| match e {
       GetLengthError::NotLargeEnough(nle) => GetError::NotLargeEnough(nle),
       GetLengthError::UnderlyingProviderError(upe) => GetError::UnderlyingProviderError(upe),

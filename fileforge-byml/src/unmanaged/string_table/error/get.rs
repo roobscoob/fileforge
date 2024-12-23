@@ -13,7 +13,10 @@ use fileforge_lib::{
     Error,
   },
   provider::error::ProviderError,
-  reader::error::underlying_provider_read::UnderlyingProviderReadError,
+  reader::error::{
+    underlying_provider_error::UnderlyingProviderError,
+    underlying_provider_read::UnderlyingProviderReadError,
+  },
 };
 
 use super::get_length::StringTableNotLargeEnough;
@@ -21,10 +24,11 @@ use super::get_length::StringTableNotLargeEnough;
 pub enum GetError<
   'pool,
   PE: ProviderError,
+  SE: ProviderError,
   const DIAGNOSTIC_NODE_NAME_SIZE: usize,
   const BYTE_DISPLAY_SIZE: usize,
 > {
-  UnderlyingProviderError(UnderlyingProviderReadError<'pool, PE, DIAGNOSTIC_NODE_NAME_SIZE>),
+  UnderlyingProviderError(UnderlyingProviderError<'pool, PE, SE, DIAGNOSTIC_NODE_NAME_SIZE>),
   IndexOutOfBounds {
     requested_index: u32,
     length_dr: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
@@ -35,16 +39,17 @@ pub enum GetError<
     DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
     ByteDisplay<BYTE_DISPLAY_SIZE>,
   ),
-  NotLargeEnough(StringTableNotLargeEnough),
+  NotLargeEnough(StringTableNotLargeEnough<SE>),
 }
 
 impl<
     'pool,
     PE: ProviderError,
+    SE: ProviderError,
     const DIAGNOSTIC_NODE_NAME_SIZE: usize,
     const BYTE_DISPLAY_SIZE: usize,
   > Error<DIAGNOSTIC_NODE_NAME_SIZE>
-  for GetError<'pool, PE, DIAGNOSTIC_NODE_NAME_SIZE, BYTE_DISPLAY_SIZE>
+  for GetError<'pool, PE, SE, DIAGNOSTIC_NODE_NAME_SIZE, BYTE_DISPLAY_SIZE>
 {
   fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
     match self {

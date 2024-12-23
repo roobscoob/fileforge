@@ -13,6 +13,7 @@ use fileforge_lib::{
     Error,
   },
   provider::error::ProviderError,
+  reader::error::underlying_provider_stat::UnderlyingProviderStatError,
 };
 
 use crate::unmanaged::string_table::{
@@ -21,17 +22,25 @@ use crate::unmanaged::string_table::{
 
 use super::get_header::GetHeaderError;
 
-pub enum GetStringTableError<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
-  GetHeaderError(GetHeaderError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>),
-  GetStringTableSizeError(StringTableSizeError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>),
-  StringTableOutOfBounds(StringTableOutOfBounds<'pool, DIAGNOSTIC_NODE_NAME_SIZE>),
+pub enum GetStringTableError<
+  'pool,
+  Re: ProviderError,
+  Se: ProviderError,
+  const DIAGNOSTIC_NODE_NAME_SIZE: usize,
+> {
+  FailedToConstructReader(UnderlyingProviderStatError<Se>),
+  GetHeaderError(GetHeaderError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>),
+  GetStringTableSizeError(StringTableSizeError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>),
+  StringTableOutOfBounds(StringTableOutOfBounds<'pool, Se, DIAGNOSTIC_NODE_NAME_SIZE>),
 }
 
-impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
-  Error<DIAGNOSTIC_NODE_NAME_SIZE> for GetStringTableError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>
+impl<'pool, Re: ProviderError, Se: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+  Error<DIAGNOSTIC_NODE_NAME_SIZE>
+  for GetStringTableError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>
 {
   fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, callback: Cb) {
     match self {
+      GetStringTableError::FailedToConstructReader(upse) => upse.with_report(callback),
       GetStringTableError::GetHeaderError(ghe) => ghe.with_report(callback),
       GetStringTableError::GetStringTableSizeError(gstse) => gstse.with_report(callback),
       GetStringTableError::StringTableOutOfBounds(stoob) => stoob.with_report(callback),
@@ -39,23 +48,25 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
   }
 }
 
-pub struct StringTableOutOfBounds<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
+pub struct StringTableOutOfBounds<'pool, Se: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+{
   pub string_table_size: Option<usize>,
   pub string_table_size_complete: bool,
   pub string_table_position: usize,
   pub string_table_parent: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
   pub string_table_size_dr: Option<DiagnosticReferenceBuilder<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>,
   pub string_table_position_dr: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
-  pub byml_size: usize,
+  pub byml_size: Result<u64, UnderlyingProviderStatError<Se>>,
 }
 
-impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_SIZE>
-  for StringTableOutOfBounds<'pool, DIAGNOSTIC_NODE_NAME_SIZE>
+impl<'pool, Se: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+  Error<DIAGNOSTIC_NODE_NAME_SIZE>
+  for StringTableOutOfBounds<'pool, Se, DIAGNOSTIC_NODE_NAME_SIZE>
 {
   fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
     let string_table_dr = self.string_table_parent.create_physical_child(
       self.string_table_position as u64,
-      self.string_table_size.unwrap_or(0) as u64,
+      self.string_table_size.map(|v| v as u64),
       DiagnosticNodeName::from("String Table"),
     );
     let string_table_size_dr = self
@@ -74,20 +85,31 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_S
       primary_note_position = primary_note_position.with_base(16).with_prefix("0x");
     }
 
-    let primary_note_actual = FormattedUnsigned::new(if primary_note_width.is_some() {
-      self.byml_size - self.string_table_position
-    } else {
-      self.byml_size
-    } as u64);
+    let primary_note_actual = self.byml_size.as_ref().map(|byml_size| {
+      FormattedUnsigned::new(if primary_note_width.is_some() {
+        (*byml_size) - self.string_table_position as u64
+      } else {
+        *byml_size
+      } as u64)
+    });
 
     let primary_note = &text!(
-      { desired.is_some() && !self.string_table_size_complete }
-        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected at least {desired.as_ref().unwrap()} bytes at {position}, but only {actual} were available.",
+      { desired.is_some() && !self.string_table_size_complete && actual.is_ok() }
+        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected at least {desired.as_ref().unwrap()} bytes at {position}, but only {actual.as_ref().unwrap_or_else(|_| panic!())} were available.",
 
-      { desired.is_some() }
-        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected exactly {desired.as_ref().unwrap()} bytes at {position}, but only {actual} were available.",
+      { desired.is_some() && !self.string_table_size_complete && actual.is_err() }
+        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected at least {desired.as_ref().unwrap()} bytes at {position}.",
 
-      [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected at least {position} bytes, but only {actual} were available.",
+      { desired.is_some() && actual.is_ok() }
+        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected exactly {desired.as_ref().unwrap()} bytes at {position}, but only {actual.as_ref().unwrap_or_else(|_| panic!())} were available.",
+
+      { desired.is_some() && actual.is_err() }
+        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected exactly {desired.as_ref().unwrap()} bytes at {position}.",
+
+      { actual.is_ok() }
+        [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected at least {position} bytes, but only {actual.as_ref().unwrap_or_else(|_| panic!())} were available.",
+
+      [&REPORT_ERROR_TEXT] "BYML was not large enough for string table. Expected at least {position} bytes.",
 
       desired = &primary_note_width,
       position = &primary_note_position,

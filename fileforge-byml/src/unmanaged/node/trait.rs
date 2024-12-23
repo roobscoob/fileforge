@@ -13,6 +13,8 @@ pub trait BymlNodeReader<
   BP: Provider,
 >: Sized
 {
+  type ReadError;
+
   fn type_id_supported(type_id: u8) -> bool;
   fn requires_dereferencing(type_id: u8) -> bool;
 
@@ -21,10 +23,10 @@ pub trait BymlNodeReader<
     reader: Reader<
       'pool,
       DIAGNOSTIC_NODE_NAME_SIZE,
-      DynamicSliceProvider<'byml_provider, <BP as Provider>::DynReturnedProviderType>,
+      <BP as Provider>::DynReturnedProviderType<'byml_provider>,
     >,
     byml: &'byml BymlReader<'byml_provider, 'pool, DIAGNOSTIC_NODE_NAME_SIZE, BP>,
-  ) -> Self;
+  ) -> Result<Self, Self::ReadError>;
 
   fn from_value(
     type_id: u8,

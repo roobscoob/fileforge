@@ -16,8 +16,13 @@ use fileforge_lib::{
 
 use super::get_header::GetHeaderError;
 
-pub enum LoadError<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
-  HeaderGetError(GetHeaderError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>),
+pub enum LoadError<
+  'pool,
+  Re: ProviderError,
+  Se: ProviderError,
+  const DIAGNOSTIC_NODE_NAME_SIZE: usize,
+> {
+  HeaderGetError(GetHeaderError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>),
   UnsupportedVersion(
     u16,
     Endianness,
@@ -25,14 +30,14 @@ pub enum LoadError<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: us
   ),
 }
 
-impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
-  LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>
+impl<'pool, Re: ProviderError, Se: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+  LoadError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>
 {
   pub fn assert_supported<Cb: FnOnce() -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(
     version: u16,
     endianness: Endianness,
     make_dr: Cb,
-  ) -> Result<(), LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  ) -> Result<(), LoadError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>> {
     if version > 10 {
       Err(Self::UnsupportedVersion(version, endianness, make_dr()))
     } else {
@@ -41,8 +46,8 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
   }
 }
 
-impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
-  Error<DIAGNOSTIC_NODE_NAME_SIZE> for LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>
+impl<'pool, Re: ProviderError, Se: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
+  Error<DIAGNOSTIC_NODE_NAME_SIZE> for LoadError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>
 {
   fn with_report<Cb: FnMut(Report<DIAGNOSTIC_NODE_NAME_SIZE>) -> ()>(&self, mut callback: Cb) {
     match self {
@@ -72,7 +77,7 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
           .with_tag(&REPORT_INFO_LINE_TEXT);
 
         let endianness_swap_flag: Option<Text> = if let Ok(()) =
-          LoadError::<Re, DIAGNOSTIC_NODE_NAME_SIZE>::assert_supported(
+          LoadError::<Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>::assert_supported(
             version.swap_bytes(),
             *native_endianness,
             || *dr,
@@ -96,7 +101,7 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
         };
 
         if dr.family_exists() {
-          let report = Report::new::<LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>>(
+          let report = Report::new::<LoadError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>>(
             ReportKind::Error,
             "Failed to load BYML",
           )
@@ -116,7 +121,7 @@ impl<'pool, Re: ProviderError, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
           let line = Text::new()
             .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
 
-          let report = Report::new::<LoadError<'pool, Re, DIAGNOSTIC_NODE_NAME_SIZE>>(
+          let report = Report::new::<LoadError<'pool, Re, Se, DIAGNOSTIC_NODE_NAME_SIZE>>(
             ReportKind::Error,
             "Failed to load BYML",
           )

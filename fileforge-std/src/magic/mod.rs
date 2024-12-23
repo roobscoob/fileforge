@@ -12,13 +12,14 @@ use self::error::MagicError;
 
 pub mod error;
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Magic<const SIZE: usize> {
   bytes: [u8; SIZE],
 }
 
 impl<const SIZE: usize> Magic<SIZE> {
-  pub fn from_bytes(bytes: [u8; SIZE]) -> Magic<SIZE> { Self { bytes } }
+  pub const fn from_bytes(bytes: [u8; SIZE]) -> Magic<SIZE> { Self { bytes } }
+  pub const fn from_byte_ref(bytes: &[u8; SIZE]) -> Magic<SIZE> { Self { bytes: *bytes } }
 }
 
 impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize>
@@ -30,7 +31,10 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize>
   fn read<RP: Provider>(
     reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
     expected: Self::Argument,
-  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  ) -> Result<
+    Self,
+    ParseError<'pool, Self::Error, RP::ReadError, RP::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  > {
     let actual = Self::from_bytes(reader.get("Bytes")?);
 
     if actual != expected {

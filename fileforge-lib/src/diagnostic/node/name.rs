@@ -72,6 +72,31 @@ impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
     name
   }
 
+  pub fn from_named_index(name: &'static str, index: u64) -> DiagnosticNodeName<SIZE> {
+    let mut name = DiagnosticNodeName::from(name);
+
+    name.push(b'[');
+
+    let mut my_index = index;
+
+    if SIZE > 0 {
+      if my_index == 0 {
+        name.push(b'0');
+      }
+
+      while my_index > 0 {
+        let current_digit_index = my_index / (10u64.pow(my_index.ilog10()));
+        let current_digit = CHARS.get(current_digit_index as usize).unwrap();
+        my_index = my_index % (10u64.pow(my_index.ilog10()));
+        name.push(*current_digit);
+      }
+    };
+
+    name.push(b']');
+
+    name
+  }
+
   fn push(&mut self, char: u8) {
     self.total_length += 1;
 

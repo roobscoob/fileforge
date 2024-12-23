@@ -1,3 +1,5 @@
+use fileforge_macros::text;
+
 use crate::{
   diagnostic::node::reference::DiagnosticReference,
   error::{
@@ -16,7 +18,7 @@ use crate::{
 #[derive(Clone)]
 pub struct ReadOutOfBoundsError<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> {
   pub read_offset: u64,
-  pub read_size: u64,
+  pub read_size: Option<u64>,
   pub reader_size: u64,
   pub reader_diagnostic: DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
 }
@@ -45,20 +47,21 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_S
       let line = Text::new()
         .push("The diagnostic pool was too small to be able to load the diagnostics for this error. You are seeing a minified version with what available data exists.", &REPORT_FLAG_LINE_TEXT);
 
-      let read_size_base_10 = FormattedUnsigned::new(self.read_size).with_separator(3, ",");
+      let read_size_base_10 = self
+        .read_size
+        .map(|read_size| FormattedUnsigned::new(read_size).with_separator(3, ","));
+
       let read_offset_base_10 = FormattedUnsigned::new(self.read_offset).with_separator(3, ",");
       let read_offset_base_16 = FormattedUnsigned::new(self.read_offset)
         .with_base(16)
         .with_uppercase();
 
-      let info = Text::new()
-        .push("Failed to read ", &REPORT_INFO_LINE_TEXT)
-        .with(&read_size_base_10)
-        .push(" bytes at ", &REPORT_INFO_LINE_TEXT)
-        .with(&read_offset_base_10)
-        .push(" (0x", &REPORT_INFO_LINE_TEXT)
-        .with(&read_offset_base_16)
-        .push(")", &REPORT_INFO_LINE_TEXT);
+      let info = text!(
+        { read_size_base_10.is_some() }
+          [&REPORT_INFO_LINE_TEXT] "Failed to read {read_size_base_10.as_ref().unwrap()} bytes at {&read_offset_base_10} (0x{&read_offset_base_16}).",
+
+        [&REPORT_INFO_LINE_TEXT] "Failed to read at {&read_offset_base_10} (0x{&read_offset_base_16}).",
+      );
 
       return callback(
         Report::new::<ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(
@@ -72,20 +75,21 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize> Error<DIAGNOSTIC_NODE_NAME_S
       );
     }
 
-    let read_size_base_10 = FormattedUnsigned::new(self.read_size).with_separator(3, ",");
+    let read_size_base_10 = self
+      .read_size
+      .map(|read_size| FormattedUnsigned::new(read_size).with_separator(3, ","));
+
     let read_offset_base_10 = FormattedUnsigned::new(self.read_offset).with_separator(3, ",");
     let read_offset_base_16 = FormattedUnsigned::new(self.read_offset)
       .with_base(16)
       .with_uppercase();
 
-    let info = Text::new()
-      .push("Failed to read ", &REPORT_ERROR_TEXT)
-      .with(&read_size_base_10)
-      .push(" bytes at ", &REPORT_ERROR_TEXT)
-      .with(&read_offset_base_10)
-      .push(" (0x", &REPORT_ERROR_TEXT)
-      .with(&read_offset_base_16)
-      .push(")", &REPORT_ERROR_TEXT);
+    let info = text!(
+      { read_size_base_10.is_some() }
+        [&REPORT_ERROR_TEXT] "Failed to read {read_size_base_10.as_ref().unwrap()} bytes at {&read_offset_base_10} (0x{&read_offset_base_16}).",
+
+      [&REPORT_ERROR_TEXT] "Failed to read at {&read_offset_base_10} (0x{&read_offset_base_16}).",
+    );
 
     return callback(
       Report::new::<ReadOutOfBoundsError<'pool, DIAGNOSTIC_NODE_NAME_SIZE>>(

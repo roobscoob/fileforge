@@ -57,7 +57,10 @@ impl<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize>
   fn read<RP: Provider>(
     reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
     expected: Self::Argument,
-  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  ) -> Result<
+    Self,
+    ParseError<'pool, Self::Error, RP::ReadError, RP::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  > {
     let mut bytes: [u8; SIZE] = reader.get("Endianness")?;
 
     if bytes == expected.bytes {

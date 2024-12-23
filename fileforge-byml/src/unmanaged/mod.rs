@@ -16,6 +16,7 @@ use fileforge_lib::{
     endianness::Endianness,
     error::{
       parse::ParseErrorResultExtension, parse_primitive::ParsePrimitiveErrorResultExtension,
+      underlying_provider_stat::UnderlyingProviderStatError,
     },
     Reader, SeekFrom,
   },
@@ -34,7 +35,6 @@ pub mod string_table;
 pub struct BymlReader<'provider, 'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, P: Provider> {
   provider: &'provider P,
   pool: &'pool &'pool mut DiagnosticPool<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
-  endianness: Option<Endianness>,
 }
 
 impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
@@ -42,24 +42,31 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
 {
   fn compute_header_size() -> u64 { BymlHeader::<'static, 0>::size() }
 
-  fn diagnostic_root(&self) -> DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE> {
-    self.pool.try_create(
+  fn diagnostic_root(
+    &self,
+  ) -> Result<
+    DiagnosticReference<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
+    UnderlyingProviderStatError<P::StatError>,
+  > {
+    Ok(self.pool.try_create(
       DiagnosticBranch::None,
-      self.provider.len(),
+      None,
       DiagnosticNodeName::from("BYML"),
-    )
+    ))
   }
 
   fn header(
     &self,
   ) -> Result<
     BymlHeader<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
-    GetHeaderError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
+    GetHeaderError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
   > {
-    let mut reader = Reader::<'pool, DIAGNOSTIC_NODE_NAME_SIZE, &P>::at(
+    let reader = Reader::<'pool, DIAGNOSTIC_NODE_NAME_SIZE, &P>::at(
       &*self.provider,
-      self.endianness.unwrap_or(Endianness::Big),
-      self.diagnostic_root(),
+      Endianness::Big,
+      self
+        .diagnostic_root()
+        .unwrap_or_else(|_| DiagnosticReference::new_invalid_from_pool(self.pool)),
     );
 
     let header: BymlHeader<'pool, DIAGNOSTIC_NODE_NAME_SIZE> = reader
@@ -75,58 +82,45 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
 
   pub fn version(
     &self,
-  ) -> Result<u16, GetHeaderError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  ) -> Result<u16, GetHeaderError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>> {
     Ok(self.header()?.version)
   }
 
   pub fn endianness(
     &self,
-  ) -> Result<Endianness, GetHeaderError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>> {
+  ) -> Result<
+    Endianness,
+    GetHeaderError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  > {
     Ok(self.header()?.endianness)
   }
 
   pub fn over(
     provider: &'provider P,
     pool: &'pool &'pool mut DiagnosticPool<'pool, DIAGNOSTIC_NODE_NAME_SIZE>,
-  ) -> Result<
-    BymlReader<'provider, 'pool, DIAGNOSTIC_NODE_NAME_SIZE, P>,
-    LoadError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
-  > {
-    let mut unmanaged_byml = BymlReader {
-      provider,
-      pool,
-      endianness: None,
-    };
-    let header = unmanaged_byml
-      .header()
-      .map_err(|e| LoadError::HeaderGetError(e))?;
-
-    unmanaged_byml.endianness = Some(header.endianness);
-
-    LoadError::assert_supported(header.version, header.endianness, || {
-      header.version_diagnostic()
-    })?;
-
-    Ok(unmanaged_byml)
+  ) -> BymlReader<'provider, 'pool, DIAGNOSTIC_NODE_NAME_SIZE, P> {
+    BymlReader { provider, pool }
   }
 
   pub fn string_table(
     &self,
   ) -> Result<
-    StringTable<
-      'pool,
-      DIAGNOSTIC_NODE_NAME_SIZE,
-      DynamicSliceProvider<'_, <P as Provider>::DynReturnedProviderType>,
+    Option<
+      StringTable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, <P as Provider>::DynReturnedProviderType<'_>>,
     >,
-    GetStringTableError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
+    GetStringTableError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
   > {
     let header = self
       .header()
       .map_err(|e| GetStringTableError::GetHeaderError(e))?;
 
+    if header.string_table_offset == 0 {
+      return Ok(None);
+    }
+
     let mut reader = Reader::<'pool, DIAGNOSTIC_NODE_NAME_SIZE, &P>::root(
       &*self.provider,
-      self.endianness.unwrap_or(Endianness::Big),
+      Endianness::Big,
       *self.pool,
       DiagnosticNodeName::from("Byml"),
     );
@@ -141,24 +135,34 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
           string_table_position: header.string_table_offset as usize,
           string_table_position_dr: header.string_table_offset_diagnostic(),
           string_table_size_dr: None,
-          byml_size: self.provider.len() as usize,
+          byml_size: self
+            .provider
+            .len()
+            .map_err(|e| UnderlyingProviderStatError(e)),
         })
       })?;
 
-    let (size, drb) = StringTable::size(&mut reader, self.provider.len() as usize, || {
-      header.string_table_offset_diagnostic()
-    })
+    let (size, drb) = StringTable::size(
+      &mut reader,
+      || {
+        self
+          .provider
+          .len()
+          .map_err(|e| UnderlyingProviderStatError(e))
+      },
+      || header.string_table_offset_diagnostic(),
+    )
     .map_err(|e| GetStringTableError::GetStringTableSizeError(e))?;
 
     let dr = reader.diagnostic_reference().create_physical_child(
       header.string_table_offset as u64,
-      size,
+      Some(size),
       DiagnosticNodeName::from("String Table"),
     );
 
     let provider = self
       .provider
-      .slice_dyn(header.string_table_offset as u64, size)
+      .slice_dyn(header.string_table_offset as u64, Some(size))
       .map_err(|_| {
         GetStringTableError::StringTableOutOfBounds(StringTableOutOfBounds {
           string_table_parent: reader.diagnostic_reference(),
@@ -167,32 +171,37 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
           string_table_size: Some(size as usize),
           string_table_size_complete: true,
           string_table_size_dr: Some(drb),
-          byml_size: self.provider.len() as usize,
+          byml_size: self
+            .provider
+            .len()
+            .map_err(|e| UnderlyingProviderStatError(e)),
         })
       })?;
 
     let reader = Reader::at(provider, header.endianness, dr);
 
-    Ok(StringTable { reader })
+    Ok(Some(StringTable { reader }))
   }
 
   pub fn key_table(
     &self,
   ) -> Result<
-    StringTable<
-      'pool,
-      DIAGNOSTIC_NODE_NAME_SIZE,
-      DynamicSliceProvider<'_, <P as Provider>::DynReturnedProviderType>,
+    Option<
+      StringTable<'pool, DIAGNOSTIC_NODE_NAME_SIZE, <P as Provider>::DynReturnedProviderType<'_>>,
     >,
-    GetStringTableError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
+    GetStringTableError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
   > {
     let header = self
       .header()
       .map_err(|e| GetStringTableError::GetHeaderError(e))?;
 
+    if header.string_table_offset == 0 {
+      return Ok(None);
+    }
+
     let mut reader = Reader::<'pool, DIAGNOSTIC_NODE_NAME_SIZE, &P>::root(
       &*self.provider,
-      self.endianness.unwrap_or(Endianness::Big),
+      Endianness::Big,
       *self.pool,
       DiagnosticNodeName::from("Byml"),
     );
@@ -207,24 +216,34 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
           string_table_position: header.key_table_offset as usize,
           string_table_position_dr: header.key_table_offset_diagnostic(),
           string_table_size_dr: None,
-          byml_size: self.provider.len() as usize,
+          byml_size: self
+            .provider
+            .len()
+            .map_err(|e| UnderlyingProviderStatError(e)),
         })
       })?;
 
-    let (size, drb) = StringTable::size(&mut reader, self.provider.len() as usize, || {
-      header.key_table_offset_diagnostic()
-    })
+    let (size, drb) = StringTable::size(
+      &mut reader,
+      || {
+        self
+          .provider
+          .len()
+          .map_err(|e| UnderlyingProviderStatError(e))
+      },
+      || header.key_table_offset_diagnostic(),
+    )
     .map_err(|e| GetStringTableError::GetStringTableSizeError(e))?;
 
     let dr = reader.diagnostic_reference().create_physical_child(
       header.key_table_offset as u64,
-      size,
+      Some(size),
       DiagnosticNodeName::from("String Table"),
     );
 
     let provider = self
       .provider
-      .slice_dyn(header.key_table_offset as u64, size)
+      .slice_dyn(header.key_table_offset as u64, Some(size))
       .map_err(|_| {
         GetStringTableError::StringTableOutOfBounds(StringTableOutOfBounds {
           string_table_parent: reader.diagnostic_reference(),
@@ -233,20 +252,23 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
           string_table_size: Some(size as usize),
           string_table_size_complete: true,
           string_table_size_dr: Some(drb),
-          byml_size: self.provider.len() as usize,
+          byml_size: self
+            .provider
+            .len()
+            .map_err(|e| UnderlyingProviderStatError(e)),
         })
       })?;
 
     let reader = Reader::at(provider, header.endianness, dr);
 
-    Ok(StringTable { reader })
+    Ok(Some(StringTable { reader }))
   }
 
   pub fn root<'s>(
     &'s self,
   ) -> Result<
     Option<BymlReaderNode<'s, 'provider, 'pool, DIAGNOSTIC_NODE_NAME_SIZE, P>>,
-    GetRootNodeError<'pool, P::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>,
+    GetRootNodeError<'pool, P::ReadError, P::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
   > {
     let header = self
       .header()
@@ -256,15 +278,9 @@ impl<'provider, 'pool, P: Provider, const DIAGNOSTIC_NODE_NAME_SIZE: usize>
       return Ok(None);
     }
 
-    let remaining_size = self.provider.len() - header.root_data_offset as u64;
-
-    let slice: DynamicSliceProvider<'s, P::DynReturnedProviderType> = self
+    let r#type = self
       .provider
-      .slice_dyn(header.root_data_offset.into(), remaining_size)
-      .map_err(|_| GetRootNodeError::HederRootNodeOutOfBounds(HeaderRootNodeOutOfBounds {}))?;
-
-    let r#type = slice
-      .with_read(0, |v: &[u8; 1]| v[0])
+      .with_read(header.root_data_offset.into(), |v: &[u8; 1]| v[0])
       .map_err(|_| GetRootNodeError::ReadErrorWhileReadingType())?
       .map_err(|_| GetRootNodeError::HederRootNodeOutOfBounds(HeaderRootNodeOutOfBounds {}))?;
 

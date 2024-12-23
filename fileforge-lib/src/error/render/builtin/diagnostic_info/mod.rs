@@ -84,7 +84,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Debug
 pub struct DiagnosticInfo<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
   name: DiagnosticNodeName<NAME_SIZE>,
   offset_in_parent: u64,
-  length: u64,
+  length: Option<u64>,
   tail: DiagnosticInfoTail<'l, 't, 'a, 'b, NAME_SIZE>,
   should_display_length: bool,
 }
@@ -145,15 +145,19 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
         DiagnosticBranch::Physical { offset, .. } => offset,
       },
       length: v.size,
-      should_display_length: match v.branch {
-        DiagnosticBranch::None => false,
-        DiagnosticBranch::Logical { .. } => false,
-        DiagnosticBranch::Physical { offset, parent } => {
-          offset + v.size
-            != parent
-              .relocate(c.reference.pool)
-              .dereference_expect("Expected valid reference when building a report")
-              .size
+      should_display_length: match (v.branch, v.size) {
+        (DiagnosticBranch::None, _) => false,
+        (DiagnosticBranch::Logical { .. }, _) => false,
+        (DiagnosticBranch::Physical { .. }, None) => false,
+        (DiagnosticBranch::Physical { offset, parent }, Some(size)) => {
+          match parent
+            .relocate(c.reference.pool)
+            .dereference_expect("Expected valid reference when building a report")
+            .size
+          {
+            Some(parent_size) => offset + size != parent_size,
+            None => true,
+          }
         }
       },
       tail: DiagnosticInfoTail::Diagnostic(should_render_note, note, c.value, Vec::new()),
@@ -263,18 +267,25 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             DiagnosticBranch::Physical { offset, .. } => offset,
           },
           length: parent.size,
-          should_display_length: match parent.branch {
-            DiagnosticBranch::None => false,
-            DiagnosticBranch::Logical { .. } => false,
-            DiagnosticBranch::Physical {
-              offset,
-              parent: parent2,
-            } => {
-              offset + parent.size
-                != parent2
-                  .relocate(reference.pool)
-                  .dereference_expect("Expected valid reference when building a report")
-                  .size
+          should_display_length: match (parent.branch, parent.size) {
+            (DiagnosticBranch::None, _) => false,
+            (DiagnosticBranch::Logical { .. }, _) => false,
+            (DiagnosticBranch::Physical { .. }, None) => false,
+            (
+              DiagnosticBranch::Physical {
+                offset,
+                parent: parent2,
+              },
+              Some(size),
+            ) => {
+              match parent2
+                .relocate(reference.pool)
+                .dereference_expect("Expected valid reference when building a report")
+                .size
+              {
+                Some(parent2_size) => offset + size != parent2_size,
+                None => true,
+              }
             }
           },
           tail: if let Some(x) = notes
@@ -532,20 +543,27 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     canvas.set_tagged_str(self.name.as_str(), &DIAGNOSTIC_INFO_NAME);
 
-    let start_offset = FormattedUnsigned::new(self.offset_in_parent as u64)
+    let mut start_offset = FormattedUnsigned::new(self.offset_in_parent as u64)
       .with_base(16)
       .with_uppercase()
       .with_tag(&DIAGNOSTIC_LOCATION);
 
-    let end_offset = FormattedUnsigned::new(self.offset_in_parent as u64 + self.length as u64)
-      .with_base(16)
-      .with_uppercase()
-      .with_tag(&DIAGNOSTIC_LOCATION);
+    let mut end_offset = self.length.map(|length| {
+      FormattedUnsigned::new(self.offset_in_parent as u64 + length as u64)
+        .with_base(16)
+        .with_uppercase()
+        .with_tag(&DIAGNOSTIC_LOCATION)
+    });
 
-    let max_padding = usize::max(start_offset.length(), end_offset.length());
+    let max_padding = end_offset
+      .as_ref()
+      .map(|end_offset| usize::max(start_offset.length(), end_offset.length()))
+      .unwrap_or(start_offset.length());
 
-    let start_offset = start_offset.with_padding(max_padding);
-    let end_offset = end_offset.with_padding(max_padding);
+    if self.should_display_length && self.offset_in_parent != 0 && end_offset.is_some() {
+      start_offset = start_offset.with_padding(max_padding);
+      end_offset = Some(end_offset.unwrap().with_padding(max_padding));
+    }
 
     if self.offset_in_parent != 0 || self.should_display_length {
       canvas.set_tagged_str("@[", &DIAGNOSTIC_LOCATION_SEPARATOR);
@@ -558,10 +576,10 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
 
       canvas.set_tagged_str("..", &DIAGNOSTIC_LOCATION_SEPARATOR);
 
-      if self.should_display_length {
+      if self.should_display_length && end_offset.is_some() {
         canvas.set_tagged_str("0×", &DIAGNOSTIC_LOCATION_SEPARATOR);
 
-        canvas.write(&end_offset)?;
+        canvas.write(&end_offset.unwrap())?;
       }
 
       canvas.set_tagged_char("]", &DIAGNOSTIC_LOCATION_SEPARATOR);

@@ -10,7 +10,7 @@ pub mod tagged_reference;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DiagnosticNode<const NAME_SIZE: usize> {
   pub branch: DiagnosticBranch,
-  pub size: u64,
+  pub size: Option<u64>,
   pub name: DiagnosticNodeName<NAME_SIZE>,
 }
 

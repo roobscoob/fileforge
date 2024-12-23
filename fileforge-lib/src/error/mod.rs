@@ -25,6 +25,16 @@ pub trait Error<const NODE_NAME_SIZE: usize> {
   }
 }
 
+pub trait ErrorResultExt<const NODE_NAME_SIZE: usize, T, E: Error<NODE_NAME_SIZE>> {
+  fn unwrap_displayable(self) -> T;
+}
+
+impl<const NODE_NAME_SIZE: usize, T, E: Error<NODE_NAME_SIZE>> ErrorResultExt<NODE_NAME_SIZE, T, E>
+  for Result<T, E>
+{
+  fn unwrap_displayable(self) -> T { self.map_err(|e| e.into_display()).unwrap() }
+}
+
 pub struct DisplayableError<
   const DIAGNOSTIC_NODE_NAME_SIZE: usize,
   E: Error<DIAGNOSTIC_NODE_NAME_SIZE>,

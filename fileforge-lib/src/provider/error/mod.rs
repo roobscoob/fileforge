@@ -3,16 +3,13 @@ use crate::{diagnostic::node::reference::DiagnosticReference, error::report::Rep
 pub mod always;
 pub mod never;
 pub mod read_error;
+pub mod slice_error;
 pub mod write_error;
 
 pub trait ProviderError {
-  fn with_report_given_location<
-    'pool,
-    Cb: FnMut(Report<NODE_NAME_SIZE>) -> (),
-    const NODE_NAME_SIZE: usize,
-  >(
+  fn with_report<'pool, Cb: FnMut(Report<NODE_NAME_SIZE>) -> (), const NODE_NAME_SIZE: usize>(
     &self,
-    location: DiagnosticReference<'pool, NODE_NAME_SIZE>,
+    location: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>,
     callback: Cb,
   );
 }

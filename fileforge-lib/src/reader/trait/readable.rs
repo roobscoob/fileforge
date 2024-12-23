@@ -11,10 +11,16 @@ pub trait DynamicSizeReadable<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize>: Si
   fn read<RP: Provider>(
     reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
     argument: Self::Argument,
-  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>;
+  ) -> Result<
+    Self,
+    ParseError<'pool, Self::Error, RP::ReadError, RP::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  >;
   fn get_size<RP: Provider>(
     reader: &Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
-  ) -> Result<Option<u64>, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>;
+  ) -> Result<
+    Option<u64>,
+    ParseError<'pool, Self::Error, RP::ReadError, RP::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  >;
 }
 
 pub trait FixedSizeReadable<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const SIZE: usize>:
@@ -26,5 +32,8 @@ pub trait FixedSizeReadable<'pool, const DIAGNOSTIC_NODE_NAME_SIZE: usize, const
   fn read<RP: Provider>(
     reader: &mut Reader<'pool, DIAGNOSTIC_NODE_NAME_SIZE, RP>,
     argument: Self::Argument,
-  ) -> Result<Self, ParseError<'pool, Self::Error, RP::ReadError, DIAGNOSTIC_NODE_NAME_SIZE>>;
+  ) -> Result<
+    Self,
+    ParseError<'pool, Self::Error, RP::ReadError, RP::StatError, DIAGNOSTIC_NODE_NAME_SIZE>,
+  >;
 }
