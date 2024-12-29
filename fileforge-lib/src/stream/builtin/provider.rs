@@ -18,7 +18,9 @@ pub struct ProviderStream<const NODE_NAME_SIZE: usize, P: Provider<NODE_NAME_SIZ
 }
 
 impl<const NODE_NAME_SIZE: usize, P: Provider<NODE_NAME_SIZE>> ProviderStream<NODE_NAME_SIZE, P> {
-  pub fn new(provider: P, hint: ReadHint) -> Self { Self { provider, hint, offset: 0 } }
+  pub fn new(provider: P, hint: ReadHint) -> Self {
+    Self { provider, hint, offset: 0 }
+  }
 }
 
 impl<const NODE_NAME_SIZE: usize, P: Provider<NODE_NAME_SIZE>> ReadableStream<u8, NODE_NAME_SIZE> for ProviderStream<NODE_NAME_SIZE, P>
@@ -27,7 +29,9 @@ where
 {
   type ReadError = P::ReadError;
 
-  fn len(&self) -> Option<u64> { Some(self.provider.len()) }
+  fn len(&self) -> Option<u64> {
+    Some(self.provider.len())
+  }
 
   async fn read<const SIZE: usize, V, R: core::future::Future<Output = V>>(&mut self, reader: impl FnOnce(&[u8; SIZE]) -> R) -> Result<V, StreamReadError<NODE_NAME_SIZE, Self::ReadError>> {
     return match self.provider.read(self.offset, self.hint, reader).await {
@@ -44,8 +48,14 @@ where
   }
 }
 
-impl<const NODE_NAME_SIZE: usize, P: Provider<NODE_NAME_SIZE>> SeekableStream<u8, NODE_NAME_SIZE> for ProviderStream<NODE_NAME_SIZE, P> {
+impl<const NODE_NAME_SIZE: usize, P: Provider<NODE_NAME_SIZE>> SeekableStream<u8, NODE_NAME_SIZE> for ProviderStream<NODE_NAME_SIZE, P>
+where
+  <P as Provider<NODE_NAME_SIZE>>::ReadError: UserReadError<NODE_NAME_SIZE>,
+{
   type SeekError = core::convert::Infallible;
 
-  async fn seek(&mut self, offset: u64) -> Result<(), crate::stream::error::stream_seek::StreamSeekError<NODE_NAME_SIZE, Self::SeekError>> { self.offset = offset; }
+  async fn seek(&mut self, offset: u64) -> Result<(), crate::stream::error::stream_seek::StreamSeekError<NODE_NAME_SIZE, Self::SeekError>> {
+    self.offset = offset;
+    Ok(())
+  }
 }
