@@ -2,7 +2,7 @@ use core::future::ready;
 
 use crate::{
   provider::{error::out_of_bounds::OutOfBoundsError, Provider},
-  stream::{collectable::Collectable, ReadableStream},
+  stream::{collectable::Collectable, error::stream_read::StreamReadError},
 };
 
 use super::{fixed_slice::RustFixedSliceProvider, slice::RustSliceProvider};
@@ -37,7 +37,7 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustMutSliceP
     _hint: crate::provider::hint::ReadHint,
     reader: impl FnOnce(&[u8; SIZE]) -> R,
   ) -> Result<V, crate::provider::error::provider_read::ProviderReadError<NODE_NAME_SIZE, Self::ReadError>> {
-    OutOfBoundsError::assert(self.data.len() as u64, offset, SIZE as u64)?;
+    OutOfBoundsError::assert(self.data.len() as u64, offset, Some(SIZE as u64))?;
 
     Ok(reader(&self.data[offset as usize..(offset + SIZE as u64) as usize].try_into().unwrap()).await)
   }
@@ -46,7 +46,7 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustMutSliceP
     &'l2 self,
     start: u64,
   ) -> Result<Self::StaticSliceProvider<'l2, SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
-    OutOfBoundsError::assert(self.data.len() as u64, start, SIZE as u64)?;
+    OutOfBoundsError::assert(self.data.len() as u64, start, Some(SIZE as u64))?;
 
     let slice = &self.data[start as usize..(start + SIZE as u64) as usize];
     let slice: &[u8; SIZE] = slice.try_into().unwrap();
@@ -54,17 +54,25 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustMutSliceP
     Ok(slice.into())
   }
 
-  fn slice_dynamic<'l2>(&'l2 self, start: u64, size: u64) -> Result<Self::DynamicSliceProvider<'l2>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  fn slice_dynamic<'l2>(
+    &'l2 self,
+    start: u64,
+    size: Option<u64>,
+  ) -> Result<Self::DynamicSliceProvider<'l2>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
     OutOfBoundsError::assert(self.data.len() as u64, start, size)?;
 
-    let slice = &self.data[start as usize..(start + size) as usize];
+    let slice = if let Some(size) = size {
+      &self.data[start as usize..(start + size) as usize]
+    } else {
+      &self.data[start as usize..]
+    };
 
     Ok(slice.into())
   }
 }
 
 impl<'l, const NODE_NAME_SIZE: usize, S: crate::stream::ReadableStream<u8, NODE_NAME_SIZE>> Collectable<NODE_NAME_SIZE, u8, S> for RustMutSliceProvider<'l> {
-  type Error = S::ReadError;
+  type Error = StreamReadError<NODE_NAME_SIZE, S::ReadError>;
 
   async fn collect(&mut self, stream: &mut S) -> Result<(), Self::Error> {
     for i in 0..self.data.len() {

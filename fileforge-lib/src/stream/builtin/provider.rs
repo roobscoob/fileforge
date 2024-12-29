@@ -45,7 +45,7 @@ where
 }
 
 impl<const NODE_NAME_SIZE: usize, P: Provider<NODE_NAME_SIZE>> SeekableStream<u8, NODE_NAME_SIZE> for ProviderStream<NODE_NAME_SIZE, P> {
-  type SeekError = ;
+  type SeekError = core::convert::Infallible;
 
   async fn seek(&mut self, offset: u64) -> Result<(), crate::stream::error::stream_seek::StreamSeekError<NODE_NAME_SIZE, Self::SeekError>> { self.offset = offset; }
 }

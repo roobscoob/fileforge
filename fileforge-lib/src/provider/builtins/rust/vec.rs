@@ -26,7 +26,7 @@ impl<const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for alloc::vec::Vec<u
     _hint: crate::provider::hint::ReadHint,
     reader: impl FnOnce(&[u8; SIZE]) -> R,
   ) -> Result<V, crate::provider::error::provider_read::ProviderReadError<NODE_NAME_SIZE, Self::ReadError>> {
-    OutOfBoundsError::assert(self.len() as u64, offset, SIZE as u64)?;
+    OutOfBoundsError::assert(self.len() as u64, offset, Some(SIZE as u64))?;
 
     Ok(reader(&self[offset as usize..(offset + SIZE as u64) as usize].try_into().unwrap()).await)
   }
@@ -62,7 +62,7 @@ impl<const NODE_NAME_SIZE: usize> MutProvider<NODE_NAME_SIZE> for alloc::vec::Ve
     offset: u64,
     writer: impl FnOnce(&mut [u8; SIZE]) -> R,
   ) -> Result<V, crate::provider::error::provider_mutate::ProviderMutateError<NODE_NAME_SIZE, Self::MutateError>> {
-    OutOfBoundsError::assert(<&mut alloc::vec::Vec<u8> as Provider<NODE_NAME_SIZE>>::len(&self) as u64, offset, SIZE as u64)?;
+    OutOfBoundsError::assert(<&mut alloc::vec::Vec<u8> as Provider<NODE_NAME_SIZE>>::len(&self) as u64, offset, Some(SIZE as u64))?;
 
     Ok(writer(&mut self[offset as usize..(offset + SIZE as u64) as usize].try_into().unwrap()).await)
   }
@@ -87,7 +87,7 @@ impl<const NODE_NAME_SIZE: usize> ResizableProvider<NODE_NAME_SIZE> for alloc::v
   type ResizeError = core::convert::Infallible;
 
   async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), crate::provider::error::provider_resize::ProviderResizeError<NODE_NAME_SIZE, Self::ResizeError>> {
-    OutOfBoundsError::assert(<&mut alloc::vec::Vec<u8> as Provider<NODE_NAME_SIZE>>::len(&self) as u64, offset, old_len)?;
+    OutOfBoundsError::assert(<&mut alloc::vec::Vec<u8> as Provider<NODE_NAME_SIZE>>::len(&self) as u64, offset, Some(old_len))?;
 
     if new_len == old_len {
       return Ok(());
