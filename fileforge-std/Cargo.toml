@@ -8,4 +8,4 @@ fileforge-lib = { version = "0.1.4", path = "../fileforge-lib", registry = "eepy
 
 [features]
 default = ["std"]
-std = ["fileforge-lib/alloc"]
+std = ["fileforge-lib/std"]

@@ -12,10 +12,6 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> ReportLocation<'t, 'l, 'pool, N
   pub fn dereference(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> {
     self.reference.dereference()
   }
-
-  pub fn dereference_expect(&self, message: &str) -> DiagnosticNode<NODE_NAME_SIZE> {
-    self.reference.dereference_expect(message)
-  }
 }
 
 impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> PartialEq

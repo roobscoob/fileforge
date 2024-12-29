@@ -3,16 +3,13 @@ use core::fmt::Debug;
 use heapless::Vec;
 
 use crate::{
-  diagnostic::node::{
-    branch::DiagnosticBranch, name::DiagnosticNodeName, reference::DiagnosticReference,
-  },
+  diagnostic::node::{branch::DiagnosticBranch, name::DiagnosticNodeName, reference::DiagnosticReference},
   error::{
     render::{
       buffer::{
         canvas::RenderBufferCanvas,
         cell::tag::builtin::diagnostic_info::{
-          DIAGNOSTIC_INFO_NAME, DIAGNOSTIC_LOCATION, DIAGNOSTIC_LOCATION_SEPARATOR,
-          DIAGNOSTIC_SEPARATOR, DIAGNOSTIC_VALUE_SEPARATOR,
+          DIAGNOSTIC_INFO_NAME, DIAGNOSTIC_LOCATION, DIAGNOSTIC_LOCATION_SEPARATOR, DIAGNOSTIC_SEPARATOR, DIAGNOSTIC_VALUE_SEPARATOR,
         },
       },
       position::RenderPosition,
@@ -34,48 +31,29 @@ use super::{
 
 pub enum DiagnosticInfoTail<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
   PathSeparator(&'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>),
-  Transformation(
-    Transformation,
-    &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-  ),
+  Transformation(Transformation, &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>),
   Arrow(
     usize,
-    heapless::Vec<
-      (
-        Option<Transformation>,
-        &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-      ),
-      0x10,
-    >,
+    heapless::Vec<(Option<Transformation>, &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>), 0x10>,
   ),
   Diagnostic(
     // determines if this should render the note
     bool,
     &'l ReportNote<'t, 'a, 'b, NAME_SIZE>,
     Option<&'l dyn Renderable<'t>>,
-    heapless::Vec<
-      (
-        Option<Transformation>,
-        &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-      ),
-      0x10,
-    >,
+    heapless::Vec<(Option<Transformation>, &'l DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>), 0x10>,
   ),
   None,
 }
 
-impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Debug
-  for DiagnosticInfoTail<'l, 't, 'a, 'b, NAME_SIZE>
-{
+impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Debug for DiagnosticInfoTail<'l, 't, 'a, 'b, NAME_SIZE> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
       DiagnosticInfoTail::Arrow(..) => f.write_str("DiagnosticInfoTail::Arrow(..)"),
       DiagnosticInfoTail::Diagnostic(..) => f.write_str("DiagnosticInfoTail::Diagnostic(..)"),
       DiagnosticInfoTail::None => f.write_str("DiagnosticInfoTail::None"),
       DiagnosticInfoTail::PathSeparator(..) => f.write_str("DiagnosticInfoTail::PathSeparator(..)"),
-      DiagnosticInfoTail::Transformation(..) => {
-        f.write_str("DiagnosticInfoTail::Transformation(..)")
-      }
+      DiagnosticInfoTail::Transformation(..) => f.write_str("DiagnosticInfoTail::Transformation(..)"),
     }
   }
 }
@@ -92,24 +70,12 @@ pub struct DiagnosticInfo<'l, 't, 'a, 'b, const NAME_SIZE: usize> {
 impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE> {
   // turns each diagnostic into a DiagnosticInfo
   fn local_transform_diagnostic<
-    Cb: for<'x> FnOnce(
-      Option<
-        &'x StackSinglyLinkedList<(
-          DiagnosticReference<'b, NAME_SIZE>,
-          DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-        )>,
-      >,
-    ),
+    Cb: for<'x> FnOnce(Option<&'x StackSinglyLinkedList<(DiagnosticReference<'b, NAME_SIZE>, DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>)>>),
   >(
     note_set: &'l ReportNoteSet<'t, 'a, 'b, NAME_SIZE>,
     note: &'l ReportNote<'t, 'a, 'b, NAME_SIZE>,
     index: usize,
-    previous: Option<
-      &StackSinglyLinkedList<(
-        DiagnosticReference<'b, NAME_SIZE>,
-        DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-      )>,
-    >,
+    previous: Option<&StackSinglyLinkedList<(DiagnosticReference<'b, NAME_SIZE>, DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>)>>,
     callback: Cb,
   ) {
     if index >= note.locations().len() {
@@ -117,7 +83,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
     }
 
     let c = note.locations().skip(index).next().unwrap();
-    let v = c.dereference_expect("Expected valid reference when building a report");
+    let v = c.dereference().expect("Expected valid reference when building a report");
 
     // if we are a parent of any other node
     // english:
@@ -152,7 +118,8 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
         (DiagnosticBranch::Physical { offset, parent }, Some(size)) => {
           match parent
             .relocate(c.reference.pool)
-            .dereference_expect("Expected valid reference when building a report")
+            .dereference()
+            .expect("Expected valid reference when building a report")
             .size
           {
             Some(parent_size) => offset + size != parent_size,
@@ -173,23 +140,11 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
 
   // calls local_transform_diagnostic for each diagnostic, storing the result in a stack linked list
   fn local_transform_diagnostics<
-    Cb: for<'x> FnOnce(
-      Option<
-        &'x StackSinglyLinkedList<(
-          DiagnosticReference<'b, NAME_SIZE>,
-          DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-        )>,
-      >,
-    ),
+    Cb: for<'x> FnOnce(Option<&'x StackSinglyLinkedList<(DiagnosticReference<'b, NAME_SIZE>, DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>)>>),
   >(
     notes: &'l ReportNoteSet<'t, 'a, 'b, NAME_SIZE>,
     index: usize,
-    previous: Option<
-      &StackSinglyLinkedList<(
-        DiagnosticReference<'b, NAME_SIZE>,
-        DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>,
-      )>,
-    >,
+    previous: Option<&StackSinglyLinkedList<(DiagnosticReference<'b, NAME_SIZE>, DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>)>>,
     callback: Cb,
   ) {
     if index >= notes.notes.len() {
@@ -205,29 +160,20 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
 
   fn local_tree_recurse<'g, Cb: for<'x> FnMut(&'x DiagnosticInfo<'x, 't, 'a, 'b, NAME_SIZE>)>(
     notes: &'l ReportNoteSet<'t, 'a, 'b, NAME_SIZE>,
-    array: Option<
-      &'g StackSinglyLinkedList<(
-        DiagnosticReference<'b, NAME_SIZE>,
-        DiagnosticInfo<'g, 't, 'a, 'b, NAME_SIZE>,
-      )>,
-    >,
+    array: Option<&'g StackSinglyLinkedList<(DiagnosticReference<'b, NAME_SIZE>, DiagnosticInfo<'g, 't, 'a, 'b, NAME_SIZE>)>>,
     called_back: Option<&StackSinglyLinkedList<&DiagnosticReference<'b, NAME_SIZE>>>,
     mut callback: Cb,
   ) {
     let y = 'wider: {
       'wide: for (reference, info) in array.iter().flat_map(|v| v.iter()) {
         let parent = reference
-          .dereference_expect("Expected valid reference when building a report")
+          .dereference()
+          .expect("Expected valid reference when building a report")
           .branch
           .parent();
 
         if parent.is_none() {
-          if called_back
-            .iter()
-            .flat_map(|r| r.iter())
-            .find(|clb| ***clb == *reference)
-            .is_none()
-          {
+          if called_back.iter().flat_map(|r| r.iter()).find(|clb| ***clb == *reference).is_none() {
             // 1. perform callback
 
             callback(info);
@@ -249,13 +195,14 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
 
         let parent_reference = parent.unwrap().relocate(reference.pool);
         let parent = parent_reference
-          .dereference_expect("Expected valid parent reference when building a report");
+          .dereference()
+          .expect("Expected valid parent reference when building a report");
 
-        if array.iter().flat_map(|v| v.iter()).any(|i| {
-          i.0
-            .dereference_expect("Expected valid reference when building a report")
-            == parent
-        }) {
+        if array
+          .iter()
+          .flat_map(|v| v.iter())
+          .any(|i| i.0.dereference().expect("Expected valid reference when building a report") == parent)
+        {
           continue;
         }
 
@@ -271,16 +218,11 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             (DiagnosticBranch::None, _) => false,
             (DiagnosticBranch::Logical { .. }, _) => false,
             (DiagnosticBranch::Physical { .. }, None) => false,
-            (
-              DiagnosticBranch::Physical {
-                offset,
-                parent: parent2,
-              },
-              Some(size),
-            ) => {
+            (DiagnosticBranch::Physical { offset, parent: parent2 }, Some(size)) => {
               match parent2
                 .relocate(reference.pool)
-                .dereference_expect("Expected valid reference when building a report")
+                .dereference()
+                .expect("Expected valid reference when building a report")
                 .size
               {
                 Some(parent2_size) => offset + size != parent2_size,
@@ -296,10 +238,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             DiagnosticInfoTail::Diagnostic(
               x.locations().last().unwrap().reference == parent_reference,
               x,
-              x.locations()
-                .find(|l| l.reference == parent_reference)
-                .unwrap()
-                .value,
+              x.locations().find(|l| l.reference == parent_reference).unwrap().value,
               Vec::new(),
             )
           } else {
@@ -322,7 +261,8 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
                 .parent()
                 .map(|p| {
                   p.relocate(reference.pool)
-                    .dereference_expect("Expected valid parent reference when building a report")
+                    .dereference()
+                    .expect("Expected valid parent reference when building a report")
                     .eq(&parent_of)
                 })
                 .unwrap_or(false)
@@ -339,7 +279,8 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
                   .parent()
                   .map(|p| {
                     p.relocate(reference.pool)
-                      .dereference_expect("Expected valid parent reference when building a report")
+                      .dereference()
+                      .expect("Expected valid parent reference when building a report")
                       .eq(&parent_of)
                   })
                   .unwrap_or(false)
@@ -402,11 +343,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             None => None,
             Some(i) => 'pl: {
               for v in i.iter() {
-                if v
-                  .0
-                  .dereference_expect("Expected valid parent reference when building a report")
-                  == child
-                {
+                if v.0.dereference().expect("Expected valid parent reference when building a report") == child {
                   break 'pl Some(v);
                 }
               }
@@ -424,29 +361,24 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
           match &mut new.tail {
             DiagnosticInfoTail::Diagnostic(_, _, _, ref mut vec) => {
               match reference
-                .dereference_expect("Expected valid parent reference when building a report")
+                .dereference()
+                .expect("Expected valid parent reference when building a report")
                 .branch
               {
                 DiagnosticBranch::None => unreachable!(),
-                DiagnosticBranch::Logical { name, .. } => vec
-                  .push((Some(Transformation { name }), info))
-                  .map_err(|_| {})
-                  .unwrap(),
-                DiagnosticBranch::Physical { .. } => {
-                  vec.push((None, info)).map_err(|_| {}).unwrap()
-                }
+                DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
+                DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
               };
             }
 
             DiagnosticInfoTail::None => {
               new.tail = match reference
-                .dereference_expect("Expected valid parent reference when building a report")
+                .dereference()
+                .expect("Expected valid parent reference when building a report")
                 .branch
               {
                 DiagnosticBranch::None => unreachable!(),
-                DiagnosticBranch::Logical { name, .. } => {
-                  DiagnosticInfoTail::Transformation(Transformation { name }, &info)
-                }
+                DiagnosticBranch::Logical { name, .. } => DiagnosticInfoTail::Transformation(Transformation { name }, &info),
                 DiagnosticBranch::Physical { .. } => DiagnosticInfoTail::PathSeparator(&info),
               };
             }
@@ -457,17 +389,13 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
               vec.push((None, *other_ref)).map_err(|_| {}).unwrap();
 
               match reference
-                .dereference_expect("Expected valid parent reference when building a report")
+                .dereference()
+                .expect("Expected valid parent reference when building a report")
                 .branch
               {
                 DiagnosticBranch::None => unreachable!(),
-                DiagnosticBranch::Logical { name, .. } => vec
-                  .push((Some(Transformation { name }), info))
-                  .map_err(|_| {})
-                  .unwrap(),
-                DiagnosticBranch::Physical { .. } => {
-                  vec.push((None, info)).map_err(|_| {}).unwrap()
-                }
+                DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
+                DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
               };
 
               new.tail = DiagnosticInfoTail::Arrow(indent, vec);
@@ -476,23 +404,16 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
             DiagnosticInfoTail::Transformation(transformation, other_ref) => {
               let mut vec = heapless::Vec::new();
 
-              vec
-                .push((Some(*transformation), *other_ref))
-                .map_err(|_| {})
-                .unwrap();
+              vec.push((Some(*transformation), *other_ref)).map_err(|_| {}).unwrap();
 
               match reference
-                .dereference_expect("Expected valid parent reference when building a report")
+                .dereference()
+                .expect("Expected valid parent reference when building a report")
                 .branch
               {
                 DiagnosticBranch::None => unreachable!(),
-                DiagnosticBranch::Logical { name, .. } => vec
-                  .push((Some(Transformation { name }), info))
-                  .map_err(|_| {})
-                  .unwrap(),
-                DiagnosticBranch::Physical { .. } => {
-                  vec.push((None, info)).map_err(|_| {}).unwrap()
-                }
+                DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
+                DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
               };
 
               new.tail = DiagnosticInfoTail::Arrow(indent, vec);
@@ -500,17 +421,13 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
 
             DiagnosticInfoTail::Arrow(_, ref mut vec) => {
               match reference
-                .dereference_expect("Expected valid parent reference when building a report")
+                .dereference()
+                .expect("Expected valid parent reference when building a report")
                 .branch
               {
                 DiagnosticBranch::None => unreachable!(),
-                DiagnosticBranch::Logical { name, .. } => vec
-                  .push((Some(Transformation { name }), info))
-                  .map_err(|_| {})
-                  .unwrap(),
-                DiagnosticBranch::Physical { .. } => {
-                  vec.push((None, info)).map_err(|_| {}).unwrap()
-                }
+                DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
+                DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
               };
             }
           }
@@ -537,22 +454,20 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'b, NAME
   }
 }
 
-impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
-  for DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE>
-{
+impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t> for DiagnosticInfo<'l, 't, 'a, 'b, NAME_SIZE> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     canvas.set_tagged_str(self.name.as_str(), &DIAGNOSTIC_INFO_NAME);
 
-    let mut start_offset = FormattedUnsigned::new(self.offset_in_parent as u64)
-      .with_base(16)
-      .with_uppercase()
-      .with_tag(&DIAGNOSTIC_LOCATION);
+    let mut start_offset = FormattedUnsigned::new(self.offset_in_parent as u128)
+      .base(16)
+      .uppercase()
+      .tag(&DIAGNOSTIC_LOCATION);
 
     let mut end_offset = self.length.map(|length| {
-      FormattedUnsigned::new(self.offset_in_parent as u64 + length as u64)
-        .with_base(16)
-        .with_uppercase()
-        .with_tag(&DIAGNOSTIC_LOCATION)
+      FormattedUnsigned::new(self.offset_in_parent as u128 + length as u128)
+        .base(16)
+        .uppercase()
+        .tag(&DIAGNOSTIC_LOCATION)
     });
 
     let max_padding = end_offset
@@ -561,8 +476,8 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
       .unwrap_or(start_offset.length());
 
     if self.should_display_length && self.offset_in_parent != 0 && end_offset.is_some() {
-      start_offset = start_offset.with_padding(max_padding);
-      end_offset = Some(end_offset.unwrap().with_padding(max_padding));
+      start_offset = start_offset.padding(max_padding);
+      end_offset = Some(end_offset.unwrap().padding(max_padding));
     }
 
     if self.offset_in_parent != 0 || self.should_display_length {
@@ -618,9 +533,7 @@ impl<'l, 't, 'a, 'b, const NAME_SIZE: usize> Renderable<'t>
 
         let indent = canvas.get_start_position().column();
 
-        canvas
-          .set_position(canvas.get_start_position())
-          .cursor_down();
+        canvas.set_position(canvas.get_start_position()).cursor_down();
 
         let mut current_char: &'static str = "^";
 

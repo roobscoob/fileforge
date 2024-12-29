@@ -1,15 +1,9 @@
-use crate::{diagnostic::node::reference::DiagnosticReference, error::report::Report};
-
-pub mod always;
-pub mod never;
-pub mod read_error;
-pub mod slice_error;
-pub mod write_error;
-
-pub trait ProviderError {
-  fn with_report<'pool, Cb: FnMut(Report<NODE_NAME_SIZE>) -> (), const NODE_NAME_SIZE: usize>(
-    &self,
-    location: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>,
-    callback: Cb,
-  );
-}
+pub mod out_of_bounds;
+pub mod provider_mutate;
+pub mod provider_read;
+pub mod provider_resize;
+pub mod provider_slice;
+pub mod user_mutate;
+pub mod user_read;
+pub mod user_resize;
+pub mod user_slice;

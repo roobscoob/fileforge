@@ -44,9 +44,19 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME
     Ok(self)
   }
 
+  pub fn add_info_line(&mut self, line: &'l dyn Renderable<'t>) -> Result<(), ()> {
+    self.info_lines.push(line).map_err(|_| {})?;
+    Ok(())
+  }
+
   pub fn with_flag_line(mut self, line: &'l dyn Renderable<'t>) -> Result<Self, ()> {
     self.flag_lines.push(line).map_err(|_| {})?;
     Ok(self)
+  }
+
+  pub fn add_flag_line(&mut self, line: &'l dyn Renderable<'t>) -> Result<(), ()> {
+    self.flag_lines.push(line).map_err(|_| {})?;
+    Ok(())
   }
 
   pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>>(
@@ -55,6 +65,11 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME
   ) -> Result<Self, ()> {
     self.notes.add(builder()).map_err(|_| {})?;
     Ok(self)
+  }
+
+  pub fn add_note(&mut self, note: ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>) -> Result<(), ()> {
+    self.notes.add(note).map_err(|_| {})?;
+    Ok(())
   }
 }
 

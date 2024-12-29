@@ -4,9 +4,9 @@ members = [
   "fileforge-lib",
   "fileforge-macros",
   "fileforge-test",
-  "fileforge-std",
+  # "fileforge-std",
 
   # Nintendo
-  "fileforge-byml",
+  # "fileforge-byml",
 ]
 resolver = "2"

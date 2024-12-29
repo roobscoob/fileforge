@@ -1,3 +1,5 @@
+pub mod r#const;
+
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::error::render::{
@@ -15,7 +17,7 @@ pub struct Text<'l, 't> {
 }
 
 impl<'l, 't> Text<'l, 't> {
-  pub fn new() -> Text<'l, 't> {
+  pub const fn new() -> Text<'l, 't> {
     Text {
       segments: heapless::Vec::new(),
     }

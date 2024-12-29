@@ -5,8 +5,9 @@ use crate::error::render::{
 
 use super::{separator::Separator, DIGITS_LOWER, DIGITS_UPPER};
 
+#[derive(Clone, Copy)]
 pub struct FormattedUnsigned<'tag> {
-  value: u64,
+  value: u128,
   base: usize,
   padding: usize,
   is_uppercase: bool,
@@ -16,7 +17,7 @@ pub struct FormattedUnsigned<'tag> {
 }
 
 impl<'tag> FormattedUnsigned<'tag> {
-  pub fn new(value: u64) -> FormattedUnsigned<'tag> {
+  pub fn new(value: u128) -> FormattedUnsigned<'tag> {
     FormattedUnsigned {
       value,
       base: 10,
@@ -28,37 +29,37 @@ impl<'tag> FormattedUnsigned<'tag> {
     }
   }
 
-  pub fn with_base(mut self, base: usize) -> Self {
+  pub fn base(mut self, base: usize) -> Self {
     self.base = base;
     self
   }
 
-  pub fn with_padding(mut self, padding: usize) -> Self {
+  pub fn padding(mut self, padding: usize) -> Self {
     self.padding = usize::max(padding, 1);
     self
   }
 
-  pub fn with_tag(mut self, tag: &'tag dyn CellTag) -> Self {
+  pub fn tag(mut self, tag: &'tag dyn CellTag) -> Self {
     self.tag = Some(tag);
     self
   }
 
-  pub fn with_uppercase(mut self) -> Self {
+  pub fn uppercase(mut self) -> Self {
     self.is_uppercase = true;
     self
   }
 
-  pub fn with_lowercase(mut self) -> Self {
+  pub fn lowercase(mut self) -> Self {
     self.is_uppercase = false;
     self
   }
 
-  pub fn with_separator(mut self, width: usize, text: &'static str) -> Self {
+  pub fn separator(mut self, width: usize, text: &'static str) -> Self {
     self.separator = Some(Separator { width, text });
     self
   }
 
-  pub fn with_prefix(mut self, prefix: &'static str) -> Self {
+  pub fn prefix(mut self, prefix: &'static str) -> Self {
     self.prefix = Some(prefix);
     self
   }
@@ -69,7 +70,7 @@ impl<'tag> FormattedUnsigned<'tag> {
     let mut value = self.value;
 
     while value > 0 {
-      value /= self.base as u64;
+      value /= self.base as u128;
       i += 1;
     }
 
@@ -84,7 +85,7 @@ impl<'tag> FormattedUnsigned<'tag> {
     let mut value = self.value;
 
     while value > 0 {
-      value /= self.base as u64;
+      value /= self.base as u128;
 
       if let Some(ref separator) = self.separator {
         if i != 0 {
@@ -118,11 +119,7 @@ impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
       length -= prefix.len();
     }
 
-    let digits = if self.is_uppercase {
-      DIGITS_UPPER
-    } else {
-      DIGITS_LOWER
-    };
+    let digits = if self.is_uppercase { DIGITS_UPPER } else { DIGITS_LOWER };
 
     for _ in 0..length {
       if let Some(tag) = self.tag.as_ref() {
@@ -154,8 +151,8 @@ impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
         }
       }
 
-      let digit = value % (self.base as u64);
-      value /= self.base as u64;
+      let digit = value % (self.base as u128);
+      value /= self.base as u128;
 
       if let Some(tag) = self.tag.as_ref() {
         canvas.set_tagged_char(digits[digit as usize], *tag);

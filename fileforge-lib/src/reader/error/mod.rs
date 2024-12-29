@@ -1,10 +1,2 @@
-pub mod domain;
-pub mod expect_primitive;
-pub mod out_of_bounds;
-pub mod parse;
-pub mod parse_primitive;
-pub mod result;
-pub mod seek;
-pub mod underlying_provider_error;
-pub mod underlying_provider_read;
-pub mod underlying_provider_stat;
+pub mod read_bytes;
+pub mod read_out_of_bounds;

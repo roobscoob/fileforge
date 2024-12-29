@@ -18,7 +18,7 @@ impl<const NAME_SIZE: usize> DiagnosticNode<NAME_SIZE> {
   pub fn is_family_of<'l>(
     &self,
     other: Option<&DiagnosticNode<NAME_SIZE>>,
-    pool: &DiagnosticPool<'l, NAME_SIZE>,
+    pool: &dyn DiagnosticPool<NAME_SIZE>,
   ) -> bool {
     if other.is_none() {
       return false;

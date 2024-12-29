@@ -1,5 +1,3 @@
-use core::{cmp::min, f64};
-
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
@@ -30,17 +28,14 @@ impl<const NO_ALLOC_SIZE: usize> ByteDisplay<NO_ALLOC_SIZE> {
   pub fn new(data: &[u8]) -> ByteDisplay<NO_ALLOC_SIZE> {
     #[cfg(feature = "alloc")]
     {
-      ByteDisplay {
-        data: Vec::from(data),
-      }
+      ByteDisplay { data: Vec::from(data) }
     }
 
     #[cfg(not(feature = "alloc"))]
     {
       let mut stack_data: [u8; NO_ALLOC_SIZE] = [0; NO_ALLOC_SIZE];
 
-      stack_data[0..min(NO_ALLOC_SIZE, data.len())]
-        .copy_from_slice(&data[0..min(NO_ALLOC_SIZE, data.len())]);
+      stack_data[0..min(NO_ALLOC_SIZE, data.len())].copy_from_slice(&data[0..min(NO_ALLOC_SIZE, data.len())]);
 
       ByteDisplay {
         data: stack_data,
@@ -52,22 +47,14 @@ impl<const NO_ALLOC_SIZE: usize> ByteDisplay<NO_ALLOC_SIZE> {
 
 impl<'t, const NO_ALLOC_SIZE: usize> Renderable<'t> for ByteDisplay<NO_ALLOC_SIZE> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
-    let max_len = FormattedUnsigned::new(self.len()).length();
+    let max_len = FormattedUnsigned::new(self.len() as u128).length();
 
     for (byte_row, row) in self.data.chunks(16).zip(0..) {
-      canvas.write(
-        &FormattedUnsigned::new(row as u64)
-          .with_base(16)
-          .with_padding(max_len),
-      );
+      canvas.write(&FormattedUnsigned::new(row as u128).base(16).padding(max_len))?;
       canvas.set_str(" | ");
 
       for (byte, col) in byte_row.iter().zip(0..) {
-        canvas.write(
-          &FormattedUnsigned::new(*byte as u64)
-            .with_base(16)
-            .with_padding(2),
-        );
+        canvas.write(&FormattedUnsigned::new(*byte as u128).base(16).padding(2))?;
 
         if col != 15 {
           canvas.set_char(" ");

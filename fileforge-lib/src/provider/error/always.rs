@@ -1,1 +1,0 @@
-pub struct Always<T>(T);

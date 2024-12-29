@@ -7,7 +7,7 @@ use crate::error::render::{
 
 pub struct ReportErrorHeader;
 
-pub static REPORT_ERROR_HEADER: ReportErrorHeader = ReportErrorHeader;
+pub const REPORT_ERROR_HEADER: ReportErrorHeader = ReportErrorHeader;
 
 impl CellTag for ReportErrorHeader {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportErrorHeader>() }
@@ -32,7 +32,7 @@ impl CellTag for ReportErrorHeader {
 
 pub struct ReportErrorText;
 
-pub static REPORT_ERROR_TEXT: ReportErrorText = ReportErrorText;
+pub const REPORT_ERROR_TEXT: ReportErrorText = ReportErrorText;
 
 impl CellTag for ReportErrorText {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportErrorText>() }
@@ -57,7 +57,7 @@ impl CellTag for ReportErrorText {
 
 pub struct ReportWarningHeader;
 
-pub static REPORT_WARNING_HEADER: ReportWarningHeader = ReportWarningHeader;
+pub const REPORT_WARNING_HEADER: ReportWarningHeader = ReportWarningHeader;
 
 impl CellTag for ReportWarningHeader {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportWarningHeader>() }
@@ -82,7 +82,7 @@ impl CellTag for ReportWarningHeader {
 
 pub struct ReportWarningText;
 
-pub static REPORT_WARNING_TEXT: ReportWarningText = ReportWarningText;
+pub const REPORT_WARNING_TEXT: ReportWarningText = ReportWarningText;
 
 impl CellTag for ReportWarningText {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportWarningText>() }
@@ -107,7 +107,7 @@ impl CellTag for ReportWarningText {
 
 pub struct ReportInfoSymbol;
 
-pub static REPORT_INFO_SYMBOL: ReportInfoSymbol = ReportInfoSymbol;
+pub const REPORT_INFO_SYMBOL: ReportInfoSymbol = ReportInfoSymbol;
 
 impl CellTag for ReportInfoSymbol {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportInfoSymbol>() }
@@ -132,7 +132,7 @@ impl CellTag for ReportInfoSymbol {
 
 pub struct ReportInfoName;
 
-pub static REPORT_INFO_NAME: ReportInfoName = ReportInfoName;
+pub const REPORT_INFO_NAME: ReportInfoName = ReportInfoName;
 
 impl CellTag for ReportInfoName {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportInfoName>() }
@@ -157,7 +157,7 @@ impl CellTag for ReportInfoName {
 
 pub struct ReportInfoTypename;
 
-pub static REPORT_INFO_TYPENAME: ReportInfoTypename = ReportInfoTypename;
+pub const REPORT_INFO_TYPENAME: ReportInfoTypename = ReportInfoTypename;
 
 impl CellTag for ReportInfoTypename {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportInfoTypename>() }
@@ -180,7 +180,7 @@ impl CellTag for ReportInfoTypename {
 
 pub struct ReportInfoTypenameCell;
 
-pub static REPORT_INFO_TYPENAME_CELL: ReportInfoTypenameCell = ReportInfoTypenameCell;
+pub const REPORT_INFO_TYPENAME_CELL: ReportInfoTypenameCell = ReportInfoTypenameCell;
 
 impl CellTag for ReportInfoTypenameCell {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportInfoTypenameCell>() }
@@ -203,7 +203,7 @@ impl CellTag for ReportInfoTypenameCell {
 
 pub struct ReportInfoLineSymbol;
 
-pub static REPORT_INFO_LINE_SYMBOL: ReportInfoLineSymbol = ReportInfoLineSymbol;
+pub const REPORT_INFO_LINE_SYMBOL: ReportInfoLineSymbol = ReportInfoLineSymbol;
 
 impl CellTag for ReportInfoLineSymbol {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportInfoLineSymbol>() }
@@ -228,7 +228,7 @@ impl CellTag for ReportInfoLineSymbol {
 
 pub struct ReportInfoLineText;
 
-pub static REPORT_INFO_LINE_TEXT: ReportInfoLineText = ReportInfoLineText;
+pub const REPORT_INFO_LINE_TEXT: ReportInfoLineText = ReportInfoLineText;
 
 impl CellTag for ReportInfoLineText {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportInfoLineText>() }
@@ -253,7 +253,7 @@ impl CellTag for ReportInfoLineText {
 
 pub struct ReportFlagLineSymbol;
 
-pub static REPORT_FLAG_LINE_SYMBOL: ReportFlagLineSymbol = ReportFlagLineSymbol;
+pub const REPORT_FLAG_LINE_SYMBOL: ReportFlagLineSymbol = ReportFlagLineSymbol;
 
 impl CellTag for ReportFlagLineSymbol {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportFlagLineSymbol>() }
@@ -278,7 +278,7 @@ impl CellTag for ReportFlagLineSymbol {
 
 pub struct ReportFlagLineText;
 
-pub static REPORT_FLAG_LINE_TEXT: ReportFlagLineText = ReportFlagLineText;
+pub const REPORT_FLAG_LINE_TEXT: ReportFlagLineText = ReportFlagLineText;
 
 impl CellTag for ReportFlagLineText {
   fn get_name(&self) -> &'static str { core::any::type_name::<ReportFlagLineText>() }
