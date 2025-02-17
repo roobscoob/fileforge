@@ -10,7 +10,9 @@ heapless = "0.8.0"
 intx = "0.1.0"
 unicode-segmentation = "1.11.0"
 unicode-width = "0.1.12"
+inventory = { version = "0.3.19", optional = true }
 
 [features]
 default = ["alloc"]
+story = ["dep:inventory"]
 alloc = []

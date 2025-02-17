@@ -1,4 +1,4 @@
-use fileforge_macros::text;
+use fileforge_macros::{story, text};
 
 use crate::{
   diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
@@ -53,6 +53,7 @@ impl SeekOffset {
   }
 }
 
+#[story("SeekOutOfBounds", SeekOutOfBounds { seek_offset: SeekOffset::InBounds(0), provider_size: dv!(A/B [ 0 ]), container_dr: dr!(A) })]
 pub struct SeekOutOfBounds<'pool, const NODE_NAME_SIZE: usize> {
   pub seek_offset: SeekOffset,
   pub provider_size: DiagnosticValue<'pool, u64, NODE_NAME_SIZE>,
