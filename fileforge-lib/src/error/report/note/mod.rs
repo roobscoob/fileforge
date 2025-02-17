@@ -24,40 +24,22 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> ReportNote<'t, 'l, 'pool, NODE_
     }
   }
 
-  pub fn with_location<'x, T: Renderable<'t>>(
-    mut self,
-    value: &'l DiagnosticValue<'pool, T, NODE_NAME_SIZE>,
-  ) -> Result<Self, ()> {
-    self
-      .locations
-      .push(ReportLocation {
-        reference: value.reference(),
-        value: Some(value.value_ref()),
-      })
-      .map_err(|_| {})?;
+  pub fn with_location<'x, T: Renderable<'t>>(mut self, value: &'l DiagnosticValue<'pool, T, NODE_NAME_SIZE>) -> Result<Self, ()> {
+    if let Some(reference) = value.reference() {
+      self
+        .locations
+        .push(ReportLocation {
+          reference,
+          value: Some(value.value_ref()),
+        })
+        .map_err(|_| {})?;
+    }
 
     Ok(self)
   }
 
   pub fn with_unvalued_location(mut self, reference: DiagnosticReference<'pool, NODE_NAME_SIZE>) -> Result<Self, ()> {
-    self
-      .locations
-      .push(ReportLocation { reference, value: None })
-      .map_err(|_| {})?;
-
-    Ok(self)
-  }
-
-  pub fn maybe_with_unvalued_location(
-    mut self,
-    reference: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>,
-  ) -> Result<Self, ()> {
-    if let Some(reference) = reference {
-      self
-        .locations
-        .push(ReportLocation { reference, value: None })
-        .map_err(|_| {})?;
-    }
+    self.locations.push(ReportLocation { reference, value: None }).map_err(|_| {})?;
 
     Ok(self)
   }

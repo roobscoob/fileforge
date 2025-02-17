@@ -71,7 +71,7 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustMutSliceP
   }
 }
 
-impl<'l, const NODE_NAME_SIZE: usize, S: crate::stream::ReadableStream<u8, NODE_NAME_SIZE>> Collectable<NODE_NAME_SIZE, u8, S> for RustMutSliceProvider<'l> {
+impl<'l, const NODE_NAME_SIZE: usize, S: crate::stream::ReadableStream<NODE_NAME_SIZE>> Collectable<NODE_NAME_SIZE, S> for RustMutSliceProvider<'l> {
   type Error = StreamReadError<NODE_NAME_SIZE, S::ReadError>;
 
   async fn collect(&mut self, stream: &mut S) -> Result<(), Self::Error> {

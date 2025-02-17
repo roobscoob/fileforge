@@ -110,9 +110,7 @@ impl<const SIZE: usize> DiagnosticNodeName<SIZE> {
 
   pub fn show_ellipsis(&self) -> bool { self.total_length > self.used_length }
 
-  pub fn as_str(&self) -> &str {
-    unsafe { core::str::from_utf8_unchecked(&self.contents[0..self.used_length]) }
-  }
+  pub fn as_str(&self) -> &str { unsafe { core::str::from_utf8_unchecked(&self.contents[0..self.used_length]) } }
 }
 
 impl<const SIZE: usize> Eq for DiagnosticNodeName<SIZE> {}
@@ -130,4 +128,8 @@ impl<const SIZE: usize> Debug for DiagnosticNodeName<SIZE> {
 
     Ok(())
   }
+}
+
+impl<const SIZE: usize> From<&str> for DiagnosticNodeName<SIZE> {
+  fn from(value: &str) -> Self { DiagnosticNodeName::from(value) }
 }

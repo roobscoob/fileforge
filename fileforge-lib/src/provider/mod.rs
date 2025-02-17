@@ -3,7 +3,7 @@ pub mod error;
 pub mod hint;
 pub mod r#ref;
 
-use core::future::Future;
+use core::future::{ready, Future};
 
 use error::{
   provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError, user_mutate::UserMutateError,

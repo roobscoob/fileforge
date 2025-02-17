@@ -1,4 +1,4 @@
-use core::{fmt::Debug, u64, usize};
+use core::{fmt::Debug, num::NonZero, u64, usize};
 
 use crate::diagnostic::pool::DiagnosticPool;
 
@@ -6,15 +6,13 @@ use super::{branch::DiagnosticBranch, name::DiagnosticNodeName, DiagnosticNode};
 
 #[derive(Clone, Copy)]
 pub struct DiagnosticReference<'pool, const NODE_NAME_SIZE: usize> {
-  pub(crate) index: usize,
-  pub(crate) generation: u64,
+  pub(crate) index: u32,
+  pub(crate) generation: NonZero<u32>,
   pub(crate) pool: &'pool dyn DiagnosticPool<NODE_NAME_SIZE>,
 }
 
 impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    Debug::fmt(&self.dereference(), f)
-  }
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { Debug::fmt(&self.dereference(), f) }
 }
 
 impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SIZE> {
@@ -22,18 +20,16 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
 
   pub fn new_invalid(&self) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     DiagnosticReference {
-      index: usize::MAX,
-      generation: u64::MAX,
+      index: u32::MAX,
+      generation: NonZero::new(u32::MAX).unwrap(),
       pool: self.pool,
     }
   }
 
-  pub fn new_invalid_from_pool(
-    pool: &'pool dyn DiagnosticPool<NODE_NAME_SIZE>,
-  ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+  pub fn new_invalid_from_pool(pool: &'pool dyn DiagnosticPool<NODE_NAME_SIZE>) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     DiagnosticReference {
-      index: usize::MAX,
-      generation: u64::MAX,
+      index: u32::MAX,
+      generation: NonZero::new(u32::MAX).unwrap(),
       pool,
     }
   }
@@ -54,9 +50,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
     parent.relocate(self.pool).family_exists()
   }
 
-  pub fn dereference(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> {
-    self.pool.get(self.index, self.generation)
-  }
+  pub fn dereference(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> { self.pool.get(self.index, self.generation) }
 
   pub fn root(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> {
     let own = self.dereference()?;
@@ -69,49 +63,19 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
     }
   }
 
-  pub fn parent(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> {
-    self
-      .dereference()?
-      .branch
-      .parent()
-      .map(|p| p.relocate(self.pool).dereference())
-      .flatten()
-  }
+  pub fn parent(&self) -> Option<DiagnosticNode<NODE_NAME_SIZE>> { self.dereference()?.branch.parent().map(|p| p.relocate(self.pool).dereference()).flatten() }
 
-  pub fn parent_reference(&self) -> Option<DiagnosticReference<NODE_NAME_SIZE>> {
-    self
-      .dereference()?
-      .branch
-      .parent()
-      .map(|p| p.relocate(self.pool))
-  }
+  pub fn parent_reference(&self) -> Option<DiagnosticReference<NODE_NAME_SIZE>> { self.dereference()?.branch.parent().map(|p| p.relocate(self.pool)) }
 
-  pub fn create_physical_child(
-    &self,
-    offset: u64,
-    size: Option<u64>,
-    name: DiagnosticNodeName<NODE_NAME_SIZE>,
-  ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+  pub fn create_physical_child(&self, offset: u64, size: Option<u64>, name: impl Into<DiagnosticNodeName<NODE_NAME_SIZE>>) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     if !self.exists() {
       return self.new_invalid();
     }
 
-    self.pool.create(
-      DiagnosticBranch::Physical {
-        parent: self.dislocate(),
-        offset,
-      },
-      size,
-      name,
-    )
+    self.pool.create(DiagnosticBranch::Physical { parent: self.dislocate(), offset }, size, name.into())
   }
 
-  pub fn create_logical_child(
-    &self,
-    size: Option<u64>,
-    branch_name: &'static str,
-    name: DiagnosticNodeName<NODE_NAME_SIZE>,
-  ) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
+  pub fn create_logical_child(&self, size: Option<u64>, branch_name: &'static str, name: DiagnosticNodeName<NODE_NAME_SIZE>) -> DiagnosticReference<'pool, NODE_NAME_SIZE> {
     if !self.exists() {
       return self.new_invalid();
     }
@@ -126,32 +90,14 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
     )
   }
 
-  pub fn parents<'capture>(
-    &'capture self,
-  ) -> core::iter::Successors<
-    DiagnosticNode<NODE_NAME_SIZE>,
-    impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture,
-  > {
-    core::iter::successors(self.parent(), |v| {
-      v.branch
-        .parent()
-        .map(|v| v.relocate(self.pool).dereference())
-        .flatten()
-    })
+  pub fn parents<'capture>(&'capture self) -> core::iter::Successors<DiagnosticNode<NODE_NAME_SIZE>, impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture> {
+    core::iter::successors(self.parent(), |v| v.branch.parent().map(|v| v.relocate(self.pool).dereference()).flatten())
   }
 
   pub fn parents_incl_self<'capture>(
     &'capture self,
-  ) -> core::iter::Successors<
-    DiagnosticNode<NODE_NAME_SIZE>,
-    impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture,
-  > {
-    core::iter::successors(self.dereference(), |v| {
-      v.branch
-        .parent()
-        .map(|v| v.relocate(self.pool).dereference())
-        .flatten()
-    })
+  ) -> core::iter::Successors<DiagnosticNode<NODE_NAME_SIZE>, impl FnMut(&DiagnosticNode<NODE_NAME_SIZE>) -> Option<DiagnosticNode<NODE_NAME_SIZE>> + 'capture> {
+    core::iter::successors(self.dereference(), |v| v.branch.parent().map(|v| v.relocate(self.pool).dereference()).flatten())
   }
 
   pub fn dislocate(&self) -> DislocatedDiagnosticReference {
@@ -164,15 +110,12 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticReference<'pool, NODE_NAME_SI
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DislocatedDiagnosticReference {
-  pub(crate) index: usize,
-  pub(crate) generation: u64,
+  pub(crate) index: u32,
+  pub(crate) generation: NonZero<u32>,
 }
 
 impl DislocatedDiagnosticReference {
-  pub fn relocate<'pl, const NODE_NAME_SIZE: usize>(
-    &self,
-    pool: &'pl dyn DiagnosticPool<NODE_NAME_SIZE>,
-  ) -> DiagnosticReference<'pl, NODE_NAME_SIZE> {
+  pub fn relocate<'pl, const NODE_NAME_SIZE: usize>(&self, pool: &'pl dyn DiagnosticPool<NODE_NAME_SIZE>) -> DiagnosticReference<'pl, NODE_NAME_SIZE> {
     DiagnosticReference {
       index: self.index,
       generation: self.generation,
@@ -190,4 +133,21 @@ impl DislocatedDiagnosticReference {
 impl<'pool, const NODE_NAME_SIZE: usize> Eq for DiagnosticReference<'pool, NODE_NAME_SIZE> {}
 impl<'pool, const NODE_NAME_SIZE: usize> PartialEq for DiagnosticReference<'pool, NODE_NAME_SIZE> {
   fn eq(&self, other: &Self) -> bool { self.dereference() == other.dereference() }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+pub struct CompressedDislocatedDiagnosticReference(NonZero<u64>);
+
+impl From<DislocatedDiagnosticReference> for CompressedDislocatedDiagnosticReference {
+  fn from(value: DislocatedDiagnosticReference) -> Self { CompressedDislocatedDiagnosticReference(NonZero::new(((value.index as u64) << 32) | (value.generation.get() as u64)).unwrap()) }
+}
+
+impl Into<DislocatedDiagnosticReference> for CompressedDislocatedDiagnosticReference {
+  fn into(self) -> DislocatedDiagnosticReference {
+    let index = (self.0.get() >> 32) as u32;
+    let generation = NonZero::new((self.0.get() & 0xFFFFFFFF) as u32).unwrap();
+
+    DislocatedDiagnosticReference { generation, index }
+  }
 }

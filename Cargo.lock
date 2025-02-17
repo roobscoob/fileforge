@@ -143,6 +143,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fileforge-std"
+version = "0.1.2"
+dependencies = [
+ "fileforge-lib",
+]
+
+[[package]]
 name = "fileforge-test"
 version = "0.1.0"
 dependencies = [

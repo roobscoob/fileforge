@@ -1,13 +1,16 @@
 pub mod stream_exhausted;
 pub mod stream_mutate;
 pub mod stream_overwrite;
+pub mod stream_partition;
 pub mod stream_read;
 pub mod stream_rewind;
 pub mod stream_seek;
+pub mod stream_seek_out_of_bounds;
 pub mod stream_skip;
 pub mod stream_write;
 pub mod user_mutate;
 pub mod user_overwrite;
+pub mod user_partition;
 pub mod user_read;
 pub mod user_rewind;
 pub mod user_seek;
