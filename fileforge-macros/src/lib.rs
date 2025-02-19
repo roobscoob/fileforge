@@ -148,7 +148,7 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         if ele == '{' {
           if in_expr == 0 {
             let substring = &text.as_str()[start..index];
-            output.extend(quote!(.push(#substring, #tag)));
+            output.extend(quote!(.push_tagged(#substring, #tag)));
             start = index + 1;
           }
           in_expr += 1;
@@ -173,7 +173,7 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
       let substring = &text.as_str()[start..];
       if substring.len() > 0 {
-        output.extend(quote!(.push(#substring, #tag)));
+        output.extend(quote!(.push_tagged(#substring, #tag)));
       }
     }
 

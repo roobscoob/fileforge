@@ -9,3 +9,4 @@ fileforge-macros = { path = "../fileforge-macros" }
 # fileforge-std = { path = "../fileforge-std" }
 # fileforge-byml = { path = "../fileforge-byml" }
 heapless = "0.8.0"
+tokio = { version = "1.43.0", features = ["full", "macros"] }

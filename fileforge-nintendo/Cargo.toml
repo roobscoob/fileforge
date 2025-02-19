@@ -7,6 +7,7 @@ edition = "2021"
 fileforge-lib = { version = "0.1.4", path = "../fileforge-lib", registry = "eepy", default-features = false }
 fileforge-macros = { version = "0.1.0", path = "../fileforge-macros", registry = "eepy" }
 fileforge-std = { version = "0.1.1", path = "../fileforge-std", registry = "eepy", default-features = false }
+heapless = "0.8.0"
 intx = "0.1.0"
 
 [features]

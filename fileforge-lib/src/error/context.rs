@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-  diagnostic::node::{reference::DiagnosticReference, DiagnosticNode},
+  diagnostic::node::reference::DiagnosticReference,
   error::render::buffer::cell::tag::builtin::report::REPORT_FLAG_LINE_TEXT,
 };
 
@@ -64,6 +64,8 @@ impl<'pool, T: ErrorContextNode<'pool, NODE_NAME_SIZE>, const NODE_NAME_SIZE: us
   pub fn any_missing(&self) -> bool { self.data.any_missing() }
 
   pub fn get(&self, key: &str) -> Option<DiagnosticReference<'pool, NODE_NAME_SIZE>> { self.data.try_get(key) }
+
+  pub fn has(&self, key: &str) -> bool { self.data.try_get(key).is_some() }
 }
 
 impl<'l, 'pool, const NODE_NAME_SIZE: usize> Report<'static, 'l, 'pool, NODE_NAME_SIZE> {

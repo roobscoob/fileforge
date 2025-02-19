@@ -10,6 +10,10 @@ impl<'l> From<&'l [u8]> for RustSliceProvider<'l> {
   fn from(data: &'l [u8]) -> Self { Self { data } }
 }
 
+impl<'l, const S: usize> From<&'l [u8; S]> for RustSliceProvider<'l> {
+  fn from(value: &'l [u8; S]) -> Self { Self { data: value as &[u8] } }
+}
+
 impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustSliceProvider<'l> {
   type ReadError = core::convert::Infallible;
   type SliceError = core::convert::Infallible;

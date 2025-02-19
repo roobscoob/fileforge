@@ -1,7 +1,7 @@
 use fileforge_macros::text;
 
 use crate::{
-  diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
+  diagnostic::{node::reference::DiagnosticReference, pool::DiagnosticPool, value::DiagnosticValue},
   error::{
     context::ErrorContext,
     render::{
@@ -59,8 +59,8 @@ pub struct SeekOutOfBounds<'pool, const NODE_NAME_SIZE: usize> {
   pub container_dr: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>,
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<NODE_NAME_SIZE> for SeekOutOfBounds<'pool, NODE_NAME_SIZE> {
-  fn render_into_report(&self, mut callback: impl FnMut(Report<'static, '_, '_, NODE_NAME_SIZE>) -> ()) {
+impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<'pool, NODE_NAME_SIZE> for SeekOutOfBounds<'pool, NODE_NAME_SIZE> {
+  fn render_into_report(&self, mut callback: impl for<'b> FnMut(Report<'static, 'b, 'pool, NODE_NAME_SIZE>) -> ()) {
     let context = ErrorContext::new().with("provider_size", self.provider_size.reference()).with("container", self.container_dr);
 
     let seek_offset_base_10 = self.seek_offset.value().separator(3, ",");
@@ -82,12 +82,6 @@ impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<NODE_NAME_SIZE> for Seek
       .with_error_context(&context)
       .with_flag_line(const_text!([&REPORT_FLAG_LINE_TEXT] "This is a low-level error, intended to be consumed by higher-level error handling code. This error is not intended to be displayed to the user. If you're seeing this error and *not* a library author, it may be confusing. Please report this error to the library author."))
       .unwrap();
-
-    // .with_note(|| {
-    //   ReportNote::new(&report_text)
-    //     .with_tag(&REPORT_ERROR_TEXT)
-    //     .maybe_with_unvalued_location().unwrap()
-    // }).unwrap();
 
     if let Some(location) = context.get("container") {
       report

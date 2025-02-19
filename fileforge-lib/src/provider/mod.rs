@@ -3,7 +3,7 @@ pub mod error;
 pub mod hint;
 pub mod r#ref;
 
-use core::future::{ready, Future};
+use core::future::Future;
 
 use error::{
   provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError, user_mutate::UserMutateError,
@@ -38,7 +38,7 @@ pub trait Provider<const NODE_NAME_SIZE: usize> {
 }
 
 pub trait MutProvider<const NODE_NAME_SIZE: usize>: Provider<NODE_NAME_SIZE> {
-  type MutateError: UserMutateError<NODE_NAME_SIZE>;
+  type MutateError: for<'pool> UserMutateError<'pool, NODE_NAME_SIZE>;
 
   type StaticMutSliceProvider<'l, const SIZE: usize>: Provider<NODE_NAME_SIZE>
   where

@@ -1,5 +1,5 @@
 use crate::error::FileforgeError;
 
-pub trait UserWriteError<const NODE_NAME_SIZE: usize>: FileforgeError<NODE_NAME_SIZE> {}
+pub trait UserWriteError<'pool, const NODE_NAME_SIZE: usize>: FileforgeError<'pool, NODE_NAME_SIZE> {}
 
-impl<const NODE_NAME_SIZE: usize> UserWriteError<NODE_NAME_SIZE> for core::convert::Infallible {}
+impl<'pool, const NODE_NAME_SIZE: usize> UserWriteError<'pool, NODE_NAME_SIZE> for core::convert::Infallible {}

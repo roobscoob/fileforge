@@ -8,11 +8,21 @@ use crate::error::render::{
 pub struct ConstText {
   content: &'static str,
   tag: &'static dyn CellTag,
+  split_on_words: bool,
 }
 
 impl ConstText {
   pub const fn new(content: &'static str, tag: &'static dyn CellTag) -> ConstText {
-    ConstText { content, tag }
+    ConstText {
+      content,
+      tag,
+      split_on_words: true,
+    }
+  }
+
+  pub const fn without_split_on_words(mut self) -> Self {
+    self.split_on_words = false;
+    self
   }
 }
 
@@ -23,19 +33,42 @@ impl Renderable<'static> for ConstText {
   ) -> Result<(), ()> {
     let start = canvas.get_position();
 
-    for grapheme in self.content.graphemes(true) {
-      if grapheme == "\n" {
-        canvas.cursor_down().set_column(start.column());
-        continue;
-      }
+    if self.split_on_words {
+      for chunk in self.content.split_word_bounds() {
+        if chunk == "\n" {
+          canvas.cursor_down().set_column(start.column());
+          continue;
+        }
 
-      if !canvas.set_tagged_char(grapheme, self.tag) {
-        canvas
-          .cursor_down()
-          .set_column(start.column())
-          .set_char(grapheme);
-      };
+        if canvas.position.right(chunk.len()).column() > canvas.buffer.width() {
+          canvas.cursor_down().set_column(start.column());
+        }
+
+        for grapheme in chunk.graphemes(true) {
+          if !canvas.set_tagged_char(grapheme, self.tag) {
+            canvas
+              .cursor_down()
+              .set_column(start.column())
+              .set_char(grapheme);
+          };
+        }
+      }
+    } else {
+      for grapheme in self.content.graphemes(true) {
+        if grapheme == "\n" {
+          canvas.cursor_down().set_column(start.column());
+          continue;
+        }
+
+        if !canvas.set_tagged_char(grapheme, self.tag) {
+          canvas
+            .cursor_down()
+            .set_column(start.column())
+            .set_char(grapheme);
+        };
+      }
     }
+
     Ok(())
   }
 }

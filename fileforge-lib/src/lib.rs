@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 macro_rules! const_text {
   ($x: tt $y: tt) => {{
@@ -18,6 +18,3 @@ pub mod stream;
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
-
-#[cfg(feature = "std")]
-extern crate std;

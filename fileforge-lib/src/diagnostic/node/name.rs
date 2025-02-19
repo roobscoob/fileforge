@@ -2,8 +2,6 @@ use core::fmt::Debug;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::error::render::builtin::number::formatted_unsigned::FormattedUnsigned;
-
 #[derive(Clone, Copy)]
 pub struct DiagnosticNodeName<const SIZE: usize> {
   // UNSAFE: We need to validate this is *ALWAYS* valid utf-8

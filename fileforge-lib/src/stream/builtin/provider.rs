@@ -233,8 +233,8 @@ pub enum ProviderOverwriteError<const NODE_NAME_SIZE: usize, P: ResizableProvide
   Write(P::MutateError),
 }
 
-impl<const NODE_NAME_SIZE: usize, P: ResizableProvider<NODE_NAME_SIZE>> FileforgeError<NODE_NAME_SIZE> for ProviderOverwriteError<NODE_NAME_SIZE, P> {
-  fn render_into_report(&self, callback: impl FnMut(crate::error::report::Report<NODE_NAME_SIZE>) -> ()) {
+impl<'pool, const NODE_NAME_SIZE: usize, P: ResizableProvider<NODE_NAME_SIZE>> FileforgeError<'pool, NODE_NAME_SIZE> for ProviderOverwriteError<NODE_NAME_SIZE, P> {
+  fn render_into_report(&self, callback: impl for<'a, 'b> FnMut(crate::error::report::Report<'a, 'b, 'pool, NODE_NAME_SIZE>) -> ()) {
     match self {
       Self::Poisoned(p) => p.render_into_report(callback),
       Self::Allocate(a) => a.render_into_report(callback),
@@ -245,20 +245,20 @@ impl<const NODE_NAME_SIZE: usize, P: ResizableProvider<NODE_NAME_SIZE>> Fileforg
 
 impl<const NODE_NAME_SIZE: usize, P: ResizableProvider<NODE_NAME_SIZE>> UserOverwriteError<NODE_NAME_SIZE> for ProviderOverwriteError<NODE_NAME_SIZE, P> {}
 
-pub enum ProviderStreamError<const NODE_NAME_SIZE: usize, T: FileforgeError<NODE_NAME_SIZE>> {
+pub enum ProviderStreamError<const NODE_NAME_SIZE: usize, T: for<'pool> FileforgeError<'pool, NODE_NAME_SIZE>> {
   Poisoned(ProviderStreamPoisonedError),
   Specific(T),
 }
 
-impl<const NODE_NAME_SIZE: usize, T: FileforgeError<NODE_NAME_SIZE>> From<T> for ProviderStreamError<NODE_NAME_SIZE, T> {
+impl<const NODE_NAME_SIZE: usize, T: for<'pool> FileforgeError<'pool, NODE_NAME_SIZE>> From<T> for ProviderStreamError<NODE_NAME_SIZE, T> {
   fn from(value: T) -> Self { Self::Specific(value) }
 }
 
 impl<const NODE_NAME_SIZE: usize, T: UserReadError<NODE_NAME_SIZE>> UserReadError<NODE_NAME_SIZE> for ProviderStreamError<NODE_NAME_SIZE, T> {}
 impl<const NODE_NAME_SIZE: usize, T: UserMutateError<NODE_NAME_SIZE>> UserMutateError<NODE_NAME_SIZE> for ProviderStreamError<NODE_NAME_SIZE, T> {}
 
-impl<const NODE_NAME_SIZE: usize, T: FileforgeError<NODE_NAME_SIZE>> FileforgeError<NODE_NAME_SIZE> for ProviderStreamError<NODE_NAME_SIZE, T> {
-  fn render_into_report(&self, callback: impl FnMut(crate::error::report::Report<NODE_NAME_SIZE>) -> ()) {
+impl<'pool_root, const NODE_NAME_SIZE: usize, T: for<'pool> FileforgeError<'pool, NODE_NAME_SIZE>> FileforgeError<'pool_root, NODE_NAME_SIZE> for ProviderStreamError<NODE_NAME_SIZE, T> {
+  fn render_into_report(&self, callback: impl for<'a, 'b> FnMut(crate::error::report::Report<'a, 'b, 'pool_root, NODE_NAME_SIZE>) -> ()) {
     match self {
       Self::Poisoned(p) => p.render_into_report(callback),
       Self::Specific(s) => s.render_into_report(callback),
@@ -272,8 +272,8 @@ impl<const NODE_NAME_SIZE: usize> UserSkipError<NODE_NAME_SIZE> for ProviderStre
 impl<const NODE_NAME_SIZE: usize> UserSeekError<NODE_NAME_SIZE> for ProviderStreamPoisonedError {}
 impl<const NODE_NAME_SIZE: usize> UserRewindError<NODE_NAME_SIZE> for ProviderStreamPoisonedError {}
 
-impl<const NODE_NAME_SIZE: usize> FileforgeError<NODE_NAME_SIZE> for ProviderStreamPoisonedError {
-  fn render_into_report(&self, mut callback: impl FnMut(crate::error::report::Report<NODE_NAME_SIZE>) -> ()) {
+impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<'pool, NODE_NAME_SIZE> for ProviderStreamPoisonedError {
+  fn render_into_report(&self, mut callback: impl for<'a, 'b> FnMut(crate::error::report::Report<'a, 'b, 'pool, NODE_NAME_SIZE>) -> ()) {
     let report = Report::new::<Self>(ReportKind::Error, "Provider Stream Poisoned")
       .with_flag_line(const_text!([&REPORT_FLAG_LINE_TEXT] "This is a low-level error, intended to be consumed by higher-level error handling code. This error is not intended to be displayed to the user. If you're seeing this error and *not* a library author, it may be confusing. Please report this error to the library author."))
       .unwrap()

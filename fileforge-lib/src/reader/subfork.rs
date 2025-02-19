@@ -1,13 +1,12 @@
 use crate::{
   diagnostic::{node::name::DiagnosticNodeName, value::DiagnosticValue},
-  stream::{error::stream_partition::StreamPartitionError, DynamicPartitionableStream, SkippableStream},
+  stream::{error::stream_partition::StreamPartitionError, DynamicPartitionableStream, ReadableStream, StaticPartitionableStream},
 };
 
 use super::{
   diagnostic_store::DiagnosticKind,
   error::{
-    seek_out_of_bounds::{SeekOffset, SeekOutOfBounds},
-    subfork::SubforkError,
+    dynamic_subfork::DynamicSubforkError, seek_out_of_bounds::{SeekOffset, SeekOutOfBounds}, static_subfork::StaticSubforkError
   },
   Reader,
 };
@@ -16,30 +15,28 @@ impl<'l, 'pool, const NODE_NAME_SIZE: usize, S: DynamicPartitionableStream<'l, N
 where
   'pool: 'l,
 {
-  pub async fn subfork<'a>(
+  pub async fn subfork_dynamic<'a>(
     &'a mut self,
     length: DiagnosticValue<'pool, u64, NODE_NAME_SIZE>,
     name: Option<impl Into<DiagnosticNodeName<NODE_NAME_SIZE>>>,
-  ) -> Result<Reader<'pool, NODE_NAME_SIZE, S::PartitionDynamic>, SubforkError<'l, 'pool, NODE_NAME_SIZE, S>>
+  ) -> Result<Reader<'pool, NODE_NAME_SIZE, S::PartitionDynamic>, DynamicSubforkError<'l, 'pool, NODE_NAME_SIZE, S>>
   where
-    S: Clone,
-    S: SkippableStream<NODE_NAME_SIZE>,
     'a: 'l,
   {
     let offset = self.stream.offset();
 
     let base = match self.stream.partition_dynamic(*length).await {
       Ok(v) => v,
-      Err(StreamPartitionError::User(u)) => return Err(SubforkError::Stream(u)),
+      Err(StreamPartitionError::User(u)) => return Err(DynamicSubforkError::Stream(u)),
       Err(StreamPartitionError::StreamExhausted(se)) => {
         if let Some(value) = se.read_offset.checked_add(se.read_length) {
-          return Err(SubforkError::OutOfBounds(SeekOutOfBounds {
+          return Err(DynamicSubforkError::OutOfBounds(SeekOutOfBounds {
             seek_offset: SeekOffset::InBounds(value),
             provider_size: self.diagnostics.infuse(DiagnosticKind::ReaderLength, se.stream_length),
             container_dr: self.diagnostics.get(DiagnosticKind::Reader),
           }));
         } else {
-          return Err(SubforkError::OutOfBounds(SeekOutOfBounds {
+          return Err(DynamicSubforkError::OutOfBounds(SeekOutOfBounds {
             seek_offset: SeekOffset::Overflowed {
               base_offset: se.read_offset,
               add: se.read_length,
@@ -55,12 +52,62 @@ where
 
     if let Some(reference) = self.diagnostics.get(DiagnosticKind::Reader) {
       if let Some(name) = name {
-        reader.set_diagnostic(DiagnosticKind::Reader, reference.create_physical_child(offset, Some(*length), name));
+        reader.set_diagnostic(DiagnosticKind::Reader, Some(reference.create_physical_child(offset, Some(*length), name)));
       }
     }
 
     if let Some(reference) = length.reference() {
-      reader.set_diagnostic(DiagnosticKind::ReaderLength, reference);
+      reader.set_diagnostic(DiagnosticKind::ReaderLength, Some(reference));
+    }
+
+    Ok(reader)
+  }
+}
+
+
+impl<'l, 'pool, const NODE_NAME_SIZE: usize, S: ReadableStream<NODE_NAME_SIZE>> Reader<'pool, NODE_NAME_SIZE, S>
+where
+  'pool: 'l,
+{
+  pub async fn subfork_static<'a, const SIZE: usize>(
+    &'a mut self,
+    name: Option<impl Into<DiagnosticNodeName<NODE_NAME_SIZE>>>,
+  ) -> Result<Reader<'pool, NODE_NAME_SIZE, S::Partition>, StaticSubforkError<'l, 'pool, SIZE, NODE_NAME_SIZE, S>>
+  where
+    S: StaticPartitionableStream<'l, NODE_NAME_SIZE, SIZE>,
+    'a: 'l,
+  {
+    let offset = self.stream.offset();
+
+    let base = match self.stream.partition().await {
+      Ok(v) => v,
+      Err(StreamPartitionError::User(u)) => return Err(StaticSubforkError::Stream(u)),
+      Err(StreamPartitionError::StreamExhausted(se)) => {
+        if let Some(value) = se.read_offset.checked_add(se.read_length) {
+          return Err(StaticSubforkError::OutOfBounds(SeekOutOfBounds {
+            seek_offset: SeekOffset::InBounds(value),
+            provider_size: self.diagnostics.infuse(DiagnosticKind::ReaderLength, se.stream_length),
+            container_dr: self.diagnostics.get(DiagnosticKind::Reader),
+          }));
+        } else {
+          return Err(StaticSubforkError::OutOfBounds(SeekOutOfBounds {
+            seek_offset: SeekOffset::Overflowed {
+              base_offset: se.read_offset,
+              add: se.read_length,
+            },
+            container_dr: self.diagnostics.get(DiagnosticKind::Reader),
+            provider_size: self.diagnostics.infuse(DiagnosticKind::ReaderLength, se.stream_length),
+          }));
+        }
+      }
+    };
+
+    let mut reader = Reader::new(base, self.endianness);
+
+    if let Some(reference) = self.diagnostics.get(DiagnosticKind::Reader) {
+      if let Some(name) = name {
+        reader.set_diagnostic(DiagnosticKind::Reader, Some(reference.create_physical_child(offset, Some(SIZE as u64), name)));
+      }
     }
 
     Ok(reader)

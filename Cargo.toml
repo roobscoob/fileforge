@@ -6,7 +6,7 @@ members = [
   "fileforge-test",
   "fileforge-std",
 
-  # Nintendo
-  # "fileforge-byml",
+  # Platforms
+  "fileforge-nintendo",
 ]
 resolver = "2"
