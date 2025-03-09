@@ -1,12 +1,12 @@
-use crate::provider::{error::out_of_bounds::OutOfBoundsError, MutProvider, Provider, ResizableProvider};
+use crate::provider::{error::{out_of_bounds::OutOfBoundsError, provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError}, MutProvider, Provider, ResizableProvider};
 
-pub struct DynamicSliceProvider<const NODE_NAME_SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> {
+pub struct DynamicSliceProvider<UnderlyingProvider: Provider> {
   offset: u64,
   size: Option<u64>,
   provider: UnderlyingProvider,
 }
 
-impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> DynamicSliceProvider<NODE_NAME_SIZE, UnderlyingProvider> {
+impl<UnderlyingProvider: Provider> DynamicSliceProvider<UnderlyingProvider> {
   pub fn new(offset: u64, size: Option<u64>, provider: UnderlyingProvider) -> Result<Self, OutOfBoundsError> {
     if let Some(size) = size {
       let slice_end = offset.checked_add(size).ok_or(OutOfBoundsError {
@@ -36,28 +36,24 @@ impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> 
   }
 }
 
-impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> Provider<NODE_NAME_SIZE> for DynamicSliceProvider<NODE_NAME_SIZE, UnderlyingProvider> {
+impl<UnderlyingProvider: Provider> Provider for DynamicSliceProvider<UnderlyingProvider> {
   fn len(&self) -> u64 { self.size.unwrap_or_else(|| self.provider.len() - self.offset) }
 
   type ReadError = UnderlyingProvider::ReadError;
   type SliceError = UnderlyingProvider::SliceError;
 
-  type StaticSliceProvider<'l, const SLICE_SIZE: usize>
-    = UnderlyingProvider::StaticSliceProvider<'l, SLICE_SIZE>
-  where
-    Self: 'l;
+  type StaticSliceProvider<'l, const SLICE_SIZE: usize> = UnderlyingProvider::StaticSliceProvider<'l, SLICE_SIZE>
+    where Self: 'l;
 
-  type DynamicSliceProvider<'l>
-    = UnderlyingProvider::DynamicSliceProvider<'l>
-  where
-    Self: 'l;
+  type DynamicSliceProvider<'l> = UnderlyingProvider::DynamicSliceProvider<'l>
+    where Self: 'l;
 
-  async fn read<const READ_SIZE: usize, V, R: core::future::Future<Output = V>>(
+  async fn read<const READ_SIZE: usize, V>(
     &self,
     offset: u64,
     hint: crate::provider::hint::ReadHint,
-    reader: impl FnOnce(&[u8; READ_SIZE]) -> R,
-  ) -> Result<V, crate::provider::error::provider_read::ProviderReadError<NODE_NAME_SIZE, Self::ReadError>> {
+    reader: impl AsyncFnOnce(&[u8; READ_SIZE]) -> V,
+  ) -> Result<V, ProviderReadError<Self::ReadError>> {
     OutOfBoundsError::assert(self.len(), offset, Some(READ_SIZE as u64))?;
 
     self.provider.read(offset + self.offset, hint, reader).await
@@ -66,7 +62,7 @@ impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> 
   fn slice<'l, const SLICE_SIZE: usize>(
     &'l self,
     start: u64,
-  ) -> Result<Self::StaticSliceProvider<'l, SLICE_SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::StaticSliceProvider<'l, SLICE_SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.len(), start, Some(SLICE_SIZE as u64))?;
 
     self.provider.slice(start + self.offset)
@@ -76,14 +72,14 @@ impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> 
     &'l self,
     start: u64,
     size: Option<u64>,
-  ) -> Result<Self::DynamicSliceProvider<'l>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.len(), start, size)?;
 
     self.provider.slice_dynamic(start + self.offset, size)
   }
 }
 
-impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: MutProvider<NODE_NAME_SIZE>> MutProvider<NODE_NAME_SIZE> for DynamicSliceProvider<NODE_NAME_SIZE, UnderlyingProvider> {
+impl<UnderlyingProvider: MutProvider> MutProvider for DynamicSliceProvider<UnderlyingProvider> {
   type MutateError = UnderlyingProvider::MutateError;
 
   type StaticMutSliceProvider<'l, const SIZE: usize>
@@ -96,11 +92,11 @@ impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: MutProvider<NODE_NAME_SIZE
   where
     Self: 'l;
 
-  async fn mutate<const SIZE: usize, V, R: core::future::Future<Output = V>>(
+  async fn mutate<const SIZE: usize, V>(
     &mut self,
     offset: u64,
-    writer: impl FnOnce(&mut [u8; SIZE]) -> R,
-  ) -> Result<V, crate::provider::error::provider_mutate::ProviderMutateError<NODE_NAME_SIZE, Self::MutateError>> {
+    writer: impl AsyncFnOnce(&mut [u8; SIZE]) -> V,
+  ) -> Result<V, ProviderMutateError<Self::MutateError>> {
     OutOfBoundsError::assert(self.len(), offset, Some(SIZE as u64))?;
 
     self.provider.mutate(offset + self.offset, writer).await
@@ -109,7 +105,7 @@ impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: MutProvider<NODE_NAME_SIZE
   fn mut_slice<'l, const SIZE: usize>(
     &'l mut self,
     start: u64,
-  ) -> Result<Self::StaticMutSliceProvider<'l, SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::StaticMutSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.len(), start, Some(SIZE as u64))?;
 
     self.provider.mut_slice(start + self.offset)
@@ -119,17 +115,17 @@ impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: MutProvider<NODE_NAME_SIZE
     &'l mut self,
     start: u64,
     size: Option<u64>,
-  ) -> Result<Self::DynamicMutSliceProvider<'l>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::DynamicMutSliceProvider<'l>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.len(), start, size)?;
 
     self.provider.mut_slice_dynamic(start + self.offset, size)
   }
 }
 
-impl<const NODE_NAME_SIZE: usize, UnderlyingProvider: ResizableProvider<NODE_NAME_SIZE>> ResizableProvider<NODE_NAME_SIZE> for DynamicSliceProvider<NODE_NAME_SIZE, UnderlyingProvider> {
+impl<UnderlyingProvider: ResizableProvider> ResizableProvider for DynamicSliceProvider<UnderlyingProvider> {
   type ResizeError = UnderlyingProvider::ResizeError;
 
-  async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), crate::provider::error::provider_resize::ProviderResizeError<NODE_NAME_SIZE, Self::ResizeError>> {
+  async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), ProviderResizeError<Self::ResizeError>> {
     OutOfBoundsError::assert(self.len(), offset, Some(old_len))?;
 
     self.provider.resize_at(offset + self.offset, old_len, new_len).await?;

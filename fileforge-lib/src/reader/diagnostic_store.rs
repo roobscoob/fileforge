@@ -1,8 +1,8 @@
-use crate::{diagnostic::{
-  node::reference::{self, CompressedDislocatedDiagnosticReference, DiagnosticReference, DislocatedDiagnosticReference},
-  pool::DiagnosticPool,
+use crate::diagnostic::{
+  node::reference::{CompressedDislocatedDiagnosticReference, DiagnosticReference, DislocatedDiagnosticReference},
+  pool::DiagnosticPoolBuilder,
   value::DiagnosticValue,
-}, provider::r#ref};
+};
 
 pub enum DiagnosticKind {
   Reader,
@@ -11,15 +11,15 @@ pub enum DiagnosticKind {
 }
 
 #[derive(Clone, Copy)]
-pub struct DiagnosticStore<'pool, const NODE_NAME_SIZE: usize> {
+pub struct DiagnosticStore<'pool> {
   reader: Option<CompressedDislocatedDiagnosticReference>,
   reader_length: Option<CompressedDislocatedDiagnosticReference>,
   reader_position: Option<CompressedDislocatedDiagnosticReference>,
 
-  pool: Option<&'pool dyn DiagnosticPool<NODE_NAME_SIZE>>,
+  pool: Option<&'pool dyn DiagnosticPoolBuilder>,
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticStore<'pool, NODE_NAME_SIZE> {
+impl<'pool> DiagnosticStore<'pool> {
   pub fn new() -> Self {
     Self {
       reader: None,
@@ -29,7 +29,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticStore<'pool, NODE_NAME_SIZE> 
     }
   }
 
-  pub fn get(&self, kind: DiagnosticKind) -> Option<DiagnosticReference<'pool, NODE_NAME_SIZE>> {
+  pub fn get(&self, kind: DiagnosticKind) -> Option<DiagnosticReference<'pool>> {
     match kind {
       DiagnosticKind::Reader => self.reader,
       DiagnosticKind::ReaderLength => self.reader_length,
@@ -38,9 +38,9 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticStore<'pool, NODE_NAME_SIZE> 
     .map(|v| Into::<DislocatedDiagnosticReference>::into(v).relocate(self.pool.unwrap()))
   }
 
-  pub fn infuse<T>(&self, kind: DiagnosticKind, value: T) -> DiagnosticValue<'pool, T, NODE_NAME_SIZE> { DiagnosticValue(value, self.get(kind)) }
+  pub fn infuse<T>(&self, kind: DiagnosticKind, value: T) -> DiagnosticValue<'pool, T> { DiagnosticValue(value, self.get(kind)) }
 
-  pub fn set(&mut self, kind: DiagnosticKind, reference: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>) {
+  pub fn set(&mut self, kind: DiagnosticKind, reference: Option<DiagnosticReference<'pool>>) {
     if let Some(reference) = reference {
       self.pool = Some(reference.pool);
   
@@ -52,7 +52,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticStore<'pool, NODE_NAME_SIZE> 
     }
   }
   
-  pub fn with(mut self, kind: DiagnosticKind, reference: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>) -> Self {
+  pub fn with(mut self, kind: DiagnosticKind, reference: Option<DiagnosticReference<'pool>>) -> Self {
     self.set(kind, reference);
     self
   }

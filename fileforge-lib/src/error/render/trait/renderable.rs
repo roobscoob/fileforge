@@ -1,5 +1,5 @@
 use crate::error::render::buffer::canvas::RenderBufferCanvas;
 
-pub trait Renderable<'t> {
-  fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()>;
+pub trait Renderable<'tag> {
+  fn render_into<'buffer_reference, 'buffer_contents>(&self, canvas: &mut RenderBufferCanvas<'buffer_reference, 'buffer_contents, 'tag>) -> Result<(), ()>;
 }

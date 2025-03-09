@@ -1,7 +1,7 @@
 use core::future::ready;
 
 use crate::{
-  provider::{error::out_of_bounds::OutOfBoundsError, Provider},
+  provider::{error::{out_of_bounds::OutOfBoundsError, provider_read::ProviderReadError, provider_slice::ProviderSliceError}, Provider},
   stream::{collectable::Collectable, error::stream_read::StreamReadError},
 };
 
@@ -15,7 +15,7 @@ impl<'l, const SIZE: usize> From<&'l mut [u8; SIZE]> for RustFixedMutSliceProvid
   fn from(data: &'l mut [u8; SIZE]) -> Self { Self { data } }
 }
 
-impl<'l, const NODE_NAME_SIZE: usize, const SIZE: usize> Provider<NODE_NAME_SIZE> for RustFixedMutSliceProvider<'l, SIZE> {
+impl<'l, const SIZE: usize> Provider for RustFixedMutSliceProvider<'l, SIZE> {
   type ReadError = core::convert::Infallible;
   type SliceError = core::convert::Infallible;
 
@@ -31,12 +31,12 @@ impl<'l, const NODE_NAME_SIZE: usize, const SIZE: usize> Provider<NODE_NAME_SIZE
 
   fn len(&self) -> u64 { SIZE as u64 }
 
-  async fn read<const READ_SIZE: usize, V, R: core::future::Future<Output = V>>(
+  async fn read<const READ_SIZE: usize, V>(
     &self,
     offset: u64,
     _hint: crate::provider::hint::ReadHint,
-    reader: impl FnOnce(&[u8; READ_SIZE]) -> R,
-  ) -> Result<V, crate::provider::error::provider_read::ProviderReadError<NODE_NAME_SIZE, Self::ReadError>> {
+    reader: impl AsyncFnOnce(&[u8; READ_SIZE]) -> V,
+  ) -> Result<V, ProviderReadError<Self::ReadError>> {
     OutOfBoundsError::assert(SIZE as u64, offset, Some(READ_SIZE as u64))?;
 
     Ok(reader(&self.data[offset as usize..(offset + READ_SIZE as u64) as usize].try_into().unwrap()).await)
@@ -45,7 +45,7 @@ impl<'l, const NODE_NAME_SIZE: usize, const SIZE: usize> Provider<NODE_NAME_SIZE
   fn slice<'l2, const SLICE_SIZE: usize>(
     &'l2 self,
     start: u64,
-  ) -> Result<Self::StaticSliceProvider<'l2, SLICE_SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::StaticSliceProvider<'l2, SLICE_SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(SIZE as u64, start, Some(SLICE_SIZE as u64))?;
 
     let slice = &self.data[start as usize..(start + SLICE_SIZE as u64) as usize];
@@ -58,7 +58,7 @@ impl<'l, const NODE_NAME_SIZE: usize, const SIZE: usize> Provider<NODE_NAME_SIZE
     &'l2 self,
     start: u64,
     size: Option<u64>,
-  ) -> Result<Self::DynamicSliceProvider<'l2>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::DynamicSliceProvider<'l2>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.data.len() as u64, start, size)?;
 
     let slice = if let Some(size) = size {
@@ -71,8 +71,8 @@ impl<'l, const NODE_NAME_SIZE: usize, const SIZE: usize> Provider<NODE_NAME_SIZE
   }
 }
 
-impl<'l, const NODE_NAME_SIZE: usize, const SIZE: usize, S: crate::stream::ReadableStream<NODE_NAME_SIZE>> Collectable<NODE_NAME_SIZE, S> for RustFixedMutSliceProvider<'l, SIZE> {
-  type Error = StreamReadError<NODE_NAME_SIZE, S::ReadError>;
+impl<'l, const SIZE: usize, S: crate::stream::ReadableStream> Collectable<S> for RustFixedMutSliceProvider<'l, SIZE> {
+  type Error = StreamReadError<S::ReadError>;
 
   async fn collect(&mut self, stream: &mut S) -> Result<(), Self::Error> { stream.read(|data: &[u8; SIZE]| ready(self.data.copy_from_slice(data))).await }
 }

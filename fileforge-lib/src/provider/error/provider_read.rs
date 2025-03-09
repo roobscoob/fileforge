@@ -1,14 +1,14 @@
 use super::{out_of_bounds::OutOfBoundsError, user_read::UserReadError};
 
-pub enum ProviderReadError<const NODE_NAME_SIZE: usize, UserRead: UserReadError<NODE_NAME_SIZE>> {
+pub enum ProviderReadError<UserRead: UserReadError> {
   User(UserRead),
   OutOfBounds(OutOfBoundsError),
 }
 
-impl<const NODE_NAME_SIZE: usize, UserRead: UserReadError<NODE_NAME_SIZE>> From<UserRead> for ProviderReadError<NODE_NAME_SIZE, UserRead> {
+impl<UserRead: UserReadError> From<UserRead> for ProviderReadError<UserRead> {
   fn from(user: UserRead) -> Self { Self::User(user) }
 }
 
-impl<const NODE_NAME_SIZE: usize, UserRead: UserReadError<NODE_NAME_SIZE>> From<OutOfBoundsError> for ProviderReadError<NODE_NAME_SIZE, UserRead> {
+impl<UserRead: UserReadError> From<OutOfBoundsError> for ProviderReadError< UserRead> {
   fn from(out_of_bounds: OutOfBoundsError) -> Self { Self::OutOfBounds(out_of_bounds) }
 }

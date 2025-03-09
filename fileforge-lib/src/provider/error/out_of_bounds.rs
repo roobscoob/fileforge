@@ -1,5 +1,3 @@
-use crate::diagnostic::value::DiagnosticValue;
-
 #[derive(Clone, Copy)]
 pub struct OutOfBoundsError {
   pub read_offset: u64,

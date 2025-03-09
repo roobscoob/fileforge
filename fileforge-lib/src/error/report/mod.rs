@@ -1,3 +1,5 @@
+use crate::diagnostic::pool::DiagnosticPoolProvider;
+
 use self::{
   kind::ReportKind,
   note::{set::ReportNoteSet, ReportNote},
@@ -19,23 +21,27 @@ pub mod kind;
 pub mod location;
 pub mod note;
 
-#[derive(Default)]
-pub struct Report<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> {
+pub struct Report<'tag, 'l, 'pool, 'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider> {
+  pool: &'pool_ref P,
   kind: ReportKind,
   info_name: &'static str,
   info_typename: &'static str,
-  info_lines: heapless::Vec<&'l dyn Renderable<'t>, 0x10>,
-  flag_lines: heapless::Vec<&'l dyn Renderable<'t>, 0x10>,
-  notes: ReportNoteSet<'t, 'l, 'pool, NODE_NAME_SIZE>,
+  info_lines: heapless::Vec<&'l dyn Renderable<'tag>, 0x10>,
+  flag_lines: heapless::Vec<&'l dyn Renderable<'tag>, 0x10>,
+  notes: ReportNoteSet<'tag, 'l, 'pool>,
 }
 
-impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME_SIZE> {
-  pub fn new<T>(kind: ReportKind, name: &'static str) -> Self {
+impl<'t, 'l, 'pool, 'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider> Report<'t, 'l, 'pool, 'pool_ref, ITEM_NAME_SIZE, P> {
+  pub fn new<T>(provider: &'pool_ref P, kind: ReportKind, name: &'static str) -> Self {
     Report {
+      pool: provider,
       kind,
       info_name: name,
       info_typename: core::any::type_name::<T>(),
-      ..Default::default()
+
+      info_lines: Default::default(),
+      flag_lines: Default::default(),
+      notes: Default::default(),
     }
   }
 
@@ -59,7 +65,7 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME
     Ok(())
   }
 
-  pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>>(
+  pub fn with_note<Cb: FnOnce() -> ReportNote<'t, 'l, 'pool>>(
     mut self,
     builder: Cb,
   ) -> Result<Self, ()> {
@@ -67,15 +73,13 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Report<'t, 'l, 'pool, NODE_NAME
     Ok(self)
   }
 
-  pub fn add_note(&mut self, note: ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE>) -> Result<(), ()> {
+  pub fn add_note(&mut self, note: ReportNote<'t, 'l, 'pool>) -> Result<(), ()> {
     self.notes.add(note).map_err(|_| {})?;
     Ok(())
   }
 }
 
-impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t>
-  for Report<'t, 'l, 'pool, NODE_NAME_SIZE>
-{
+impl<'t, 'l, 'pool, 'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider> Renderable<'t> for Report<'t, 'l, 'pool, 'pool_ref, ITEM_NAME_SIZE, P> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     match self.kind {
       ReportKind::Error => {
@@ -116,7 +120,7 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Renderable<'t>
       canvas.cursor_down().cursor_down().set_column(0);
     }
 
-    DiagnosticInfo::transform_diagnostics(&self.notes, |root| {
+    DiagnosticInfo::transform_diagnostics::<_, ITEM_NAME_SIZE>(self.pool, &self.notes, |root| {
       canvas.write(root).unwrap();
     });
 

@@ -1,4 +1,4 @@
-use crate::provider::{error::out_of_bounds::OutOfBoundsError, Provider};
+use crate::provider::{error::{out_of_bounds::OutOfBoundsError, provider_read::ProviderReadError, provider_slice::ProviderSliceError}, hint::ReadHint, Provider};
 
 use super::fixed_slice::RustFixedSliceProvider;
 
@@ -14,7 +14,7 @@ impl<'l, const S: usize> From<&'l [u8; S]> for RustSliceProvider<'l> {
   fn from(value: &'l [u8; S]) -> Self { Self { data: value as &[u8] } }
 }
 
-impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustSliceProvider<'l> {
+impl<'l> Provider for RustSliceProvider<'l> {
   type ReadError = core::convert::Infallible;
   type SliceError = core::convert::Infallible;
 
@@ -30,12 +30,12 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustSliceProv
 
   fn len(&self) -> u64 { self.data.len() as u64 }
 
-  async fn read<const SIZE: usize, V, R: core::future::Future<Output = V>>(
+  async fn read<const SIZE: usize, V>(
     &self,
     offset: u64,
-    _hint: crate::provider::hint::ReadHint,
-    reader: impl FnOnce(&[u8; SIZE]) -> R,
-  ) -> Result<V, crate::provider::error::provider_read::ProviderReadError<NODE_NAME_SIZE, Self::ReadError>> {
+    _hint: ReadHint,
+    reader: impl AsyncFnOnce(&[u8; SIZE]) -> V,
+  ) -> Result<V, ProviderReadError<Self::ReadError>> {
     OutOfBoundsError::assert(self.data.len() as u64, offset, Some(SIZE as u64))?;
 
     Ok(reader(&self.data[offset as usize..(offset + SIZE as u64) as usize].try_into().unwrap()).await)
@@ -44,7 +44,7 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustSliceProv
   fn slice<'l2, const SIZE: usize>(
     &'l2 self,
     start: u64,
-  ) -> Result<Self::StaticSliceProvider<'l2, SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::StaticSliceProvider<'l2, SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.data.len() as u64, start, Some(SIZE as u64))?;
 
     let slice = &self.data[start as usize..(start + SIZE as u64) as usize];
@@ -57,7 +57,7 @@ impl<'l, const NODE_NAME_SIZE: usize> Provider<NODE_NAME_SIZE> for RustSliceProv
     &'l2 self,
     start: u64,
     size: Option<u64>,
-  ) -> Result<Self::DynamicSliceProvider<'l2>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::DynamicSliceProvider<'l2>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.data.len() as u64, start, size)?;
 
     let slice = if let Some(size) = size {

@@ -1,14 +1,14 @@
 use super::{out_of_bounds::OutOfBoundsError, user_mutate::UserMutateError};
 
-pub enum ProviderMutateError<const NODE_NAME_SIZE: usize, UserMutate: for<'pool> UserMutateError<'pool, NODE_NAME_SIZE>> {
+pub enum ProviderMutateError<UserMutate: UserMutateError> {
   User(UserMutate),
   OutOfBounds(OutOfBoundsError),
 }
 
-impl<const NODE_NAME_SIZE: usize, UserMutate: for<'pool> UserMutateError<'pool, NODE_NAME_SIZE>> From<UserMutate> for ProviderMutateError<NODE_NAME_SIZE, UserMutate> {
+impl<UserMutate: UserMutateError> From<UserMutate> for ProviderMutateError<UserMutate> {
   fn from(user: UserMutate) -> Self { Self::User(user) }
 }
 
-impl<const NODE_NAME_SIZE: usize, UserMutate: for<'pool> UserMutateError<'pool, NODE_NAME_SIZE>> From<OutOfBoundsError> for ProviderMutateError<NODE_NAME_SIZE, UserMutate> {
+impl<UserMutate: UserMutateError> From<OutOfBoundsError> for ProviderMutateError<UserMutate> {
   fn from(out_of_bounds: OutOfBoundsError) -> Self { Self::OutOfBounds(out_of_bounds) }
 }

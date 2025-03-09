@@ -1,5 +1,5 @@
 use crate::{
-  diagnostic::{node::name::DiagnosticNodeName, value::DiagnosticValue},
+  diagnostic::value::DiagnosticValue,
   stream::{error::stream_partition::StreamPartitionError, DynamicPartitionableStream, ReadableStream, StaticPartitionableStream},
 };
 
@@ -11,15 +11,15 @@ use super::{
   Reader,
 };
 
-impl<'l, 'pool, const NODE_NAME_SIZE: usize, S: DynamicPartitionableStream<'l, NODE_NAME_SIZE>> Reader<'pool, NODE_NAME_SIZE, S>
+impl<'l, 'pool, S: DynamicPartitionableStream<'l>> Reader<'pool, S>
 where
   'pool: 'l,
 {
   pub async fn subfork_dynamic<'a>(
     &'a mut self,
-    length: DiagnosticValue<'pool, u64, NODE_NAME_SIZE>,
-    name: Option<impl Into<DiagnosticNodeName<NODE_NAME_SIZE>>>,
-  ) -> Result<Reader<'pool, NODE_NAME_SIZE, S::PartitionDynamic>, DynamicSubforkError<'l, 'pool, NODE_NAME_SIZE, S>>
+    length: DiagnosticValue<'pool, u64>,
+    name: Option<&str>,
+  ) -> Result<Reader<'pool, S::PartitionDynamic>, DynamicSubforkError<'l, 'pool, S>>
   where
     'a: 'l,
   {
@@ -65,16 +65,16 @@ where
 }
 
 
-impl<'l, 'pool, const NODE_NAME_SIZE: usize, S: ReadableStream<NODE_NAME_SIZE>> Reader<'pool, NODE_NAME_SIZE, S>
+impl<'l, 'pool, S: ReadableStream> Reader<'pool, S>
 where
   'pool: 'l,
 {
   pub async fn subfork_static<'a, const SIZE: usize>(
     &'a mut self,
-    name: Option<impl Into<DiagnosticNodeName<NODE_NAME_SIZE>>>,
-  ) -> Result<Reader<'pool, NODE_NAME_SIZE, S::Partition>, StaticSubforkError<'l, 'pool, SIZE, NODE_NAME_SIZE, S>>
+    name: Option<&str>,
+  ) -> Result<Reader<'pool, S::Partition>, StaticSubforkError<'l, 'pool, SIZE, S>>
   where
-    S: StaticPartitionableStream<'l, NODE_NAME_SIZE, SIZE>,
+    S: StaticPartitionableStream<'l, SIZE>,
     'a: 'l,
   {
     let offset = self.stream.offset();

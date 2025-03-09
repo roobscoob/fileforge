@@ -1,18 +1,14 @@
 use core::future::Future;
 
-use error::{readable::ReadableError, user::UserReadableError};
-
-use crate::stream::ReadableStream;
+use crate::{error::FileforgeError, stream::ReadableStream};
 
 use super::Reader;
 
-pub mod error;
-
-pub trait Readable<'pool, 'l, const NODE_NAME_SIZE: usize>: Sized {
-    type Error<S: ReadableStream<NODE_NAME_SIZE> + 'l>: UserReadableError<'pool, NODE_NAME_SIZE> where 'pool: 'l;
+pub trait Readable<'pool: 'l, 'l, S: ReadableStream + 'l>: Sized {
+    type Error: FileforgeError;
     type Argument;
 
-    fn read<S: ReadableStream<NODE_NAME_SIZE>>(reader: &'l mut Reader<'pool, NODE_NAME_SIZE, S>, argument: Self::Argument) -> impl Future<Output = Result<Self, ReadableError<'pool, NODE_NAME_SIZE, Self::Error<S>, S::ReadError>>>;
+    async fn read(reader: &'l mut Reader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error>;
 }
 
 pub trait NoneArgument {

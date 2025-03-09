@@ -1,47 +1,47 @@
-use core::marker::PhantomData;
-
 use render::{buffer::{cell::{tag::context::RenderMode, RenderBufferCell}, RenderBuffer}, position::RenderPosition};
 use report::Report;
+
+use crate::diagnostic::pool::DiagnosticPoolProvider;
 
 pub mod context;
 pub mod render;
 pub mod report;
 
-pub trait FileforgeError<'pool, const NODE_NAME_SIZE: usize> {
-  fn render_into_report(&self, callback: impl for<'a, 'b> FnMut(Report<'a, 'b, 'pool, NODE_NAME_SIZE>) -> ());
+pub trait FileforgeError {
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(&self, provider: &'pool_ref P, callback: impl for<'tag, 'b, 'pool> FnMut(Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> ());
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<'pool, NODE_NAME_SIZE> for core::convert::Infallible {
-  fn render_into_report(&self, _: impl for<'a, 'b> FnMut(Report<'a, 'b, 'pool, NODE_NAME_SIZE>) -> ()) { unreachable!() }
+impl FileforgeError for core::convert::Infallible {
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(&self, _: &'pool_ref P, _: impl for<'tag, 'b, 'pool> FnMut(Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> ()) { unreachable!() }
 }
 
-pub struct RenderableError<'pool, const NODE_NAME_SIZE: usize, E: FileforgeError<'pool, NODE_NAME_SIZE>> {
+pub struct RenderableError<'pool_ref, const NODE_NAME_SIZE: usize, E: FileforgeError, P: DiagnosticPoolProvider> {
   error: E,
   render_mode: RenderMode,
-  ph: PhantomData<&'pool ()>
+  provider: &'pool_ref P,
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize, E: FileforgeError<'pool, NODE_NAME_SIZE>> From<E> for RenderableError<'pool, NODE_NAME_SIZE, E> {
-  fn from(error: E) -> Self {
-    RenderableError { error, render_mode: RenderMode::TerminalAnsi, ph: PhantomData::default() }
+impl<'pool_ref, const NODE_NAME_SIZE: usize, E: FileforgeError, P: DiagnosticPoolProvider> RenderableError<'pool_ref, NODE_NAME_SIZE, E, P> {
+  pub fn from_error(error: E, render_mode: RenderMode, provider: &'pool_ref P) -> Self {
+    Self { error, render_mode, provider }
   }
 }
 
-pub trait RenderableResult<'pool, const NODE_NAME_SIZE: usize, T> {
-  fn unwrap_renderable(self) -> T;
+pub trait RenderableResult<T> {
+  fn unwrap_renderable<'pool_ref, const NODE_NAME_SIZE: usize>(self, render_mode: RenderMode, provider: &'pool_ref impl DiagnosticPoolProvider) -> T;
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize, T, E: FileforgeError<'pool, NODE_NAME_SIZE>> RenderableResult<'pool, NODE_NAME_SIZE, T> for Result<T, E> {
-  fn unwrap_renderable(self) -> T {
+impl<T, E: FileforgeError> RenderableResult<T> for Result<T, E> {
+  fn unwrap_renderable<'pool_ref, const NODE_NAME_SIZE: usize>(self, render_mode: RenderMode, provider: &'pool_ref impl DiagnosticPoolProvider) -> T {
     self
-      .map_err(|e| Into::<RenderableError<NODE_NAME_SIZE, E>>::into(e))
+      .map_err(|error| RenderableError::<NODE_NAME_SIZE, E, _>::from_error(error, render_mode, provider))
       .unwrap()
   }
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize, T: FileforgeError<'pool, NODE_NAME_SIZE>> core::fmt::Debug for RenderableError<'pool, NODE_NAME_SIZE, T> {
+impl<'pool_ref, const NODE_NAME_SIZE: usize, E: FileforgeError, P: DiagnosticPoolProvider> core::fmt::Debug for RenderableError<'pool_ref, NODE_NAME_SIZE, E, P> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    self.error.render_into_report(|report| {
+    self.error.render_into_report(self.provider, |report: Report<'_, '_, '_, '_, NODE_NAME_SIZE, P>| {
       let mut o = 0;
 
       loop {

@@ -1,7 +1,7 @@
 use fileforge_macros::text;
 
 use crate::{
-  diagnostic::{node::reference::DiagnosticReference, pool::DiagnosticPool, value::DiagnosticValue},
+  diagnostic::{node::reference::DiagnosticReference, pool::DiagnosticPoolProvider, value::DiagnosticValue},
   error::{
     context::ErrorContext,
     render::{
@@ -53,15 +53,15 @@ impl SeekOffset {
   }
 }
 
-pub struct SeekOutOfBounds<'pool, const NODE_NAME_SIZE: usize> {
+pub struct SeekOutOfBounds<'pool> {
   pub seek_offset: SeekOffset,
-  pub provider_size: DiagnosticValue<'pool, u64, NODE_NAME_SIZE>,
-  pub container_dr: Option<DiagnosticReference<'pool, NODE_NAME_SIZE>>,
+  pub provider_size: DiagnosticValue<'pool, u64>,
+  pub container_dr: Option<DiagnosticReference<'pool>>,
 }
 
-impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<'pool, NODE_NAME_SIZE> for SeekOutOfBounds<'pool, NODE_NAME_SIZE> {
-  fn render_into_report(&self, mut callback: impl for<'b> FnMut(Report<'static, 'b, 'pool, NODE_NAME_SIZE>) -> ()) {
-    let context = ErrorContext::new().with("provider_size", self.provider_size.reference()).with("container", self.container_dr);
+impl<'pool> FileforgeError for SeekOutOfBounds<'pool> {
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(&self, provider: &'pool_ref P, mut callback: impl for<'tag, 'b, 'p2> FnMut(Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> ()) {
+    let context = ErrorContext::new(provider).with("provider_size", self.provider_size.reference()).with("container", self.container_dr);
 
     let seek_offset_base_10 = self.seek_offset.value().separator(3, ",");
     let seek_offset_base_16 = self.seek_offset.value().base(16).uppercase();
@@ -78,7 +78,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> FileforgeError<'pool, NODE_NAME_SIZE> f
       [&REPORT_ERROR_TEXT] "Failed to seek to {&seek_offset_base_10} (0x{&seek_offset_base_16}). The seek point was beyond the container's length, of {&container_size_base_10} bytes."
     );
 
-    let mut report = Report::new::<Self>(ReportKind::Error, "Seek out of Bounds")
+    let mut report = Report::new::<Self>(provider, ReportKind::Error, "Seek out of Bounds")
       .with_error_context(&context)
       .with_flag_line(const_text!([&REPORT_FLAG_LINE_TEXT] "This is a low-level error, intended to be consumed by higher-level error handling code. This error is not intended to be displayed to the user. If you're seeing this error and *not* a library author, it may be confusing. Please report this error to the library author."))
       .unwrap();

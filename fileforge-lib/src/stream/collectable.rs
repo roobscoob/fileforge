@@ -2,8 +2,8 @@ use core::future::Future;
 
 use super::ReadableStream;
 
-pub trait Collectable<const NODE_NAME_SIZE: usize, S: ReadableStream<NODE_NAME_SIZE>> {
+pub trait Collectable<S: ReadableStream> {
   type Error;
 
-  fn collect(&mut self, stream: &mut S) -> impl Future<Output = Result<(), Self::Error>>;
+  async fn collect(&mut self, stream: &mut S) -> Result<(), Self::Error>;
 }

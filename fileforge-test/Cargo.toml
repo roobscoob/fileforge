@@ -7,6 +7,7 @@ edition = "2021"
 fileforge-lib = { path = "../fileforge-lib" }
 fileforge-macros = { path = "../fileforge-macros" }
 # fileforge-std = { path = "../fileforge-std" }
-# fileforge-byml = { path = "../fileforge-byml" }
+fileforge-nintendo = { path = "../fileforge-nintendo" }
 heapless = "0.8.0"
 tokio = { version = "1.43.0", features = ["full", "macros"] }
+yaz0  = "0.3.0"

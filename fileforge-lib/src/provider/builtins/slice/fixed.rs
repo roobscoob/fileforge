@@ -1,11 +1,13 @@
-use crate::provider::{error::out_of_bounds::OutOfBoundsError, MutProvider, Provider};
+use core::future::Future;
 
-pub struct FixedSliceProvider<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> {
+use crate::provider::{error::{out_of_bounds::OutOfBoundsError, provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_slice::ProviderSliceError}, MutProvider, Provider};
+
+pub struct FixedSliceProvider<const SIZE: usize, UnderlyingProvider: Provider> {
   offset: u64,
   provider: UnderlyingProvider,
 }
 
-impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> FixedSliceProvider<NODE_NAME_SIZE, SIZE, UnderlyingProvider> {
+impl<const SIZE: usize, UnderlyingProvider: Provider> FixedSliceProvider<SIZE, UnderlyingProvider> {
   pub fn new(offset: u64, provider: UnderlyingProvider) -> Result<Self, OutOfBoundsError> {
     let slice_end = offset.checked_add(SIZE as u64).ok_or(OutOfBoundsError {
       read_offset: offset,
@@ -25,7 +27,7 @@ impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provide
   }
 }
 
-impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provider<NODE_NAME_SIZE>> Provider<NODE_NAME_SIZE> for FixedSliceProvider<NODE_NAME_SIZE, SIZE, UnderlyingProvider> {
+impl<const SIZE: usize, UnderlyingProvider: Provider> Provider for FixedSliceProvider<SIZE, UnderlyingProvider> {
   fn len(&self) -> u64 { SIZE as u64 }
 
   type ReadError = UnderlyingProvider::ReadError;
@@ -41,12 +43,12 @@ impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provide
   where
     Self: 'l;
 
-  async fn read<const READ_SIZE: usize, V, R: core::future::Future<Output = V>>(
+  async fn read<const READ_SIZE: usize, V>(
     &self,
     offset: u64,
     hint: crate::provider::hint::ReadHint,
-    reader: impl FnOnce(&[u8; READ_SIZE]) -> R,
-  ) -> Result<V, crate::provider::error::provider_read::ProviderReadError<NODE_NAME_SIZE, Self::ReadError>> {
+    reader: impl AsyncFnOnce(&[u8; READ_SIZE]) -> V,
+  ) -> Result<V, ProviderReadError<Self::ReadError>> {
     OutOfBoundsError::assert(SIZE as u64, offset, Some(READ_SIZE as u64))?;
 
     self.provider.read(offset + self.offset, hint, reader).await
@@ -55,7 +57,7 @@ impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provide
   fn slice<'l, const SLICE_SIZE: usize>(
     &'l self,
     start: u64,
-  ) -> Result<Self::StaticSliceProvider<'l, SLICE_SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::StaticSliceProvider<'l, SLICE_SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(SIZE as u64, start, Some(SLICE_SIZE as u64))?;
 
     self.provider.slice(start + self.offset)
@@ -65,31 +67,27 @@ impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: Provide
     &'l self,
     start: u64,
     size: Option<u64>,
-  ) -> Result<Self::DynamicSliceProvider<'l>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(SIZE as u64, start, size)?;
 
     self.provider.slice_dynamic(start + self.offset, size)
   }
 }
 
-impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: MutProvider<NODE_NAME_SIZE>> MutProvider<NODE_NAME_SIZE> for FixedSliceProvider<NODE_NAME_SIZE, SIZE, UnderlyingProvider> {
+impl<const SIZE: usize, UnderlyingProvider: MutProvider> MutProvider for FixedSliceProvider<SIZE, UnderlyingProvider> {
   type MutateError = UnderlyingProvider::MutateError;
 
-  type DynamicMutSliceProvider<'l>
-    = UnderlyingProvider::DynamicMutSliceProvider<'l>
-  where
-    Self: 'l;
+  type DynamicMutSliceProvider<'l> = UnderlyingProvider::DynamicMutSliceProvider<'l>
+    where Self: 'l;
 
-  type StaticMutSliceProvider<'l, const SLICE_SIZE: usize>
-    = UnderlyingProvider::StaticMutSliceProvider<'l, SLICE_SIZE>
-  where
-    Self: 'l;
+  type StaticMutSliceProvider<'l, const SLICE_SIZE: usize> = UnderlyingProvider::StaticMutSliceProvider<'l, SLICE_SIZE>
+    where Self: 'l;
 
-  async fn mutate<const MUTATE_SIZE: usize, V, R: core::future::Future<Output = V>>(
+  async fn mutate<const MUTATE_SIZE: usize, V>(
     &mut self,
     offset: u64,
-    writer: impl FnOnce(&mut [u8; MUTATE_SIZE]) -> R,
-  ) -> Result<V, crate::provider::error::provider_mutate::ProviderMutateError<NODE_NAME_SIZE, Self::MutateError>> {
+    writer: impl AsyncFnOnce(&mut [u8; MUTATE_SIZE]) -> V,
+  ) -> Result<V, ProviderMutateError<Self::MutateError>> {
     OutOfBoundsError::assert(SIZE as u64, offset, Some(MUTATE_SIZE as u64))?;
 
     self.provider.mutate(offset + self.offset, writer).await
@@ -98,7 +96,7 @@ impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: MutProv
   fn mut_slice<'l, const SLICE_SIZE: usize>(
     &'l mut self,
     start: u64,
-  ) -> Result<Self::StaticMutSliceProvider<'l, SLICE_SIZE>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::StaticMutSliceProvider<'l, SLICE_SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(SIZE as u64, start, Some(SIZE as u64))?;
 
     self.provider.mut_slice(start + self.offset)
@@ -108,7 +106,7 @@ impl<const NODE_NAME_SIZE: usize, const SIZE: usize, UnderlyingProvider: MutProv
     &'l mut self,
     start: u64,
     size: Option<u64>,
-  ) -> Result<Self::DynamicMutSliceProvider<'l>, crate::provider::error::provider_slice::ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>> {
+  ) -> Result<Self::DynamicMutSliceProvider<'l>, crate::provider::error::provider_slice::ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(SIZE as u64, start, size)?;
 
     self.provider.mut_slice_dynamic(start + self.offset, size)

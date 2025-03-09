@@ -11,56 +11,56 @@ use error::{
 };
 use hint::ReadHint;
 
-pub trait Provider<const NODE_NAME_SIZE: usize> {
-  type StaticSliceProvider<'l, const SIZE: usize>: Provider<NODE_NAME_SIZE>
+pub trait Provider {
+  type StaticSliceProvider<'l, const SIZE: usize>: Provider
   where
     Self: 'l;
 
-  type DynamicSliceProvider<'l>: Provider<NODE_NAME_SIZE>
+  type DynamicSliceProvider<'l>: Provider
   where
     Self: 'l;
 
-  type SliceError: UserSliceError<NODE_NAME_SIZE>;
-  type ReadError: UserReadError<NODE_NAME_SIZE>;
+  type SliceError: UserSliceError;
+  type ReadError: UserReadError;
 
   fn len(&self) -> u64;
 
-  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>>;
+  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>>;
 
-  fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>>;
+  fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>>;
 
-  fn read<const SIZE: usize, V, R: Future<Output = V>>(
+  async fn read<const SIZE: usize, V>(
     &self,
     offset: u64,
     hint: ReadHint,
-    reader: impl for<'v> FnOnce(&'v [u8; SIZE]) -> R,
-  ) -> impl Future<Output = Result<V, ProviderReadError<NODE_NAME_SIZE, Self::ReadError>>>;
+    reader: impl for<'v> AsyncFnOnce(&'v [u8; SIZE]) -> V,
+  ) -> Result<V, ProviderReadError<Self::ReadError>>;
 }
 
-pub trait MutProvider<const NODE_NAME_SIZE: usize>: Provider<NODE_NAME_SIZE> {
-  type MutateError: for<'pool> UserMutateError<'pool, NODE_NAME_SIZE>;
+pub trait MutProvider: Provider {
+  type MutateError: UserMutateError;
 
-  type StaticMutSliceProvider<'l, const SIZE: usize>: Provider<NODE_NAME_SIZE>
+  type StaticMutSliceProvider<'l, const SIZE: usize>: Provider
   where
     Self: 'l;
 
-  type DynamicMutSliceProvider<'l>: Provider<NODE_NAME_SIZE>
+  type DynamicMutSliceProvider<'l>: Provider
   where
     Self: 'l;
 
-  fn mutate<const SIZE: usize, V, R: Future<Output = V>>(
+  async fn mutate<const SIZE: usize, V>(
     &mut self,
     offset: u64,
-    writer: impl for<'v> FnOnce(&'v mut [u8; SIZE]) -> R,
-  ) -> impl Future<Output = Result<V, ProviderMutateError<NODE_NAME_SIZE, Self::MutateError>>>;
+    writer: impl for<'v> AsyncFnOnce(&'v mut [u8; SIZE]) -> V,
+  ) -> Result<V, ProviderMutateError<Self::MutateError>>;
 
-  fn mut_slice<'l, const SIZE: usize>(&'l mut self, start: u64) -> Result<Self::StaticMutSliceProvider<'l, SIZE>, ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>>;
+  fn mut_slice<'l, const SIZE: usize>(&'l mut self, start: u64) -> Result<Self::StaticMutSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>>;
 
-  fn mut_slice_dynamic<'l>(&'l mut self, start: u64, size: Option<u64>) -> Result<Self::DynamicMutSliceProvider<'l>, ProviderSliceError<NODE_NAME_SIZE, Self::SliceError>>;
+  fn mut_slice_dynamic<'l>(&'l mut self, start: u64, size: Option<u64>) -> Result<Self::DynamicMutSliceProvider<'l>, ProviderSliceError<Self::SliceError>>;
 }
 
-pub trait ResizableProvider<const NODE_NAME_SIZE: usize>: MutProvider<NODE_NAME_SIZE> {
-  type ResizeError: UserResizeError<NODE_NAME_SIZE>;
+pub trait ResizableProvider: MutProvider {
+  type ResizeError: UserResizeError;
 
-  fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> impl Future<Output = Result<(), ProviderResizeError<NODE_NAME_SIZE, Self::ResizeError>>>;
+  async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), ProviderResizeError<Self::ResizeError>>;
 }

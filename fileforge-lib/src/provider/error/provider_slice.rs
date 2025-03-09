@@ -1,14 +1,14 @@
 use super::{out_of_bounds::OutOfBoundsError, user_slice::UserSliceError};
 
-pub enum ProviderSliceError<const NODE_NAME_SIZE: usize, UserSlice: UserSliceError<NODE_NAME_SIZE>> {
+pub enum ProviderSliceError<UserSlice: UserSliceError> {
   User(UserSlice),
   OutOfBounds(OutOfBoundsError),
 }
 
-impl<const NODE_NAME_SIZE: usize, UserSlice: UserSliceError<NODE_NAME_SIZE>> From<UserSlice> for ProviderSliceError<NODE_NAME_SIZE, UserSlice> {
+impl<UserSlice: UserSliceError> From<UserSlice> for ProviderSliceError<UserSlice> {
   fn from(user: UserSlice) -> Self { Self::User(user) }
 }
 
-impl<const NODE_NAME_SIZE: usize, UserSlice: UserSliceError<NODE_NAME_SIZE>> From<OutOfBoundsError> for ProviderSliceError<NODE_NAME_SIZE, UserSlice> {
+impl<UserSlice: UserSliceError> From<OutOfBoundsError> for ProviderSliceError<UserSlice> {
   fn from(out_of_bounds: OutOfBoundsError) -> Self { Self::OutOfBounds(out_of_bounds) }
 }

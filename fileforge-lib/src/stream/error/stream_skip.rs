@@ -1,6 +1,6 @@
 use super::{stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, user_skip::UserSkipError};
 
-pub enum StreamSkipError<const NODE_NAME_SIZE: usize, UserSkip: for<'pool> UserSkipError<'pool, NODE_NAME_SIZE>> {
+pub enum StreamSkipError<UserSkip: UserSkipError> {
   User(UserSkip),
   OutOfBounds(StreamSeekOutOfBoundsError),
 
@@ -8,15 +8,15 @@ pub enum StreamSkipError<const NODE_NAME_SIZE: usize, UserSkip: for<'pool> UserS
   SeekPointOverflowed { stream_length: u64, offset: u64, seek_forwards_distance: u64 },
 }
 
-impl<const NODE_NAME_SIZE: usize, UserSkip: for<'pool> UserSkipError<'pool, NODE_NAME_SIZE>> From<StreamSeekOutOfBoundsError> for StreamSkipError<NODE_NAME_SIZE, UserSkip> {
+impl<UserSkip: UserSkipError> From<StreamSeekOutOfBoundsError> for StreamSkipError<UserSkip> {
   fn from(value: StreamSeekOutOfBoundsError) -> Self { Self::OutOfBounds(value) }
 }
 
-impl<const NODE_NAME_SIZE: usize, UserSkip: for<'pool> UserSkipError<'pool, NODE_NAME_SIZE>> From<UserSkip> for StreamSkipError<NODE_NAME_SIZE, UserSkip> {
+impl<UserSkip: UserSkipError> From<UserSkip> for StreamSkipError<UserSkip> {
   fn from(value: UserSkip) -> Self { Self::User(value) }
 }
 
-impl<const NODE_NAME_SIZE: usize, UserSkip: for<'pool> UserSkipError<'pool, NODE_NAME_SIZE>> StreamSkipError<NODE_NAME_SIZE, UserSkip> {
+impl<UserSkip: UserSkipError> StreamSkipError<UserSkip> {
   pub fn assert_relative_forwards(stream_length: u64, offset: u64, relative_forwards: u64) -> Result<u64, Self> {
     let seek_point = offset.checked_add(relative_forwards).ok_or(Self::SeekPointOverflowed {
       stream_length,

@@ -9,13 +9,13 @@ use super::location::ReportLocation;
 
 pub mod set;
 
-pub struct ReportNote<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> {
-  pub(crate) locations: heapless::Vec<ReportLocation<'t, 'l, 'pool, NODE_NAME_SIZE>, 0x10>,
+pub struct ReportNote<'t, 'l, 'pool> {
+  pub(crate) locations: heapless::Vec<ReportLocation<'t, 'l, 'pool>, 0x10>,
   pub(crate) message: &'l dyn Renderable<'t>,
   pub(crate) tag: Option<&'t dyn CellTag>,
 }
 
-impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE> {
+impl<'t, 'l, 'pool> ReportNote<'t, 'l, 'pool> {
   pub fn new(message: &'l dyn Renderable<'t>) -> Self {
     ReportNote {
       locations: Default::default(),
@@ -24,7 +24,7 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> ReportNote<'t, 'l, 'pool, NODE_
     }
   }
 
-  pub fn with_location<'x, T: Renderable<'t>>(mut self, value: &'l DiagnosticValue<'pool, T, NODE_NAME_SIZE>) -> Result<Self, ()> {
+  pub fn with_location<'x, T: Renderable<'t>>(mut self, value: &'l DiagnosticValue<'pool, T>) -> Result<Self, ()> {
     if let Some(reference) = value.reference() {
       self
         .locations
@@ -38,13 +38,13 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> ReportNote<'t, 'l, 'pool, NODE_
     Ok(self)
   }
 
-  pub fn with_unvalued_location(mut self, reference: DiagnosticReference<'pool, NODE_NAME_SIZE>) -> Result<Self, ()> {
+  pub fn with_unvalued_location(mut self, reference: DiagnosticReference<'pool>) -> Result<Self, ()> {
     self.locations.push(ReportLocation { reference, value: None }).map_err(|_| {})?;
 
     Ok(self)
   }
 
-  pub fn with_raw_location(mut self, location: ReportLocation<'t, 'l, 'pool, NODE_NAME_SIZE>) -> Result<Self, ()> {
+  pub fn with_raw_location(mut self, location: ReportLocation<'t, 'l, 'pool>) -> Result<Self, ()> {
     self.locations.push(location).map_err(|_| {})?;
 
     Ok(self)
@@ -56,10 +56,10 @@ impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> ReportNote<'t, 'l, 'pool, NODE_
     self
   }
 
-  pub fn locations<'a>(&'a self) -> Iter<'a, ReportLocation<'t, 'l, 'pool, NODE_NAME_SIZE>> { self.locations.iter() }
+  pub fn locations<'a>(&'a self) -> Iter<'a, ReportLocation<'t, 'l, 'pool>> { self.locations.iter() }
 }
 
-impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> Eq for ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE> {}
-impl<'t, 'l, 'pool, const NODE_NAME_SIZE: usize> PartialEq for ReportNote<'t, 'l, 'pool, NODE_NAME_SIZE> {
+impl<'t, 'l, 'pool> Eq for ReportNote<'t, 'l, 'pool> {}
+impl<'t, 'l, 'pool> PartialEq for ReportNote<'t, 'l, 'pool> {
   fn eq(&self, other: &Self) -> bool { core::ptr::eq(self.message, other.message) && self.locations == other.locations }
 }

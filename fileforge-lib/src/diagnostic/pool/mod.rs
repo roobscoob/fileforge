@@ -2,9 +2,18 @@ pub mod fixed;
 
 use core::num::NonZero;
 
-use super::node::{branch::DiagnosticBranch, name::DiagnosticNodeName, reference::DiagnosticReference, DiagnosticNode};
+use super::node::{branch::DiagnosticBranch, reference::DiagnosticReference, DiagnosticNode};
 
-pub trait DiagnosticPool<const NODE_NAME_SIZE: usize> {
-  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<DiagnosticNode<NODE_NAME_SIZE>>;
-  fn create(&self, branch: DiagnosticBranch, size: Option<u64>, name: DiagnosticNodeName<NODE_NAME_SIZE>) -> DiagnosticReference<NODE_NAME_SIZE>;
+pub trait DiagnosticPoolProvider {
+  type Node: DiagnosticNode;
+
+  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node>;
+
+  fn was_built_by(&self, builder: &dyn DiagnosticPoolBuilder) -> bool;
+
+  fn get_builder(&self) -> &dyn DiagnosticPoolBuilder;
+}
+
+pub trait DiagnosticPoolBuilder {
+  fn create(&self, branch: DiagnosticBranch, size: Option<u64>, name: &str) -> DiagnosticReference;
 }

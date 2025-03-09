@@ -1,5 +1,5 @@
-use error::MagicError;
-use fileforge_lib::{reader::{readable::{error::readable::ReadableError, Readable}, PrimitiveReader, Reader}, stream::ReadableStream};
+use error::{error::MagicError, invalid::MagicInvalid};
+use fileforge_lib::{reader::{readable::Readable, PrimitiveReader, Reader}, stream::ReadableStream};
 
 pub mod renderable;
 pub mod error;
@@ -14,15 +14,15 @@ impl<const SIZE: usize> Magic<SIZE> {
   pub const fn from_byte_ref(bytes: &[u8; SIZE]) -> Magic<SIZE> { Self { bytes: *bytes } }
 }
 
-impl<'pool, 'l, const NODE_NAME_SIZE: usize, const SIZE: usize> Readable<'pool, 'l, NODE_NAME_SIZE> for Magic<SIZE> {
-  type Error<S: ReadableStream<NODE_NAME_SIZE>> = MagicError<'pool, NODE_NAME_SIZE, SIZE> where S: Sized, 'pool: 'l, S: 'l;
+impl<'pool: 'l, 'l, const SIZE: usize, S: ReadableStream + 'l> Readable<'pool, 'l, S> for Magic<SIZE> {
+  type Error = MagicError<'pool, SIZE, S::ReadError>;
   type Argument = Magic<SIZE>;
 
-  async fn read<S: ReadableStream<NODE_NAME_SIZE>>(reader: &'l mut Reader<'pool, NODE_NAME_SIZE, S>, argument: Self::Argument) -> Result<Self, ReadableError<'pool, NODE_NAME_SIZE, Self::Error<S>, S::ReadError>> {
+  async fn read(reader: &'l mut Reader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error> {
     let content = Self::from_bytes(reader.get::<[u8; SIZE]>().await?);
 
-    MagicError::assert(content, argument, || {
-      reader.create_physical_diagnostic(-4, Some(4), "Magic")
+    MagicInvalid::assert(content, argument, || {
+      reader.create_physical_diagnostic(-(SIZE as i64), Some(SIZE as u64), "Magic")
     })?;
 
     Ok(content)

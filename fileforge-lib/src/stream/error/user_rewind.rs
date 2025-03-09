@@ -1,5 +1,5 @@
 use crate::error::FileforgeError;
 
-pub trait UserRewindError<'pool, const NODE_NAME_SIZE: usize>: FileforgeError<'pool, NODE_NAME_SIZE> {}
+pub trait UserRewindError: FileforgeError {}
 
-impl<'pool, const NODE_NAME_SIZE: usize> UserRewindError<'pool, NODE_NAME_SIZE> for core::convert::Infallible {}
+impl UserRewindError for core::convert::Infallible {}
