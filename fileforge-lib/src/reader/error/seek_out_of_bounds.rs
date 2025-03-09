@@ -1,4 +1,4 @@
-use fileforge_macros::text;
+use fileforge_macros::{story, text};
 
 use crate::{
   diagnostic::{node::reference::DiagnosticReference, pool::DiagnosticPoolProvider, value::DiagnosticValue},
