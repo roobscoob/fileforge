@@ -1,7 +1,6 @@
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
 
 #![allow(async_fn_in_trait)]
-#![cfg_attr(not(feature = "story"), no_std)]
 
 macro_rules! const_text {
   ($x: tt $y: tt) => {{

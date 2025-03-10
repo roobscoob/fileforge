@@ -47,8 +47,11 @@
           formatter = pkgs.alejandra;
           devShells.default = mkShell {
             buildInputs = with pkgs; [
-              pkgs.fenix.stable.completeToolchain
-              _1password-cli 
+              (pkgs.fenix.fromToolchainFile {
+                file = ./rust-toolchain.toml;
+                sha256 = "sha256-AJ6LX/Q/Er9kS15bn9iflkUwcgYqRQxiOIL2ToVAXaU=";
+              })
+              _1password-cli
             ];
           };
           packages = rec {

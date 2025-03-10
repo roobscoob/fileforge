@@ -13,10 +13,7 @@ pub(crate) mod imports {
   pub use crate::{
     diagnostic::{
       node::{branch::DiagnosticBranch, name::DiagnosticNodeName},
-      pool::{
-        fixed::{entry::DiagnosticPoolEntry, FixedDiagnosticPool},
-        DiagnosticPool,
-      },
+      pool::fixed::{entry::FixedDiagnosticPoolEntry, FixedDiagnosticPool},
       value::DiagnosticValue,
     },
     error::{report::Report, FileforgeError},
@@ -28,12 +25,12 @@ pub const NODE_NAME_SIZE: usize = 128;
 pub struct Story {
   pub name: &'static str,
   pub type_name: &'static str,
-  pub story: fn(FixedDiagnosticPool<'_, NODE_NAME_SIZE>, fn(Report<NODE_NAME_SIZE>)),
+  pub story: fn(FixedDiagnosticPool<'_, NODE_NAME_SIZE>, fn(Report<NODE_NAME_SIZE, FixedDiagnosticPool<'_, NODE_NAME_SIZE>>)),
 }
 
 pub fn invoke() {
   for ele in inventory::iter::<Story> {
-    let mut entries: [DiagnosticPoolEntry<NODE_NAME_SIZE>; 256] = core::array::from_fn(|_| DiagnosticPoolEntry::default());
+    let mut entries: [FixedDiagnosticPoolEntry<NODE_NAME_SIZE>; 256] = core::array::from_fn(|_| FixedDiagnosticPoolEntry::default());
     let pool = FixedDiagnosticPool::new(&mut entries);
     println!("{} ({})", ele.name, ele.type_name);
     (ele.story)(pool, |report| {
