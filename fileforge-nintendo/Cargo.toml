@@ -4,9 +4,9 @@ version = "0.1.3"
 edition = "2021"
 
 [dependencies]
-fileforge-lib = { version = "0.1.4", path = "../fileforge-lib", registry = "eepy", default-features = false }
-fileforge-macros = { version = "0.1.0", path = "../fileforge-macros", registry = "eepy" }
-fileforge-std = { version = "0.1.1", path = "../fileforge-std", registry = "eepy", default-features = false }
+fileforge-lib = { path = "../fileforge-lib", default-features = false }
+fileforge-macros = { path = "../fileforge-macros" }
+fileforge-std = { path = "../fileforge-std", default-features = false }
 heapless = "0.8.0"
 intx = "0.1.0"
 

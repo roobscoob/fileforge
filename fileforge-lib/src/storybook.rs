@@ -1,7 +1,7 @@
 use crate::error::render::{
   buffer::{
-    cell::{tag::context::RenderMode, RenderBufferCell},
     RenderBuffer,
+    cell::{RenderBufferCell, tag::context::RenderMode},
   },
   position::RenderPosition,
 };
@@ -11,12 +11,8 @@ use imports::*;
 #[doc(hidden)]
 pub(crate) mod imports {
   pub use crate::{
-    diagnostic::{
-      node::{branch::DiagnosticBranch, name::DiagnosticNodeName},
-      pool::fixed::{entry::FixedDiagnosticPoolEntry, FixedDiagnosticPool},
-      value::DiagnosticValue,
-    },
-    error::{report::Report, FileforgeError},
+    diagnostic::pool::fixed::{FixedDiagnosticPool, entry::FixedDiagnosticPoolEntry},
+    error::report::Report,
   };
 }
 

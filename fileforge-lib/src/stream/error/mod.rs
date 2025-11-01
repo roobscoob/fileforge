@@ -12,6 +12,7 @@ pub mod user_mutate;
 pub mod user_overwrite;
 pub mod user_partition;
 pub mod user_read;
+pub mod user_restore;
 pub mod user_rewind;
 pub mod user_seek;
 pub mod user_skip;

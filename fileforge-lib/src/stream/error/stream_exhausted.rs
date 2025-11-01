@@ -1,5 +1,6 @@
 use crate::provider::error::out_of_bounds::OutOfBoundsError;
 
+#[derive(Debug)]
 pub struct StreamExhaustedError {
   pub stream_length: u64,
   pub read_length: u64,

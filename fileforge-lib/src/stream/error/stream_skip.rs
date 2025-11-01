@@ -1,5 +1,6 @@
 use super::{stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, user_skip::UserSkipError};
 
+#[derive(Debug)]
 pub enum StreamSkipError<UserSkip: UserSkipError> {
   User(UserSkip),
   OutOfBounds(StreamSeekOutOfBoundsError),
@@ -9,11 +10,15 @@ pub enum StreamSkipError<UserSkip: UserSkipError> {
 }
 
 impl<UserSkip: UserSkipError> From<StreamSeekOutOfBoundsError> for StreamSkipError<UserSkip> {
-  fn from(value: StreamSeekOutOfBoundsError) -> Self { Self::OutOfBounds(value) }
+  fn from(value: StreamSeekOutOfBoundsError) -> Self {
+    Self::OutOfBounds(value)
+  }
 }
 
 impl<UserSkip: UserSkipError> From<UserSkip> for StreamSkipError<UserSkip> {
-  fn from(value: UserSkip) -> Self { Self::User(value) }
+  fn from(value: UserSkip) -> Self {
+    Self::User(value)
+  }
 }
 
 impl<UserSkip: UserSkipError> StreamSkipError<UserSkip> {

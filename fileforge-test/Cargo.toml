@@ -10,4 +10,4 @@ fileforge-macros = { path = "../fileforge-macros" }
 fileforge-nintendo = { path = "../fileforge-nintendo" }
 heapless = "0.8.0"
 tokio = { version = "1.43.0", features = ["full", "macros"] }
-yaz0  = "0.3.0"
+yaz0 = "0.3.0"

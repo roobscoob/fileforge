@@ -1,48 +1,74 @@
 use std::{io::Cursor, time::Instant};
 
 use fileforge_lib::{
-  diagnostic::{node::branch::DiagnosticBranch, pool::{fixed::{entry::FixedDiagnosticPoolEntry, FixedDiagnosticPool}, DiagnosticPoolBuilder}}, error::{render::buffer::cell::tag::context::RenderMode, RenderableResult}, provider::{builtins::rust::slice::RustSliceProvider, hint::ReadHint}, reader::{diagnostic_store::DiagnosticKind, endianness::Endianness, Reader}, stream::{builtin::provider::ProviderStream, ReadableStream}
+  binary_reader::{diagnostic_store::DiagnosticKind, endianness::Endianness, BinaryReader},
+  diagnostic::{
+    node::branch::DiagnosticBranch,
+    pool::{
+      fixed::{entry::FixedDiagnosticPoolEntry, FixedDiagnosticPool},
+      DiagnosticPoolBuilder,
+    },
+  },
+  error::{
+    render::{
+      buffer::{
+        cell::{tag::context::RenderMode, RenderBufferCell},
+        RenderBuffer,
+      },
+      grapheme::Grapheme,
+      position::RenderPosition,
+    },
+    FileforgeError, RenderableResult,
+  },
+  provider::{builtins::rust::slice::RustSliceProvider, hint::ReadHint},
+  stream::{builtin::provider::ProviderStream, error::stream_read::StreamReadError, ReadableStream},
 };
-use fileforge_nintendo::yaz0::Yaz0Stream;
+use fileforge_nintendo::sead::yaz0::Yaz0Stream;
 use tokio::fs;
 
 #[tokio::main]
 async fn main() {
-  // let mut entries: [FixedDiagnosticPoolEntry<32>; 100] = core::array::from_fn(|_| FixedDiagnosticPoolEntry::default());
-  // let pool = FixedDiagnosticPool::new(&mut entries);
+  let mut entries: [FixedDiagnosticPoolEntry<32>; 100] = core::array::from_fn(|_| FixedDiagnosticPoolEntry::default());
+  let pool = FixedDiagnosticPool::new(&mut entries);
 
-  // // let sl = include_bytes!("../binaries/SkyWorldHomeStageMap.szs");
+  let sl = include_bytes!("../binaries/SkyWorldHomeStageMap.szs");
   // let sl = include_bytes!("T:\\unsorted-torrents\\Super Mario 3D World\\Super Mario 3D World [ARDP01]\\content\\ObjectData\\ArrangeHexScrollStepA.szs");
 
-  // let p = RustSliceProvider::from(sl);
-  // let s = ProviderStream::new(p, ReadHint::new());
-  // let mut r = Reader::new(s, Endianness::BigEndian);
+  let p = RustSliceProvider::from(sl);
+  let s = ProviderStream::new(p, ReadHint::new());
+  let mut r = BinaryReader::new(s, Endianness::BigEndian);
 
-  // r.set_diagnostic(DiagnosticKind::Reader, Some(pool.create(DiagnosticBranch::None, Some(sl.len() as u64), "SkyWorldHomeStageMap.szs")));
+  r.set_diagnostic(DiagnosticKind::Reader, Some(pool.create(DiagnosticBranch::None, Some(sl.len() as u64), "SkyWorldHomeStageMap.szs")));
 
-  // let mut val = r.read::<Yaz0Stream<_>>().await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
+  let mut val = r.into::<Yaz0Stream<_>>().await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
 
-  // let mut data = vec![];
+  let mut data = vec![];
 
-  // let now = Instant::now();
-  // println!("Start");
+  println!("Length = {:?}", val.len());
 
-  // for i in 0.. {
-  //   let result = val.read(|input: &[u8; 2]| {
-  //     for item in input {
-  //       data.push(*item);
-  //     }
+  let now = Instant::now();
 
-  //     async {}
-  //   }).await;
+  for i in 0.. {
+    let r = val
+      .read(|v: &[u8; 0x1000]| {
+        data.extend_from_slice(v);
+        async {}
+      })
+      .await;
 
-  //   if let Err(_) = result {
-  //     println!("Failed at {i}");
-  //     break;
-  //   }
-  // }
+    if let Err(e) = r {
+      println!("{e:?}");
+      break;
+    }
+  }
 
-  // println!("Stop: {}", now.elapsed().as_millis());
-  
-  // fs::write("./bad.bin", data).await.unwrap();
+  println!("Fileforge: {}", now.elapsed().as_millis());
+
+  fs::write("./bad.bin", data).await.unwrap();
+
+  let now = Instant::now();
+  let res = yaz0::inflate::Yaz0Archive::new(Cursor::new(&sl[..])).unwrap().decompress().unwrap();
+  println!("yaz0 Crate: {}", now.elapsed().as_millis());
+
+  fs::write("./good.bin", res).await.unwrap();
 }

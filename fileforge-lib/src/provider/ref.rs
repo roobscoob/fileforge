@@ -1,12 +1,12 @@
-use core::future::Future;
-
 use super::{
+  MutProvider, Provider, ResizableProvider,
   error::{provider_read::ProviderReadError, provider_slice::ProviderSliceError},
   hint::ReadHint,
-  MutProvider, Provider, ResizableProvider,
 };
 
 impl<P: Provider> Provider for &P {
+  type Type = P::Type;
+
   type StaticSliceProvider<'l, const SIZE: usize>
     = P::StaticSliceProvider<'l, SIZE>
   where
@@ -20,23 +20,26 @@ impl<P: Provider> Provider for &P {
   type SliceError = P::SliceError;
   type ReadError = P::ReadError;
 
-  fn len(&self) -> u64 { (**self).len() }
+  fn len(&self) -> u64 {
+    (**self).len()
+  }
 
-  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>> { (**self).slice::<SIZE>(start) }
+  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>> {
+    (**self).slice::<SIZE>(start)
+  }
 
-  fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> { (**self).slice_dynamic(start, size) }
+  fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> {
+    (**self).slice_dynamic(start, size)
+  }
 
-  async fn read<const SIZE: usize, V>(
-    &self,
-    offset: u64,
-    hint: ReadHint,
-    reader: impl AsyncFnOnce(&[u8; SIZE]) -> V,
-  ) -> Result<V, ProviderReadError<Self::ReadError>> {
+  async fn read<const SIZE: usize, V>(&self, offset: u64, hint: ReadHint, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, ProviderReadError<Self::ReadError>> {
     (**self).read(offset, hint, reader).await
   }
 }
 
 impl<P: Provider> Provider for &mut P {
+  type Type = P::Type;
+
   type StaticSliceProvider<'l, const SIZE: usize>
     = P::StaticSliceProvider<'l, SIZE>
   where
@@ -50,18 +53,19 @@ impl<P: Provider> Provider for &mut P {
   type SliceError = P::SliceError;
   type ReadError = P::ReadError;
 
-  fn len(&self) -> u64 { (**self).len() }
+  fn len(&self) -> u64 {
+    (**self).len()
+  }
 
-  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>> { (**self).slice::<SIZE>(start) }
+  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>> {
+    (**self).slice::<SIZE>(start)
+  }
 
-  fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> { (**self).slice_dynamic(start, size) }
+  fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> {
+    (**self).slice_dynamic(start, size)
+  }
 
-  async fn read<const SIZE: usize, V>(
-    &self,
-    offset: u64,
-    hint: ReadHint,
-    reader: impl AsyncFnOnce(&[u8; SIZE]) -> V,
-  ) -> Result<V, ProviderReadError<Self::ReadError>> {
+  async fn read<const SIZE: usize, V>(&self, offset: u64, hint: ReadHint, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, ProviderReadError<Self::ReadError>> {
     (**self).read(offset, hint, reader).await
   }
 }
@@ -82,7 +86,7 @@ impl<P: MutProvider> MutProvider for &mut P {
   async fn mutate<const SIZE: usize, V>(
     &mut self,
     offset: u64,
-    writer: impl AsyncFnOnce(&mut [u8; SIZE]) -> V,
+    writer: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V,
   ) -> Result<V, crate::provider::error::provider_mutate::ProviderMutateError<Self::MutateError>> {
     (**self).mutate(offset, writer).await
   }

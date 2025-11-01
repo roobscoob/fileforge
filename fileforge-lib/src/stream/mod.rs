@@ -2,24 +2,51 @@ pub mod builtin;
 pub mod collectable;
 pub mod error;
 
-use core::future::Future;
-
 use collectable::Collectable;
 use error::{
   stream_mutate::StreamMutateError, stream_overwrite::StreamOverwriteError, stream_partition::StreamPartitionError, stream_read::StreamReadError, stream_rewind::StreamRewindError,
-  stream_seek::StreamSeekError, stream_skip::StreamSkipError, stream_write::StreamWriteError, user_mutate::UserMutateError, user_overwrite::UserOverwriteError, user_partition::UserPartitionError,
-  user_read::UserReadError, user_rewind::UserRewindError, user_seek::UserSeekError, user_skip::UserSkipError, user_write::UserWriteError,
+  stream_seek::StreamSeekError, stream_skip::StreamSkipError, user_mutate::UserMutateError, user_overwrite::UserOverwriteError, user_partition::UserPartitionError, user_read::UserReadError,
+  user_rewind::UserRewindError, user_seek::UserSeekError, user_skip::UserSkipError,
 };
 
+use crate::stream::error::user_restore::UserRestoreError;
+
+pub async fn SINGLE<T>(v: &[T; 1]) -> T
+where
+  T: Copy,
+{
+  v[0]
+}
+
+pub async fn DOUBLE<T>(v: &[T; 2]) -> (T, T)
+where
+  T: Copy,
+{
+  (v[0], v[1])
+}
+
+pub async fn CLONED<T>(v: &[T; 1]) -> T
+where
+  T: Clone,
+{
+  v[0].clone()
+}
+
 pub trait ReadableStream: Sized {
+  type Type;
+
   type ReadError: UserReadError;
   type SkipError: UserSkipError;
 
-  fn len(&self) -> Option<u64> { return None }
-  fn remaining(&self) -> Option<u64> { Some(self.len()? - self.offset()) }
+  fn len(&self) -> Option<u64> {
+    return None;
+  }
+  fn remaining(&self) -> Option<u64> {
+    Some(self.len()? - self.offset())
+  }
   fn offset(&self) -> u64;
 
-  async fn read<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[u8; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>>;
+  async fn read<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>>;
   async fn skip(&mut self, size: u64) -> Result<(), StreamSkipError<Self::SkipError>>;
 
   async fn collect<C: Collectable<Self>>(&mut self, mut collector: C) -> Result<C, C::Error> {
@@ -30,13 +57,20 @@ pub trait ReadableStream: Sized {
 }
 
 impl<Substream: ReadableStream> ReadableStream for &mut Substream {
+  type Type = Substream::Type;
   type ReadError = Substream::ReadError;
   type SkipError = Substream::SkipError;
 
-  fn len(&self) -> Option<u64> { (**self).len() }
-  fn remaining(&self) -> Option<u64> { (**self).remaining() }
-  fn offset(&self) -> u64 { (**self).offset() }
-  async fn read<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[u8; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>> {
+  fn len(&self) -> Option<u64> {
+    (**self).len()
+  }
+  fn remaining(&self) -> Option<u64> {
+    (**self).remaining()
+  }
+  fn offset(&self) -> u64 {
+    (**self).offset()
+  }
+  async fn read<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>> {
     (**self).read(reader).await
   }
   async fn skip(&mut self, size: u64) -> Result<(), StreamSkipError<Self::SkipError>> {
@@ -75,19 +109,13 @@ impl<Substream: SeekableStream> SeekableStream for &mut Substream {
 pub trait MutableStream: ReadableStream {
   type MutateError: UserMutateError;
 
-  async fn mutate<const SIZE: usize, V>(
-    &mut self,
-    mutator: impl AsyncFnOnce(&mut [u8; SIZE]) -> V,
-  ) -> Result<V, StreamMutateError<Self::MutateError>>;
+  async fn mutate<const SIZE: usize, V>(&mut self, mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>>;
 }
 
 impl<Substream: MutableStream> MutableStream for &mut Substream {
   type MutateError = Substream::MutateError;
 
-  async fn mutate<const SIZE: usize, V>(
-    &mut self,
-    mutator: impl AsyncFnOnce(&mut [u8; SIZE]) -> V,
-  ) -> Result<V, StreamMutateError<Self::MutateError>> {
+  async fn mutate<const SIZE: usize, V>(&mut self, mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>> {
     (**self).mutate(mutator).await
   }
 }
@@ -95,20 +123,20 @@ impl<Substream: MutableStream> MutableStream for &mut Substream {
 pub trait ResizableStream: ReadableStream {
   type OverwriteError: UserOverwriteError;
 
-  async fn overwrite<const SIZE: usize>(&mut self, length: u64, data: &[u8; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>>;
+  async fn overwrite<const SIZE: usize>(&mut self, length: u64, data: [Self::Type; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>>;
 }
 
 impl<Substream: ResizableStream> ResizableStream for &mut Substream {
   type OverwriteError = Substream::OverwriteError;
 
-  async fn overwrite<const SIZE: usize>(&mut self, length: u64, data: &[u8; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>> {
+  async fn overwrite<const SIZE: usize>(&mut self, length: u64, data: [Self::Type; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>> {
     (**self).overwrite(length, data).await
   }
 }
 
 pub trait StaticPartitionableStream<'l, const PARTITION_SIZE: usize>: ReadableStream {
   type PartitionError: UserPartitionError;
-  type Partition: ReadableStream + 'l;
+  type Partition: ReadableStream<Type = Self::Type> + 'l;
 
   async fn partition(&'l mut self) -> Result<Self::Partition, StreamPartitionError<Self::PartitionError>>;
 }
@@ -124,7 +152,7 @@ impl<'l, const PARTITION_SIZE: usize, Substream: StaticPartitionableStream<'l, P
 
 pub trait DynamicPartitionableStream<'l>: ReadableStream {
   type PartitionError: UserPartitionError;
-  type PartitionDynamic: ReadableStream;
+  type PartitionDynamic: ReadableStream<Type = Self::Type>;
 
   async fn partition_dynamic(&'l mut self, size: u64) -> Result<Self::PartitionDynamic, StreamPartitionError<Self::PartitionError>>;
 }
@@ -135,5 +163,42 @@ impl<'l, Substream: DynamicPartitionableStream<'l>> DynamicPartitionableStream<'
 
   async fn partition_dynamic(&'l mut self, size: u64) -> Result<Self::PartitionDynamic, StreamPartitionError<Self::PartitionError>> {
     (**self).partition_dynamic(size).await
+  }
+}
+
+enum DefaultPeekError<Read, Restore> {
+  ReadFailed(Read),
+  RestoreFailed(Restore),
+}
+
+pub trait RestorableStream: ReadableStream {
+  type Snapshot;
+  type RestoreError: UserRestoreError;
+  type PeekError = DefaultPeekError<StreamReadError<Self::ReadError>, Self::RestoreError>
+
+  fn snapshot(&self) -> Self::Snapshot;
+
+  /// allows you to 'restore' a stream to a snapshot, effectively seeking to that snapshot
+  /// restrictions:
+  ///  - you can only 'restore' *backwards* - you can't restore forwards
+  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), Self::RestoreError>;
+
+  async fn peek<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>> {
+    let s = self.snapshot().await;
+
+    self.read(reader)
+  }
+}
+
+impl<Substream: RestorableStream> RestorableStream for &mut Substream {
+  type Snapshot = Substream::Snapshot;
+  type RestoreError = Substream::RestoreError;
+
+  fn snapshot(&self) -> Self::Snapshot {
+    (**self).snapshot()
+  }
+
+  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), Self::RestoreError> {
+    (**self).restore(snapshot).await
   }
 }

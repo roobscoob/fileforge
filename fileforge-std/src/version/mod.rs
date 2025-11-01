@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use fileforge_lib::{reader::{primitive::Primitive, readable::Readable, PrimitiveReader, Reader}, stream::ReadableStream};
+use fileforge_lib::{binary_reader::{primitive::Primitive, readable::Readable, PrimitiveReader, BinaryReader}, stream::ReadableStream};
 
 pub mod renderable;
 
@@ -30,11 +30,11 @@ impl Version<4> {
 }
 
 impl<'pool: 'l, 'l, const SEGMENTS: usize> Primitive<SEGMENTS> for Version<SEGMENTS> {
-  fn read(data: &[u8; SEGMENTS], endianness: fileforge_lib::reader::endianness::Endianness) -> Self {
+  fn read(data: &[u8; SEGMENTS], endianness: fileforge_lib::binary_reader::endianness::Endianness) -> Self {
     Self::new_raw(*data)
   }
 
-  fn write(&self, data: &mut [u8; SEGMENTS], endianness: fileforge_lib::reader::endianness::Endianness) {
+  fn write(&self, data: &mut [u8; SEGMENTS], endianness: fileforge_lib::binary_reader::endianness::Endianness) {
     *data = self.versions;
   }
 }

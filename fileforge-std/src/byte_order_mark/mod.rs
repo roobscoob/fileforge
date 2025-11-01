@@ -1,8 +1,11 @@
 use error::{error::ByteOrderMarkError, invalid::ByteOrderMarkInvalid};
-use fileforge_lib::{reader::{endianness::Endianness, readable::Readable, PrimitiveReader, Reader}, stream::ReadableStream};
+use fileforge_lib::{
+  binary_reader::{endianness::Endianness, readable::Readable, BinaryReader, PrimitiveReader},
+  stream::ReadableStream,
+};
 
-pub mod renderable;
 pub mod error;
+pub mod renderable;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct ByteOrderMark {
@@ -26,13 +29,19 @@ impl ByteOrderMark {
   pub fn be(&self) -> Self {
     match self.endianness {
       Endianness::BigEndian => *self,
-      Endianness::LittleEndian => Self { endianness: Endianness::LittleEndian, bytes: [self.bytes[1], self.bytes[0]] },
+      Endianness::LittleEndian => Self {
+        endianness: Endianness::LittleEndian,
+        bytes: [self.bytes[1], self.bytes[0]],
+      },
     }
   }
 
   pub fn le(&self) -> Self {
     match self.endianness {
-      Endianness::BigEndian => Self { endianness: Endianness::BigEndian, bytes: [self.bytes[1], self.bytes[0]] },
+      Endianness::BigEndian => Self {
+        endianness: Endianness::BigEndian,
+        bytes: [self.bytes[1], self.bytes[0]],
+      },
       Endianness::LittleEndian => *self,
     }
   }
@@ -42,17 +51,15 @@ impl ByteOrderMark {
   }
 }
 
-impl<'pool: 'l, 'l, S: ReadableStream + 'l> Readable<'pool, 'l, S> for ByteOrderMark {
+impl<'pool, 'this, S: ReadableStream<Type = u8>> Readable<'pool, 'this, S> for ByteOrderMark {
   type Error = ByteOrderMarkError<'pool, S::ReadError>;
   type Argument = ByteOrderMark;
 
-  async fn read(reader: &'l mut Reader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error> {
+  async fn read(reader: &mut BinaryReader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error> {
     let bytes = reader.get::<[u8; 2]>().await?;
     let content = ByteOrderMark::from_bytes(reader.get_endianness(), bytes);
 
-    ByteOrderMarkInvalid::assert(argument, content, || {
-      reader.create_physical_diagnostic(-2, Some(2), "ByteOrderMark")
-    })?;
+    ByteOrderMarkInvalid::assert(argument, content, || reader.create_physical_diagnostic(-2, Some(2), "ByteOrderMark"))?;
 
     Ok(content)
   }

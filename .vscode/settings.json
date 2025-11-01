@@ -23,7 +23,10 @@
     "RELASZ",
     "RELSZ",
     "SDEVs",
+    "Seekback",
     "Tipc",
     "zerocopy"
   ],
+  "intel-corporation.oneapi-analysis-configurator.vtune.project-folder": "C:\\Users\\Rose Kodsi-Hall\\Documents\\VTune\\Projects\\fileforge-yaz0-test",
+  "intel-corporation.oneapi-analysis-configurator.binary-path": "c:\\Users\\Rose Kodsi-Hall\\Documents\\projects\\fileforge\\target\\release\\fileforge-test.exe",
 }

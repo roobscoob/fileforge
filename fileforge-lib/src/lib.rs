@@ -1,5 +1,4 @@
 #![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
-
 #![allow(async_fn_in_trait)]
 
 macro_rules! const_text {
@@ -11,10 +10,10 @@ macro_rules! const_text {
   }};
 }
 
+pub mod binary_reader;
 pub mod diagnostic;
 pub mod error;
 pub mod provider;
-pub mod reader;
 pub mod stream;
 
 #[cfg(feature = "alloc")]

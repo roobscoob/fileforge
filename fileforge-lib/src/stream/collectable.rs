@@ -1,5 +1,3 @@
-use core::future::Future;
-
 use super::ReadableStream;
 
 pub trait Collectable<S: ReadableStream> {
