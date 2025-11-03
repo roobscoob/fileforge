@@ -14,6 +14,7 @@ pub struct Yaz0State {
   unread_bytes: u64,
   offset: u64,
   seekback_buffer: heapless::Deque<u8, SEEKBACK_BUFFER_LENGTH>,
+  current_block: Block,
 }
 
 impl Yaz0State {
@@ -23,6 +24,7 @@ impl Yaz0State {
       offset: 0,
       unread_bytes: 0,
       seekback_buffer: heapless::Deque::new(),
+      current_block: Block::empty(),
     }
   }
 
@@ -95,11 +97,17 @@ impl Yaz0State {
 
   #[inline]
   pub fn feed(&mut self, block: Block) -> Result<(), MalformedStream> {
+    self.current_block = block.clone();
+
     for operation in block.operations.iter() {
       self.feed_operation(*operation)?;
     }
 
     Ok(())
+  }
+
+  pub fn current_block(&self) -> &Block {
+    &self.current_block
   }
 }
 

@@ -8,6 +8,12 @@ pub struct Block {
 }
 
 impl Block {
+  pub fn of(operation: Operation) -> Block {
+    Self {
+      operations: heapless::Vec::from_slice(&[operation]).unwrap(),
+    }
+  }
+
   pub fn empty() -> Block {
     Self { operations: heapless::Vec::new() }
   }

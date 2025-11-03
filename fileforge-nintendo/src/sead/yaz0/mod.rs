@@ -134,7 +134,8 @@ impl<S: ReadableStream<Type = u8> + RestorableStream, St: MaybeSnapshotStore<Yaz
 const TAIL_LENGTH: usize = 0x111 * 8;
 
 enum ReencodeData {
-  Skip(u64),
+  Starting(Block),
+  StartingWithSkip(Block, u64),
   With(Block),
 }
 
@@ -161,7 +162,14 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
   > {
     let mut tail_block = (None, Block::empty());
     let (mut current_block, mut offset) = match data {
-      ReencodeData::Skip(offset) => (Block::empty(), offset),
+      ReencodeData::Starting(block) => {
+        let len = block.len() as u64;
+        (block, len)
+      }
+      ReencodeData::StartingWithSkip(block, skip) => {
+        let len = block.len() as u64;
+        (block, skip + len)
+      }
       ReencodeData::With(block) => (block, 0),
     };
 
@@ -176,8 +184,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
             .mutate(async |data: &mut [Block; 1]| {
               let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_pre(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
-              if let Some(v) = tail_underflow {
-                state.feed_operation(Operation::Literal(v)).unwrap();
+              if tail_underflow.is_some() {
                 *length -= 1;
               }
 
@@ -222,7 +229,13 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
       self
         .stream
         .read(async |data: &[Block; 1]| {
-          let (consumed, consumed_overflow, tail_underflow, new_tail) = data[0].clone().split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+          let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_pre(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+
+          if tail_underflow.is_some() {
+            *length -= 1;
+          }
+
+          let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
           if consumed_overflow.is_some() {
             *length -= 1;
@@ -247,6 +260,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
         .await
         .map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))??;
 
+      offset = 0;
       overwrite_count += 1;
     }
 
@@ -268,6 +282,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
   async fn overwrite<const SIZE: usize>(&mut self, mut length: u64, data: [Self::Type; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>> {
     let current_offset = self.offset();
+    let current_block = self.state.current_block().clone();
 
     if let Some(snapshot) = self.store.snapshot().cloned() {
       self.stream.restore(snapshot).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
@@ -282,9 +297,19 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
     dbg!(current_offset, block_offset, self.state.offset());
 
-    let (current_block, tail) = self
-      .re_encode_slice(&mut original_state, ReencodeData::Skip(block_offset), &mut length, ReadbackReference::of(&data))
-      .await?;
+    let (starting_block, starting_overflow, _, _) = current_block.split_at_with_post(block_offset, &mut original_state).unwrap();
+
+    dbg!(&starting_block);
+
+    let reencode_data = if let Some(overflow) = starting_overflow {
+      let skip_len = starting_block.len();
+      self.stream.overwrite(0, [starting_block]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+      ReencodeData::StartingWithSkip(Block::of(Operation::lit(overflow)), skip_len as u64)
+    } else {
+      ReencodeData::Starting(starting_block)
+    };
+
+    let (current_block, tail) = self.re_encode_slice(&mut original_state, reencode_data, &mut length, ReadbackReference::of(&data)).await?;
 
     dbg!(&current_block);
     dbg!(&tail);
