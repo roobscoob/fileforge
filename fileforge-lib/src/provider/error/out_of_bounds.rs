@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct OutOfBoundsError {
   pub read_offset: u64,
   pub read_length: Option<u64>,

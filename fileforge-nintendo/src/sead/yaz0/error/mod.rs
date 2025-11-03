@@ -1,3 +1,5 @@
+pub mod overwrite;
+
 use fileforge_lib::{
   diagnostic::pool::DiagnosticPoolProvider,
   error::FileforgeError,

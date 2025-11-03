@@ -3,22 +3,23 @@ use core::{fmt::Debug, future::ready};
 use crate::{
   diagnostic::pool::DiagnosticPoolProvider,
   error::{
-    FileforgeError,
     render::buffer::cell::tag::builtin::report::{REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT},
-    report::{Report, kind::ReportKind},
+    report::{kind::ReportKind, Report},
+    FileforgeError,
   },
   provider::{
-    MutProvider, Provider, ResizableProvider,
     error::{provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError},
     hint::ReadHint,
+    MutProvider, Provider, ResizableProvider,
   },
   stream::{
-    DynamicPartitionableStream, MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream, SeekableStream, StaticPartitionableStream,
     error::{
       stream_exhausted::StreamExhaustedError, stream_mutate::StreamMutateError, stream_overwrite::StreamOverwriteError, stream_partition::StreamPartitionError, stream_read::StreamReadError,
-      stream_rewind::StreamRewindError, stream_seek::StreamSeekError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError, user_mutate::UserMutateError,
-      user_overwrite::UserOverwriteError, user_partition::UserPartitionError, user_read::UserReadError, user_rewind::UserRewindError, user_seek::UserSeekError, user_skip::UserSkipError,
+      stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek::StreamSeekError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError,
+      user_mutate::UserMutateError, user_overwrite::UserOverwriteError, user_partition::UserPartitionError, user_read::UserReadError, user_rewind::UserRewindError, user_seek::UserSeekError,
+      user_skip::UserSkipError,
     },
+    DynamicPartitionableStream, MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream, SeekableStream, StaticPartitionableStream,
   },
 };
 
@@ -44,7 +45,15 @@ impl<P: Provider> ProviderStream<P> {
   }
 
   fn assert_not_poisoned(&self) -> Result<(), ProviderStreamPoisonedError> {
-    if self.poisoned { Err(ProviderStreamPoisonedError) } else { Ok(()) }
+    if self.poisoned {
+      Err(ProviderStreamPoisonedError)
+    } else {
+      Ok(())
+    }
+  }
+
+  pub fn into_provider(self) -> P {
+    self.provider
   }
 }
 
@@ -180,6 +189,8 @@ where
       Err(ProviderMutateError::User(u)) => return Err(StreamOverwriteError::User(ProviderOverwriteError::Write(u))),
     };
 
+    self.offset += SIZE as u64;
+
     Ok(())
   }
 }
@@ -204,6 +215,29 @@ where
   }
 }
 
+impl<P: Provider> RestorableStream for ProviderStream<P>
+where
+  P::ReadError: UserReadError,
+{
+  type Snapshot = (bool, ReadHint, u64);
+  type RestoreError = core::convert::Infallible;
+
+  fn snapshot(&self) -> Self::Snapshot {
+    (self.poisoned, self.hint, self.offset)
+  }
+
+  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), StreamRestoreError<Self::RestoreError>> {
+    if snapshot.2 <= self.offset {
+      self.poisoned = snapshot.0;
+      self.hint = snapshot.1;
+      self.offset = snapshot.2;
+      Ok(())
+    } else {
+      Err(StreamRestoreError::CannotRestoreForwards)
+    }
+  }
+}
+
 impl<'l, P: Provider + 'l> DynamicPartitionableStream<'l> for ProviderStream<P>
 where
   P::SliceError: UserPartitionError,
@@ -224,6 +258,7 @@ where
   }
 }
 
+#[derive(Debug)]
 pub enum ProviderOverwriteError<P: ResizableProvider> {
   Poisoned(ProviderStreamPoisonedError),
   Allocate(P::ResizeError),

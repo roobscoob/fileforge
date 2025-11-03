@@ -9,7 +9,10 @@ use error::{
   user_rewind::UserRewindError, user_seek::UserSeekError, user_skip::UserSkipError,
 };
 
-use crate::stream::error::user_restore::UserRestoreError;
+use crate::{
+  control_flow::ControlFlow,
+  stream::error::{stream_restore::StreamRestoreError, user_restore::UserRestoreError},
+};
 
 pub async fn SINGLE<T>(v: &[T; 1]) -> T
 where
@@ -109,13 +112,13 @@ impl<Substream: SeekableStream> SeekableStream for &mut Substream {
 pub trait MutableStream: ReadableStream {
   type MutateError: UserMutateError;
 
-  async fn mutate<const SIZE: usize, V>(&mut self, mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>>;
+  async fn mutate<const SIZE: usize, V: ControlFlow>(&mut self, mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>>;
 }
 
 impl<Substream: MutableStream> MutableStream for &mut Substream {
   type MutateError = Substream::MutateError;
 
-  async fn mutate<const SIZE: usize, V>(&mut self, mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>> {
+  async fn mutate<const SIZE: usize, V: ControlFlow>(&mut self, mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>> {
     (**self).mutate(mutator).await
   }
 }
@@ -166,28 +169,16 @@ impl<'l, Substream: DynamicPartitionableStream<'l>> DynamicPartitionableStream<'
   }
 }
 
-enum DefaultPeekError<Read, Restore> {
-  ReadFailed(Read),
-  RestoreFailed(Restore),
-}
-
 pub trait RestorableStream: ReadableStream {
-  type Snapshot;
+  type Snapshot: Clone;
   type RestoreError: UserRestoreError;
-  type PeekError = DefaultPeekError<StreamReadError<Self::ReadError>, Self::RestoreError>
 
   fn snapshot(&self) -> Self::Snapshot;
 
   /// allows you to 'restore' a stream to a snapshot, effectively seeking to that snapshot
   /// restrictions:
   ///  - you can only 'restore' *backwards* - you can't restore forwards
-  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), Self::RestoreError>;
-
-  async fn peek<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>> {
-    let s = self.snapshot().await;
-
-    self.read(reader)
-  }
+  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), StreamRestoreError<Self::RestoreError>>;
 }
 
 impl<Substream: RestorableStream> RestorableStream for &mut Substream {
@@ -198,7 +189,7 @@ impl<Substream: RestorableStream> RestorableStream for &mut Substream {
     (**self).snapshot()
   }
 
-  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), Self::RestoreError> {
+  async fn restore(&mut self, snapshot: Self::Snapshot) -> Result<(), StreamRestoreError<Self::RestoreError>> {
     (**self).restore(snapshot).await
   }
 }

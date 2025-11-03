@@ -1,7 +1,7 @@
 [package]
 name = "fileforge-lib"
 version = "0.1.5"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 bitfield-struct = "0.6.1"
@@ -16,3 +16,6 @@ inventory = { version = "0.3.19", optional = true }
 default = ["alloc"]
 story = ["dep:inventory"]
 alloc = []
+
+[dev-dependencies]
+tokio = { version = "1.48.0", features = ["full"] }

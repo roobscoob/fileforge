@@ -1,4 +1,4 @@
-#![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
+// #![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
 #![allow(async_fn_in_trait)]
 
 macro_rules! const_text {
@@ -11,6 +11,7 @@ macro_rules! const_text {
 }
 
 pub mod binary_reader;
+pub mod control_flow;
 pub mod diagnostic;
 pub mod error;
 pub mod provider;

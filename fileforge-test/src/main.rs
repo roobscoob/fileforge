@@ -9,21 +9,14 @@ use fileforge_lib::{
       DiagnosticPoolBuilder,
     },
   },
-  error::{
-    render::{
-      buffer::{
-        cell::{tag::context::RenderMode, RenderBufferCell},
-        RenderBuffer,
-      },
-      grapheme::Grapheme,
-      position::RenderPosition,
-    },
-    FileforgeError, RenderableResult,
-  },
+  error::{render::buffer::cell::tag::context::RenderMode, RenderableResult},
   provider::{builtins::rust::slice::RustSliceProvider, hint::ReadHint},
-  stream::{builtin::provider::ProviderStream, error::stream_read::StreamReadError, ReadableStream},
+  stream::{builtin::provider::ProviderStream, ReadableStream, ResizableStream},
 };
-use fileforge_nintendo::sead::yaz0::Yaz0Stream;
+use fileforge_nintendo::sead::yaz0::{
+  readable::{Immutable, Mutable},
+  Yaz0Stream,
+};
 use tokio::fs;
 
 #[tokio::main]
@@ -34,41 +27,28 @@ async fn main() {
   let sl = include_bytes!("../binaries/SkyWorldHomeStageMap.szs");
   // let sl = include_bytes!("T:\\unsorted-torrents\\Super Mario 3D World\\Super Mario 3D World [ARDP01]\\content\\ObjectData\\ArrangeHexScrollStepA.szs");
 
-  let p = RustSliceProvider::from(sl);
-  let s = ProviderStream::new(p, ReadHint::new());
-  let mut r = BinaryReader::new(s, Endianness::BigEndian);
+  let bytes = Vec::from_iter(sl.iter().copied());
+
+  let p = bytes;
+  let mut s = ProviderStream::new(p, ReadHint::new());
+  let mut r = BinaryReader::new(&mut s, Endianness::BigEndian);
 
   r.set_diagnostic(DiagnosticKind::Reader, Some(pool.create(DiagnosticBranch::None, Some(sl.len() as u64), "SkyWorldHomeStageMap.szs")));
 
-  let mut val = r.into::<Yaz0Stream<_>>().await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
+  let mut val = r.into_with::<Yaz0Stream<_, _>>(Mutable).await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
 
-  let mut data = vec![];
+  val.skip(0xA8).await.unwrap();
+  val.overwrite(3, *b"Soy").await.unwrap();
 
-  println!("Length = {:?}", val.len());
+  let v = s.into_provider();
 
-  let now = Instant::now();
+  fs::write("./post.bin.yaz0", &v).await.unwrap();
 
-  for i in 0.. {
-    let r = val
-      .read(|v: &[u8; 0x1000]| {
-        data.extend_from_slice(v);
-        async {}
-      })
-      .await;
-
-    if let Err(e) = r {
-      println!("{e:?}");
-      break;
-    }
-  }
-
-  println!("Fileforge: {}", now.elapsed().as_millis());
-
-  fs::write("./bad.bin", data).await.unwrap();
-
-  let now = Instant::now();
   let res = yaz0::inflate::Yaz0Archive::new(Cursor::new(&sl[..])).unwrap().decompress().unwrap();
-  println!("yaz0 Crate: {}", now.elapsed().as_millis());
 
-  fs::write("./good.bin", res).await.unwrap();
+  fs::write("./pre.bin", res).await.unwrap();
+
+  let res = yaz0::inflate::Yaz0Archive::new(Cursor::new(&v)).unwrap().decompress().unwrap();
+
+  fs::write("./post.bin", res).await.unwrap();
 }
