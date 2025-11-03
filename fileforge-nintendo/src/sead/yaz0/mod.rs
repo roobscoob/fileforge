@@ -295,11 +295,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
     let block_offset = current_offset - self.offset();
     let mut original_state = self.state.clone();
 
-    dbg!(current_offset, block_offset, self.state.offset());
-
     let (starting_block, starting_overflow, _, _) = current_block.split_at_with_post(block_offset, &mut original_state).unwrap();
-
-    dbg!(&starting_block);
 
     let reencode_data = if let Some(overflow) = starting_overflow {
       let skip_len = starting_block.len();
@@ -310,22 +306,6 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
     };
 
     let (current_block, tail) = self.re_encode_slice(&mut original_state, reencode_data, &mut length, ReadbackReference::of(&data)).await?;
-
-    dbg!(&current_block);
-    dbg!(&tail);
-
-    // 3 remaining issues
-    //  - we have compressed data in `current_block` that needs to be written to the stream
-    //    - except `current_block` is possibly not full.
-    //  - we might have decompressed data in `tail` that needs to be compressed and written to the stream
-    //  - we need to re-encode up to 4kb to get the stream back into a workable state.
-    //    - 4kb count includes the data in `tail`
-
-    // plan:
-    //   1. figure out (by reading ahead) how many bytes we have to repair
-    //   2. keep reading & writing into re_encode_slice. pass an `until` parameter that checks AND:
-    //       - the block is full (or could be expanded to be full)
-    //       - we have repaired the amount of bytes we need to
 
     let mut repair_bytes = 0;
     let mut bytes_seeked = tail.1.len() as u64 + (if tail.0.is_some() { 1 } else { 0 });

@@ -40,6 +40,9 @@ async fn main() {
   val.skip(0xA8).await.unwrap();
   val.overwrite(3, *b"Soy").await.unwrap();
 
+  let mut out: Vec<u8> = Vec::with_capacity(val.len().unwrap() as usize + 0x111);
+  out.resize(val.len().unwrap() as usize + 0x111, 0xDE);
+
   let v = s.into_provider();
 
   fs::write("./post.bin.yaz0", &v).await.unwrap();
@@ -48,7 +51,7 @@ async fn main() {
 
   fs::write("./pre.bin", res).await.unwrap();
 
-  let res = yaz0::inflate::Yaz0Archive::new(Cursor::new(&v)).unwrap().decompress().unwrap();
+  yaz0::inflate::Yaz0Archive::new(Cursor::new(&v)).unwrap().decompress_into(&mut out[..]).unwrap();
 
-  fs::write("./post.bin", res).await.unwrap();
+  fs::write("./post.bin", out).await.unwrap();
 }
