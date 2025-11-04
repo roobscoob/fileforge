@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use fileforge_lib::stream::{
   error::{
     stream_exhausted::StreamExhaustedError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError,
@@ -86,7 +88,6 @@ impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> Re
     read_length -= self.state.take(read_length as usize).len() as u64;
 
     while self.offset() < self.header.decompressed_size() as u64 && read_length != 0 {
-      println!("Pre-read block {}", self.state.offset());
       self.store.store_snapshot(&self.stream, self.state.clone());
       let block = self.stream.read(CLONED).await.map_err(|e| match e {
         StreamReadError::StreamExhausted(_) => StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError {
@@ -182,11 +183,17 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
           self
             .stream
             .mutate(async |data: &mut [Block; 1]| {
-              let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_pre(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+              let new_tail = if offset > 0 {
+                let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
-              if tail_underflow.is_some() {
-                *length -= 1;
-              }
+                if tail_underflow.is_some() {
+                  *length -= 1;
+                }
+
+                new_tail
+              } else {
+                data[0].clone()
+              };
 
               let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
@@ -223,48 +230,59 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
       }
     }
 
-    let mut overwrite_count = 0;
+    if *length > 0 {
+      let mut overwrite_count = 0;
 
-    while *length > 0 {
-      self
-        .stream
-        .read(async |data: &[Block; 1]| {
-          let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_pre(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+      let snapshot = self.stream.snapshot();
 
-          if tail_underflow.is_some() {
-            *length -= 1;
-          }
+      while *length > 0 {
+        self
+          .stream
+          .read(async |data: &[Block; 1]| {
+            let new_tail = if offset > 0 {
+              let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
-          let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+              if tail_underflow.is_some() {
+                *length -= 1;
+              }
 
-          if consumed_overflow.is_some() {
-            *length -= 1;
-          }
+              new_tail
+            } else {
+              data[0].clone()
+            };
 
-          *length -= consumed.len() as u64;
+            let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
-          if !new_tail.is_empty() {
-            tail_block = (tail_underflow, new_tail);
-          }
+            if consumed_overflow.is_some() {
+              *length -= 1;
+            }
 
-          Ok::<
-            _,
-            Yaz0OverwriteError<
-              <Yaz0Parser<S> as ReadableStream>::ReadError,
-              <Yaz0Parser<S> as RestorableStream>::RestoreError,
-              <Yaz0Parser<S> as MutableStream>::MutateError,
-              <Yaz0Parser<S> as ResizableStream>::OverwriteError,
-            >,
-          >(())
-        })
-        .await
-        .map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))??;
+            *length -= consumed.len() as u64;
 
-      offset = 0;
-      overwrite_count += 1;
+            if !new_tail.is_empty() {
+              tail_block = (tail_underflow, new_tail);
+            }
+
+            Ok::<
+              _,
+              Yaz0OverwriteError<
+                <Yaz0Parser<S> as ReadableStream>::ReadError,
+                <Yaz0Parser<S> as RestorableStream>::RestoreError,
+                <Yaz0Parser<S> as MutableStream>::MutateError,
+                <Yaz0Parser<S> as ResizableStream>::OverwriteError,
+              >,
+            >(())
+          })
+          .await
+          .map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))??;
+
+        offset = 0;
+        overwrite_count += 1;
+      }
+
+      self.stream.restore(snapshot).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
+      self.stream.overwrite(overwrite_count, []).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
     }
-
-    self.stream.overwrite(overwrite_count, []).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
 
     Ok((current_block, tail_block))
   }
@@ -272,6 +290,8 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
 impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream, St: SnapshotStore<Yaz0Parser<S>>, Sta: Yaz0StreamReadArgument<Yaz0Parser<S>, StoreType = St>> ResizableStream
   for Yaz0Stream<S, Sta>
+where
+  <S as RestorableStream>::Snapshot: Debug,
 {
   type OverwriteError = Yaz0OverwriteError<
     <Yaz0Parser<S> as ReadableStream>::ReadError,
@@ -286,16 +306,16 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
     if let Some(snapshot) = self.store.snapshot().cloned() {
       self.stream.restore(snapshot).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
+      self.state = self.store.state();
     } else {
       assert!(current_offset == 0);
     };
 
-    self.state = self.store.state();
-
     let block_offset = current_offset - self.offset();
-    let mut original_state = self.state.clone();
 
-    let (starting_block, starting_overflow, _, _) = current_block.split_at_with_post(block_offset, &mut original_state).unwrap();
+    let (starting_block, starting_overflow, _, _) = current_block.split_at_with_pre(block_offset, &mut self.state).unwrap();
+
+    let mut original_state = self.state.clone();
 
     let reencode_data = if let Some(overflow) = starting_overflow {
       let skip_len = starting_block.len();
@@ -305,13 +325,22 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
       ReencodeData::Starting(starting_block)
     };
 
+    println!("state: {:?}", self.state.readback().collect::<heapless::Vec<u8, 0x1000>>());
+
     let (current_block, tail) = self.re_encode_slice(&mut original_state, reencode_data, &mut length, ReadbackReference::of(&data)).await?;
+    let tail_len = tail.1.len() as u64 + (if tail.0.is_some() { 1 } else { 0 });
 
     let mut repair_bytes = 0;
-    let mut bytes_seeked = tail.1.len() as u64 + (if tail.0.is_some() { 1 } else { 0 });
+    let mut bytes_seeked = tail_len;
     let pre_read = self.stream.snapshot();
 
     let mut fork_original_state = original_state.clone();
+
+    if let Some(overflow) = tail.0 {
+      fork_original_state.feed(Block::of(Operation::lit(overflow))).unwrap();
+    }
+
+    fork_original_state.feed(tail.1).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
     while bytes_seeked < 4096 {
       let block: Block = self.stream.read(CLONED).await.map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))?;
@@ -336,9 +365,10 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
     self.stream.restore(pre_read).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
 
-    let tail_len = tail.1.len() as u64 + (if tail.0.is_some() { 1 } else { 0 });
     let repair = fork_original_state.readback().slice(0..(repair_bytes - tail_len) as usize).unwrap();
+
     let repair_len = repair.len();
+    println!("state: {:?}", self.state.readback().collect::<heapless::Vec<u8, 0x1000>>());
 
     let (mut block, tail) = self.re_encode_slice(&mut original_state, ReencodeData::With(current_block), &mut (repair_len as u64), repair).await?;
 
@@ -349,11 +379,14 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
     let mut tail = tail.1;
 
-    fork_original_state.feed(block.clone()).unwrap();
-    fork_original_state.feed(tail.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+    dbg!(block.clone(), tail.clone());
+    println!("state: {:?}", self.state.readback().collect::<heapless::Vec<u8, 0x1000>>());
+
+    // self.state.feed(block.clone()).unwrap();
+    // self.state.feed(tail.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
     loop {
-      inflate_pair([&mut block, &mut tail], &fork_original_state).unwrap();
+      inflate_pair([&mut block, &mut tail], &self.state).unwrap();
 
       block = if !block.is_full() {
         if self.stream.remaining_decoded_bytes() == 0 {
@@ -377,6 +410,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
       }
 
       tail = self.stream.read(CLONED).await.map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))?;
+      self.state.feed(tail.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
     }
   }
 }

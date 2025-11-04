@@ -38,7 +38,7 @@ async fn main() {
   let mut val = r.into_with::<Yaz0Stream<_, _>>(Mutable).await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
 
   val.skip(0xA8).await.unwrap();
-  val.overwrite(3, *b"Soy").await.unwrap();
+  val.overwrite(3, *b"Sky").await.unwrap();
 
   let mut out: Vec<u8> = Vec::with_capacity(val.len().unwrap() as usize + 0x111);
   out.resize(val.len().unwrap() as usize + 0x111, 0xDE);
@@ -51,7 +51,9 @@ async fn main() {
 
   fs::write("./pre.bin", res).await.unwrap();
 
-  yaz0::inflate::Yaz0Archive::new(Cursor::new(&v)).unwrap().decompress_into(&mut out[..]).unwrap();
+  if let Err(e) = yaz0::inflate::Yaz0Archive::new(Cursor::new(&v)).unwrap().decompress_into(&mut out[..]) {
+    println!("Failed to write post: {e:?}");
+  }
 
   fs::write("./post.bin", out).await.unwrap();
 }

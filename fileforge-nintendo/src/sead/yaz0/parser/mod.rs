@@ -105,6 +105,7 @@ impl<S: ReadableStream<Type = u8>> ReadableStream for Yaz0Parser<S> {
       collection.push(Block { operations }).ok().unwrap();
     }
 
+    self.offset += SIZE as u64;
     Ok(reader(collection.first_chunk::<SIZE>().unwrap()).await)
   }
 
@@ -147,6 +148,7 @@ impl<S: ReadableStream<Type = u8>> ReadableStream for Yaz0Parser<S> {
       }
     }
 
+    self.offset += size;
     Ok(())
   }
 }
@@ -329,6 +331,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
       self.overwrite_block(None, Some(block)).await?;
     }
 
+    self.offset += data.len() as u64;
     Ok(())
   }
 }

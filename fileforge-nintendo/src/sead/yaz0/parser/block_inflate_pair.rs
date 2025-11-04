@@ -7,7 +7,7 @@ use crate::sead::yaz0::{
 pub fn inflate_pair(pair: [&mut Block; 2], post_block_state: &Yaz0State) -> Result<(), MalformedStream> {
   let mut op_len = pair[0].operations.len() + pair[1].operations.len();
 
-  if op_len == 0 || op_len == 15 {
+  if op_len == 0 || op_len == 16 {
     return Ok(());
   }
 
@@ -54,7 +54,7 @@ pub fn inflate_pair(pair: [&mut Block; 2], post_block_state: &Yaz0State) -> Resu
   }
 
   pair[0].operations = left;
-  pair[0].operations = right;
+  pair[1].operations = right;
 
   Ok(())
 }

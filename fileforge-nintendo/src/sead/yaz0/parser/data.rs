@@ -27,7 +27,7 @@ impl Block {
   }
 
   pub fn is_full(&self) -> bool {
-    self.operations.is_full()
+    self.operations.len() == 8
   }
 
   pub fn compute_header(&self) -> u8 {
@@ -42,7 +42,7 @@ impl Block {
     header
   }
 
-  pub fn split_at_with_post(self, offset: u64, post_block_state: &Yaz0State) -> Result<(Block, Option<u8>, Option<u8>, Block), MalformedStream> {
+  pub fn split_at_with_mid(self, offset: u64, post_block_state: &Yaz0State) -> Result<(Block, Option<u8>, Option<u8>, Block), MalformedStream> {
     let total = self.len() as u64;
 
     if offset >= total {
@@ -58,8 +58,6 @@ impl Block {
 
     let mut acc: u64 = 0;
     let mut opt = None;
-
-    let mut read = post_block_state.last_n(self.len() as usize).unwrap().into_iter();
 
     for &op in &self.operations {
       let op_len = op.len() as u64;
@@ -83,7 +81,6 @@ impl Block {
 
       // Entirely to the left
       if offset >= acc + op_len {
-        read.nth(op_len as usize - 1);
         acc += op_len;
         left.operations.push(op).unwrap();
         continue;
@@ -96,8 +93,6 @@ impl Block {
 
       match op {
         Operation::Literal(b) => {
-          read.next();
-
           // Literals have len == 1; k is 0 or 1.
           if k == 0 {
             right.operations.push(Operation::Literal(b)).unwrap();
@@ -107,6 +102,8 @@ impl Block {
         }
 
         Operation::ShortReadback { offset: back, length } | Operation::LongReadback { offset: back, length } => {
+          let mut read = post_block_state.last_n(back.get() as usize).unwrap().take(length.get() as usize).cycle();
+
           // First k bytes go left, remainder goes right.
           if k > 0 {
             if k == 1 {
