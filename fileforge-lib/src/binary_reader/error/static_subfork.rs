@@ -2,12 +2,12 @@ use crate::{diagnostic::pool::DiagnosticPoolProvider, error::FileforgeError, str
 
 use super::seek_out_of_bounds::SeekOutOfBounds;
 
-pub enum StaticSubforkError<'l, 'pool, const SIZE: usize, S: StaticPartitionableStream<'l, SIZE>> {
+pub enum StaticSubforkError<'pool, const SIZE: usize, S: StaticPartitionableStream<SIZE>> {
   Stream(S::PartitionError),
   OutOfBounds(SeekOutOfBounds<'pool>),
 }
 
-impl<'l, 'pool, const SIZE: usize, S: StaticPartitionableStream<'l, SIZE>> FileforgeError for StaticSubforkError<'l, 'pool, SIZE, S> {
+impl<'pool, const SIZE: usize, S: StaticPartitionableStream<SIZE>> FileforgeError for StaticSubforkError<'pool, SIZE, S> {
   fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,

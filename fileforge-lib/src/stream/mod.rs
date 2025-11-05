@@ -137,18 +137,23 @@ impl<Substream: ResizableStream> ResizableStream for &mut Substream {
   }
 }
 
-pub trait StaticPartitionableStream<'l, const PARTITION_SIZE: usize>: ReadableStream {
+pub trait StaticPartitionableStream<const PARTITION_SIZE: usize>: ReadableStream {
   type PartitionError: UserPartitionError;
-  type Partition: ReadableStream<Type = Self::Type> + 'l;
+  type Partition<'l>: ReadableStream<Type = Self::Type>
+  where
+    Self: 'l;
 
-  async fn partition(&'l mut self) -> Result<Self::Partition, StreamPartitionError<Self::PartitionError>>;
+  async fn partition<'l>(&'l mut self) -> Result<Self::Partition<'l>, StreamPartitionError<Self::PartitionError>>;
 }
 
-impl<'l, const PARTITION_SIZE: usize, Substream: StaticPartitionableStream<'l, PARTITION_SIZE>> StaticPartitionableStream<'l, PARTITION_SIZE> for &mut Substream {
+impl<const PARTITION_SIZE: usize, Substream: StaticPartitionableStream<PARTITION_SIZE>> StaticPartitionableStream<PARTITION_SIZE> for &mut Substream {
   type PartitionError = Substream::PartitionError;
-  type Partition = Substream::Partition;
+  type Partition<'l>
+    = Substream::Partition<'l>
+  where
+    Self: 'l;
 
-  async fn partition(&'l mut self) -> Result<Self::Partition, StreamPartitionError<Self::PartitionError>> {
+  async fn partition<'l>(&'l mut self) -> Result<Self::Partition<'l>, StreamPartitionError<Self::PartitionError>> {
     (**self).partition().await
   }
 }

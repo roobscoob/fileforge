@@ -16,16 +16,16 @@ use readable::{NoneArgument, Readable};
 use writable::Writable;
 
 use crate::{
-  binary_reader::readable::IntoReadable,
+  binary_reader::{readable::IntoReadable, snapshot::BinaryReaderSnapshot},
   diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
-  provider::{Provider, hint::ReadHint},
+  provider::{hint::ReadHint, Provider},
   stream::{
-    MutableStream, ReadableStream, RewindableStream,
     builtin::provider::ProviderStream,
     error::{
-      stream_mutate::StreamMutateError, stream_read::StreamReadError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError,
-      user_read::UserReadError,
+      stream_mutate::StreamMutateError, stream_read::StreamReadError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
+      stream_skip::StreamSkipError, user_read::UserReadError,
     },
+    MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream,
   },
 };
 
@@ -35,7 +35,9 @@ pub mod error;
 pub mod mutable;
 pub mod primitive;
 pub mod readable;
+pub mod snapshot;
 pub mod subfork;
+pub mod view;
 pub mod writable;
 
 pub struct BinaryReader<'pool, S: ReadableStream<Type = u8>> {
@@ -118,7 +120,7 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
     )
   }
 
-  pub async fn read<'this, P: Readable<'pool, 'this, S>>(&'this mut self) -> Result<P, P::Error>
+  pub async fn read<P: Readable<'pool, S>>(&mut self) -> Result<P, P::Error>
   where
     P::Argument: NoneArgument,
   {
@@ -132,7 +134,7 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
     P::read(self, P::Argument::none()).await
   }
 
-  pub async fn read_with<'this, P: Readable<'pool, 'this, S>>(&'this mut self, argument: P::Argument) -> Result<P, P::Error> {
+  pub async fn read_with<P: Readable<'pool, S>>(&mut self, argument: P::Argument) -> Result<P, P::Error> {
     P::read(self, argument).await
   }
 
@@ -236,18 +238,39 @@ impl<'pool, S: MutableStream<Type = u8>, const SIZE: usize> PrimitiveWriter<'poo
   }
 }
 
-pub trait MutableMutator<'pool, R, S: MutableStream<Type = u8>> {
-  async fn mutate<'l, M: Mutable<'pool, 'l, S>>(&'l mut self, mutator: impl AsyncFnOnce(M::Mutator) -> R) -> Result<R, M::Error>;
+pub trait MutableMutator<'pool, S: MutableStream<Type = u8>> {
+  async fn mutate<'l, M: Mutable<'pool, S> + 'l>(&'l mut self) -> Result<M::Mutator<'l>, M::Error>
+  where
+    'pool: 'l,
+    S: 'l;
 }
 
-impl<'pool, R, S: MutableStream<Type = u8>> MutableMutator<'pool, R, S> for BinaryReader<'pool, S> {
-  async fn mutate<'l, M: Mutable<'pool, 'l, S>>(&'l mut self, operator: impl AsyncFnOnce(M::Mutator) -> R) -> Result<R, M::Error> {
-    Ok(operator(M::mutate(self).await?).await)
+impl<'pool, S: MutableStream<Type = u8>> MutableMutator<'pool, S> for BinaryReader<'pool, S> {
+  async fn mutate<'l, M: Mutable<'pool, S> + 'l>(&'l mut self) -> Result<M::Mutator<'l>, M::Error> {
+    M::mutate(self).await
   }
 }
 
-impl<'pool, S: MutableStream<Type = u8>> BinaryReader<'pool, S> {
+impl<'pool, S: ResizableStream<Type = u8>> BinaryReader<'pool, S> {
   pub async fn overwrite<'l, W: Writable<'pool, 'l, S>>(&'l mut self, writable: &'l W) -> Result<(), W::Error> {
     W::overwrite_into(writable, self).await
+  }
+}
+
+impl<'pool, S: RestorableStream<Type = u8>> BinaryReader<'pool, S> {
+  pub fn snapshot(&self) -> BinaryReaderSnapshot<'pool, S> {
+    BinaryReaderSnapshot {
+      snapshot: self.stream.snapshot(),
+      endianness: self.endianness,
+      diagnostics: self.diagnostics.clone(),
+    }
+  }
+
+  pub async fn restore(&mut self, snapshot: BinaryReaderSnapshot<'pool, S>) -> Result<(), StreamRestoreError<S::RestoreError>> {
+    self.stream.restore(snapshot.snapshot).await?;
+    self.endianness = snapshot.endianness;
+    self.diagnostics = snapshot.diagnostics;
+
+    Ok(())
   }
 }

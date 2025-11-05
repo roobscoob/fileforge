@@ -9,7 +9,7 @@ use super::Yaz0Header;
 
 pub const YAZ0_MAGIC: Magic<4> = Magic::from_byte_ref(b"Yaz0");
 
-impl<'pool, 'this, S: ReadableStream<Type = u8>> Readable<'pool, 'this, S> for Yaz0Header {
+impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for Yaz0Header {
   type Error = Yaz0HeaderReadError<'pool, S::ReadError>;
   type Argument = ();
 

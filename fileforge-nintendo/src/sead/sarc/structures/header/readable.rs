@@ -13,11 +13,11 @@ use crate::sead::sarc::structures::header::SarcHeader;
 pub const SARC_MAGIC: Magic<4> = Magic::from_byte_ref(b"SARC");
 pub const SARC_BOM: ByteOrderMark = ByteOrderMark::from_byte_ref(Endianness::BigEndian, &[0xFE, 0xFF]);
 
-impl<'pool, 'this, S: ReadableStream<Type = u8>> Readable<'pool, 'this, S> for SarcHeader {
+impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for SarcHeader {
   type Error = SarcHeaderReadError<'pool, S::ReadError>;
   type Argument = ();
 
-  async fn read(reader: &'this mut fileforge_lib::binary_reader::BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
+  async fn read(reader: &mut fileforge_lib::binary_reader::BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
     reader.read_with::<Magic<4>>(SARC_MAGIC).await.map_err(|e| SarcHeaderReadError::Magic(e))?;
 
     let _header_length: u16 = reader.get().await.map_err(|e| SarcHeaderReadError::HeaderLength(e))?;

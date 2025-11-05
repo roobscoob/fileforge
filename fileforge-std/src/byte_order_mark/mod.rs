@@ -51,7 +51,7 @@ impl ByteOrderMark {
   }
 }
 
-impl<'pool, 'this, S: ReadableStream<Type = u8>> Readable<'pool, 'this, S> for ByteOrderMark {
+impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for ByteOrderMark {
   type Error = ByteOrderMarkError<'pool, S::ReadError>;
   type Argument = ByteOrderMark;
 

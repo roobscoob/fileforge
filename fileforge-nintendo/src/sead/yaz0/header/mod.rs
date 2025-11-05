@@ -1,6 +1,8 @@
 pub mod mutable;
 pub mod readable;
 
+pub static YAZ0_HEADER_SIZE: usize = 0x10;
+
 pub struct Yaz0Header {
   decompressed_size: u32,
   data_alignment: u32,

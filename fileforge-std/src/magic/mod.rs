@@ -21,7 +21,7 @@ impl<const SIZE: usize> Magic<SIZE> {
   }
 }
 
-impl<'pool, 'this, const SIZE: usize, S: ReadableStream<Type = u8>> Readable<'pool, 'this, S> for Magic<SIZE> {
+impl<'pool, const SIZE: usize, S: ReadableStream<Type = u8>> Readable<'pool, S> for Magic<SIZE> {
   type Error = MagicError<'pool, SIZE, S::ReadError>;
   type Argument = Magic<SIZE>;
 

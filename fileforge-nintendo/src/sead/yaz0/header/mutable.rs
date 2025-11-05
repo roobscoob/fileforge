@@ -69,11 +69,20 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
   }
 }
 
-impl<'pool: 'l, 'l, S: MutableStream<Type = u8> + 'l> Mutable<'pool, 'l, S> for Yaz0Header {
-  type Mutator = Yaz0HeaderMutator<'pool, 'l, S, 0>;
+impl<'pool, S: MutableStream<Type = u8>> Mutable<'pool, S> for Yaz0Header {
+  type Mutator<'l>
+    = Yaz0HeaderMutator<'pool, 'l, S, 0>
+  where
+    'pool: 'l,
+    Self: 'l,
+    S: 'l;
+
   type Error = MagicError<'pool, 4, S::ReadError>;
 
-  async fn mutate(reader: &'l mut BinaryReader<'pool, S>) -> Result<Self::Mutator, Self::Error> {
+  async fn mutate<'l>(reader: &'l mut BinaryReader<'pool, S>) -> Result<Self::Mutator<'l>, Self::Error>
+  where
+    Self: 'l,
+  {
     reader.read_with::<Magic<4>>(YAZ0_MAGIC).await?;
 
     Ok(Yaz0HeaderMutator { reader })

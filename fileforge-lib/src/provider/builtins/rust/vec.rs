@@ -1,20 +1,23 @@
 use crate::provider::{
-  MutProvider, Provider, ResizableProvider,
   builtins::slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider},
   error::{out_of_bounds::OutOfBoundsError, provider_read::ProviderReadError, provider_slice::ProviderSliceError},
   hint::ReadHint,
+  MutProvider, Provider, ResizableProvider,
 };
 
-impl<T> Provider for alloc::vec::Vec<T> {
+impl<T> Provider for alloc::vec::Vec<T>
+where
+  T: Copy,
+{
   type Type = T;
 
   type ReadError = core::convert::Infallible;
   type SliceError = core::convert::Infallible;
 
-  type StaticSliceProvider<'l, const SIZE: usize>
-    = FixedSliceProvider<SIZE, &'l alloc::vec::Vec<T>>
+  type StaticSliceProvider<'a, const SIZE: usize>
+    = &'a [T; SIZE]
   where
-    Self: 'l;
+    T: 'a;
 
   type DynamicSliceProvider<'l>
     = DynamicSliceProvider<&'l alloc::vec::Vec<T>>
@@ -31,8 +34,13 @@ impl<T> Provider for alloc::vec::Vec<T> {
     Ok(reader(&self[offset as usize..(offset + SIZE as u64) as usize].split_first_chunk::<SIZE>().unwrap().0).await)
   }
 
-  fn slice<'l, const SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SIZE>, ProviderSliceError<Self::SliceError>> {
-    Ok(FixedSliceProvider::new(start, self)?)
+  fn slice<'a, const SIZE: usize>(&'a self, start: u64) -> Result<Self::StaticSliceProvider<'a, SIZE>, ProviderSliceError<Self::SliceError>> {
+    OutOfBoundsError::assert(SIZE as u64, start, Some(SIZE as u64))?;
+
+    let slice = &self[start as usize..(start + SIZE as u64) as usize];
+    let slice: &[T; SIZE] = slice.try_into().unwrap();
+
+    Ok(slice)
   }
 
   fn slice_dynamic<'l>(&'l self, start: u64, size: Option<u64>) -> Result<Self::DynamicSliceProvider<'l>, ProviderSliceError<Self::SliceError>> {
@@ -40,7 +48,10 @@ impl<T> Provider for alloc::vec::Vec<T> {
   }
 }
 
-impl<T> MutProvider for alloc::vec::Vec<T> {
+impl<T> MutProvider for alloc::vec::Vec<T>
+where
+  T: Copy,
+{
   type MutateError = core::convert::Infallible;
 
   type DynamicMutSliceProvider<'l>
@@ -125,10 +136,10 @@ impl ResizableProvider for alloc::vec::Vec<u8> {
 #[cfg(test)]
 mod tests {
   use crate::provider::{
-    MutProvider, Provider, ResizableProvider,
     builtins::slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider},
     error::{provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError},
     hint::ReadHint,
+    MutProvider, Provider, ResizableProvider,
   };
 
   // A helper to produce a default ReadHint without assuming a specific variant.
@@ -186,11 +197,9 @@ mod tests {
   async fn fixed_slice_provider_read() {
     let v = vec![1u8, 2, 3, 4, 5, 6];
     // Fixed window of size 3 starting at index 2 → covers [3,4,5]
-    let slice: FixedSliceProvider<3, &_> = <Vec<u8> as Provider>::slice::<3>(&v, 2).expect("slice ok");
+    let slice = <Vec<u8> as Provider>::slice::<3>(&v, 2).expect("slice ok");
     // Reading inside the slice at local offset 0 should give exactly [3,4,5].
-    let got = <FixedSliceProvider<3, &_> as Provider>::read::<3, _>(&slice, 0, hint(), async move |chunk| [chunk[0], chunk[1], chunk[2]])
-      .await
-      .expect("read ok");
+    let got = Provider::read::<3, _>(&slice, 0, hint(), async move |chunk| [chunk[0], chunk[1], chunk[2]]).await.expect("read ok");
     assert_eq!(got, [3, 4, 5]);
   }
 

@@ -1,6 +1,6 @@
 use crate::provider::{
-  MutProvider, Provider, ResizableProvider,
   error::{out_of_bounds::OutOfBoundsError, provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError},
+  MutProvider, Provider, ResizableProvider,
 };
 
 pub struct DynamicSliceProvider<UnderlyingProvider: Provider> {
@@ -49,10 +49,10 @@ impl<UnderlyingProvider: Provider> Provider for DynamicSliceProvider<UnderlyingP
   type ReadError = UnderlyingProvider::ReadError;
   type SliceError = UnderlyingProvider::SliceError;
 
-  type StaticSliceProvider<'l, const SLICE_SIZE: usize>
-    = UnderlyingProvider::StaticSliceProvider<'l, SLICE_SIZE>
+  type StaticSliceProvider<'a, const SLICE_SIZE: usize>
+    = UnderlyingProvider::StaticSliceProvider<'a, SLICE_SIZE>
   where
-    Self: 'l;
+    UnderlyingProvider: 'a;
 
   type DynamicSliceProvider<'l>
     = UnderlyingProvider::DynamicSliceProvider<'l>
@@ -70,7 +70,7 @@ impl<UnderlyingProvider: Provider> Provider for DynamicSliceProvider<UnderlyingP
     self.provider.read(offset + self.offset, hint, reader).await
   }
 
-  fn slice<'l, const SLICE_SIZE: usize>(&'l self, start: u64) -> Result<Self::StaticSliceProvider<'l, SLICE_SIZE>, ProviderSliceError<Self::SliceError>> {
+  fn slice<'a, const SLICE_SIZE: usize>(&'a self, start: u64) -> Result<Self::StaticSliceProvider<'a, SLICE_SIZE>, ProviderSliceError<Self::SliceError>> {
     OutOfBoundsError::assert(self.len(), start, Some(SLICE_SIZE as u64))?;
 
     self.provider.slice(start + self.offset)

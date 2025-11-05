@@ -1,4 +1,4 @@
-use super::{stream_exhausted::StreamExhaustedError, user_restore::UserRestoreError};
+use super::user_restore::UserRestoreError;
 
 #[derive(Debug)]
 pub enum StreamRestoreError<UserRestore: UserRestoreError> {

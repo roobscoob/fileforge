@@ -1,6 +1,14 @@
 use fileforge_macros::text;
 
-use crate::{diagnostic::pool::DiagnosticPoolProvider, error::{render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::Text}, report::Report, FileforgeError}, stream::error::user_read::UserReadError};
+use crate::{
+  diagnostic::pool::DiagnosticPoolProvider,
+  error::{
+    render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::Text},
+    report::Report,
+    FileforgeError,
+  },
+  stream::error::user_read::UserReadError,
+};
 
 use super::exhausted::ReaderExhaustedError;
 
@@ -10,7 +18,11 @@ pub enum GetPrimitiveError<'pool, U: UserReadError> {
 }
 
 impl<'pool, U: UserReadError> FileforgeError for GetPrimitiveError<'pool, U> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(&self, provider: &'pool_ref P, mut callback: impl for<'tag, 'b, 'p2> FnMut(Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> ()) {
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
+    &self,
+    provider: &'pool_ref P,
+    mut callback: impl for<'tag, 'b, 'p2> FnMut(Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+  ) {
     let text = *match self {
       Self::ReaderExhausted(text, ..) => text,
       Self::User(text, ..) => text,
@@ -24,7 +36,7 @@ impl<'pool, U: UserReadError> FileforgeError for GetPrimitiveError<'pool, U> {
 
           callback(report.with_info_line(&t).unwrap());
         });
-      },
+      }
       Self::User(_, e) => {
         e.render_into_report(provider, |report| {
           let t = Text::of(&text);

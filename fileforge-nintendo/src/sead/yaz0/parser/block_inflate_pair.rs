@@ -17,6 +17,7 @@ pub fn inflate_pair(pair: [&mut Block; 2], post_block_state: &Yaz0State) -> Resu
   let mut right = heapless::Vec::<Operation, 8>::new();
 
   fn push_op(left: &mut heapless::Vec<Operation, 8>, right: &mut heapless::Vec<Operation, 8>, op: Operation) {
+    // println!("  Pushing op: {op:?}");
     if left.is_full() { right } else { left }.push(op).unwrap()
   }
 
@@ -47,6 +48,8 @@ pub fn inflate_pair(pair: [&mut Block; 2], post_block_state: &Yaz0State) -> Resu
 
           op_len += 2;
         } else {
+          readback.nth(length as usize - 1);
+
           push_op(&mut left, &mut right, Operation::readback(offset.get(), length).unwrap());
         }
       }

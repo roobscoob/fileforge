@@ -9,15 +9,32 @@ use fileforge_lib::{
       DiagnosticPoolBuilder,
     },
   },
-  error::{render::buffer::cell::tag::context::RenderMode, RenderableResult},
-  provider::{builtins::rust::slice::RustSliceProvider, hint::ReadHint},
+  error::{
+    context::ErrorContext,
+    render::{
+      buffer::{
+        cell::{
+          tag::{builtin::report::REPORT_INFO_LINE_TEXT, context::RenderMode},
+          RenderBufferCell,
+        },
+        RenderBuffer,
+      },
+      position::RenderPosition,
+    },
+    report::{kind::ReportKind, note::ReportNote, Report},
+    FileforgeError, RenderableResult,
+  },
+  provider::hint::ReadHint,
   stream::{builtin::provider::ProviderStream, ReadableStream, ResizableStream},
 };
+use fileforge_macros::text;
 use fileforge_nintendo::sead::yaz0::{
   readable::{Immutable, Mutable},
   Yaz0Stream,
 };
 use tokio::fs;
+
+struct AwSoSadError;
 
 #[tokio::main]
 async fn main() {
@@ -38,7 +55,7 @@ async fn main() {
   let mut val = r.into_with::<Yaz0Stream<_, _>>(Mutable).await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
 
   val.skip(0xA8).await.unwrap();
-  val.overwrite(3, *b"Sky").await.unwrap();
+  val.overwrite(3, *b"AAAA").await.unwrap();
 
   let mut out: Vec<u8> = Vec::with_capacity(val.len().unwrap() as usize + 0x111);
   out.resize(val.len().unwrap() as usize + 0x111, 0xDE);

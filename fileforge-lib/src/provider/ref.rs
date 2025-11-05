@@ -1,10 +1,10 @@
 use super::{
-  MutProvider, Provider, ResizableProvider,
   error::{provider_read::ProviderReadError, provider_slice::ProviderSliceError},
   hint::ReadHint,
+  MutProvider, Provider, ResizableProvider,
 };
 
-impl<P: Provider> Provider for &P {
+impl<P: Provider + ?Sized> Provider for &P {
   type Type = P::Type;
 
   type StaticSliceProvider<'l, const SIZE: usize>

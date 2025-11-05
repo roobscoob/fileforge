@@ -195,18 +195,21 @@ where
   }
 }
 
-impl<'l, const SIZE: usize, P: Provider + 'l> StaticPartitionableStream<'l, SIZE> for ProviderStream<P>
+impl<const SIZE: usize, P: Provider> StaticPartitionableStream<SIZE> for ProviderStream<P>
 where
   P::SliceError: UserPartitionError,
   P::ReadError: UserReadError,
-  <P::StaticSliceProvider<'l, SIZE> as Provider>::ReadError: UserReadError,
-  P::StaticSliceProvider<'l, SIZE>: 'l,
+  for<'l> <P::StaticSliceProvider<'l, SIZE> as Provider>::ReadError: UserReadError,
+  P::Type: Copy,
 {
   type PartitionError = P::SliceError;
 
-  type Partition = ProviderStream<P::StaticSliceProvider<'l, SIZE>>;
+  type Partition<'l>
+    = ProviderStream<P::StaticSliceProvider<'l, SIZE>>
+  where
+    P: 'l;
 
-  async fn partition(&'l mut self) -> Result<Self::Partition, StreamPartitionError<Self::PartitionError>> {
+  async fn partition<'l>(&'l mut self) -> Result<Self::Partition<'l>, StreamPartitionError<Self::PartitionError>> {
     match self.provider.slice::<SIZE>(self.offset) {
       Ok(provider) => Ok(ProviderStream::new(provider, self.hint)),
       Err(ProviderSliceError::User(u)) => Err(StreamPartitionError::User(u)),

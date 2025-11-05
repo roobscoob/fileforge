@@ -1,16 +1,16 @@
 use crate::{
   diagnostic::value::DiagnosticValue,
-  stream::{DynamicPartitionableStream, ReadableStream, StaticPartitionableStream, error::stream_partition::StreamPartitionError},
+  stream::{error::stream_partition::StreamPartitionError, DynamicPartitionableStream, ReadableStream, StaticPartitionableStream},
 };
 
 use super::{
-  BinaryReader,
   diagnostic_store::DiagnosticKind,
   error::{
     dynamic_subfork::DynamicSubforkError,
     seek_out_of_bounds::{SeekOffset, SeekOutOfBounds},
     static_subfork::StaticSubforkError,
   },
+  BinaryReader,
 };
 
 impl<'l, 'pool, S: DynamicPartitionableStream<'l, Type = u8>> BinaryReader<'pool, S>
@@ -62,14 +62,10 @@ where
   }
 }
 
-impl<'l, 'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S>
-where
-  'pool: 'l,
-{
-  pub async fn subfork_static<'a, const SIZE: usize>(&'a mut self, name: Option<&str>) -> Result<BinaryReader<'pool, S::Partition>, StaticSubforkError<'l, 'pool, SIZE, S>>
+impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
+  pub async fn subfork_static<'a, const SIZE: usize>(&'a mut self, name: Option<&str>) -> Result<BinaryReader<'pool, S::Partition<'a>>, StaticSubforkError<'pool, SIZE, S>>
   where
-    S: StaticPartitionableStream<'l, SIZE>,
-    'a: 'l,
+    S: StaticPartitionableStream<SIZE>,
   {
     let offset = self.stream.offset();
 

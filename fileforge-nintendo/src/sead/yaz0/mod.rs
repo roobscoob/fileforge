@@ -1,23 +1,23 @@
-use std::fmt::Debug;
+use std::u32;
 
 use fileforge_lib::stream::{
   error::{
     stream_exhausted::StreamExhaustedError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError,
     stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError,
   },
-  MutableStream, ReadableStream, ResizableStream, RestorableStream, CLONED,
+  MutableStream, ReadableStream, ResizableStream, RestorableStream, StaticPartitionableStream, CLONED,
 };
 
 use crate::sead::yaz0::{
   error::{overwrite::Yaz0OverwriteError, Yaz0Error},
-  header::Yaz0Header,
+  header::YAZ0_HEADER_SIZE,
   parser::{
     block_inflate_pair::inflate_pair,
     data::{Block, Operation},
     Yaz0Parser,
   },
-  readable::Yaz0StreamReadArgument,
-  state::{malformed_stream::MalformedStream, reference::ReadbackReference, Yaz0State},
+  readable::{HeaderView, MutHeaderView, Yaz0StreamReadArgument},
+  state::{reference::ReadbackReference, Yaz0State},
   store::{MaybeSnapshotStore, SnapshotStore},
 };
 
@@ -28,21 +28,21 @@ pub mod readable;
 pub mod state;
 pub mod store;
 
-pub struct Yaz0Stream<UnderlyingStream: ReadableStream<Type = u8>, A: Yaz0StreamReadArgument<Yaz0Parser<UnderlyingStream>>> {
-  header: Yaz0Header,
+pub struct Yaz0Stream<'pool, UnderlyingStream: ReadableStream<Type = u8>, A: Yaz0StreamReadArgument<'pool, UnderlyingStream>> {
+  header: A::HeaderView,
   stream: Yaz0Parser<UnderlyingStream>,
   state: Yaz0State,
   store: A::StoreType,
 }
 
-impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> ReadableStream for Yaz0Stream<S, St> {
+impl<'pool, S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<'pool, S>> ReadableStream for Yaz0Stream<'pool, S, St> {
   type Type = u8;
 
   type ReadError = Yaz0Error<S::ReadError>;
   type SkipError = Yaz0Error<S::ReadError>;
 
   fn len(&self) -> Option<u64> {
-    Some(self.header.decompressed_size().into())
+    Some(self.header.value().decompressed_size().into())
   }
 
   fn offset(&self) -> u64 {
@@ -55,13 +55,13 @@ impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> Re
 
     buffer.extend(self.state.take(buffer.capacity() - buffer.len()));
 
-    while self.offset() < self.header.decompressed_size() as u64 && !buffer.is_full() {
+    while self.offset() < self.header.value().decompressed_size() as u64 && !buffer.is_full() {
       self.store.store_snapshot(&self.stream, self.state.clone());
       let operation = self.stream.read(CLONED).await.map_err(|e| match e {
         StreamReadError::StreamExhausted(_) => StreamReadError::StreamExhausted(StreamExhaustedError {
           read_length: SIZE as u64,
           read_offset,
-          stream_length: self.header.decompressed_size() as u64,
+          stream_length: self.header.value().decompressed_size() as u64,
         }),
         StreamReadError::User(u) => StreamReadError::User(Yaz0Error::ParseError(StreamReadError::User(u))),
       })?;
@@ -74,7 +74,7 @@ impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> Re
       Err(StreamExhaustedError {
         read_length: SIZE as u64,
         read_offset,
-        stream_length: self.header.decompressed_size() as u64,
+        stream_length: self.header.value().decompressed_size() as u64,
       })?
     }
 
@@ -87,12 +87,12 @@ impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> Re
 
     read_length -= self.state.take(read_length as usize).len() as u64;
 
-    while self.offset() < self.header.decompressed_size() as u64 && read_length != 0 {
+    while self.offset() < self.header.value().decompressed_size() as u64 && read_length != 0 {
       self.store.store_snapshot(&self.stream, self.state.clone());
       let block = self.stream.read(CLONED).await.map_err(|e| match e {
         StreamReadError::StreamExhausted(_) => StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError {
           seek_point: read_offset + original_read_length,
-          stream_length: self.header.decompressed_size() as u64,
+          stream_length: self.header.value().decompressed_size() as u64,
         }),
         StreamReadError::User(u) => StreamSkipError::User(Yaz0Error::ParseError(StreamReadError::User(u))),
       })?;
@@ -104,7 +104,7 @@ impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> Re
     if read_length != 0 {
       Err(StreamSeekOutOfBoundsError {
         seek_point: read_offset + original_read_length,
-        stream_length: self.header.decompressed_size() as u64,
+        stream_length: self.header.value().decompressed_size() as u64,
       })?
     }
 
@@ -112,7 +112,7 @@ impl<S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<Yaz0Parser<S>>> Re
   }
 }
 
-impl<S: ReadableStream<Type = u8> + RestorableStream, St: MaybeSnapshotStore<Yaz0Parser<S>>, Sta: Yaz0StreamReadArgument<Yaz0Parser<S>, StoreType = St>> RestorableStream for Yaz0Stream<S, Sta> {
+impl<'pool, S: ReadableStream<Type = u8> + RestorableStream, St: MaybeSnapshotStore<S>, Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>> RestorableStream for Yaz0Stream<'pool, S, Sta> {
   type Snapshot = (Yaz0State, St, <Yaz0Parser<S> as RestorableStream>::Snapshot);
   type RestoreError = <Yaz0Parser<S> as RestorableStream>::RestoreError;
 
@@ -132,16 +132,22 @@ impl<S: ReadableStream<Type = u8> + RestorableStream, St: MaybeSnapshotStore<Yaz
   }
 }
 
-const TAIL_LENGTH: usize = 0x111 * 8;
-
 enum ReencodeData {
   Starting(Block),
   StartingWithSkip(Block, u64),
   With(Block),
 }
 
-impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream, St: SnapshotStore<Yaz0Parser<S>>, Sta: Yaz0StreamReadArgument<Yaz0Parser<S>, StoreType = St>>
-  Yaz0Stream<S, Sta>
+impl<
+    'pool,
+    'x,
+    S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream + StaticPartitionableStream<YAZ0_HEADER_SIZE> + 'x,
+    St: SnapshotStore<S>,
+    Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>,
+  > Yaz0Stream<'pool, S, Sta>
+where
+  S::Partition<'x>: RestorableStream<Type = u8> + MutableStream,
+  Sta::HeaderView: MutHeaderView<'pool, S, S::Partition<'x>>,
 {
   // PLAN: add `until` function that returns a boolean `true` to continue, `false` to stop.
   // PRECONDITION: `offset` MUST BE CONTAINED WITHIN THE FIRST BLOCK.
@@ -152,15 +158,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
     data: ReencodeData,
     length: &mut u64,
     mut replacement_data: ReadbackReference<'a, C>,
-  ) -> Result<
-    (Block, (Option<u8>, Block)),
-    Yaz0OverwriteError<
-      <Yaz0Parser<S> as ReadableStream>::ReadError,
-      <Yaz0Parser<S> as RestorableStream>::RestoreError,
-      <Yaz0Parser<S> as MutableStream>::MutateError,
-      <Yaz0Parser<S> as ResizableStream>::OverwriteError,
-    >,
-  > {
+  ) -> Result<(Block, (Option<u8>, Block)), <Self as ResizableStream>::OverwriteError> {
     let mut tail_block = (None, Block::empty());
     let (mut current_block, mut offset) = match data {
       ReencodeData::Starting(block) => {
@@ -209,15 +207,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
 
               data[0] = current_block.clone();
 
-              Ok::<
-                _,
-                Yaz0OverwriteError<
-                  <Yaz0Parser<S> as ReadableStream>::ReadError,
-                  <Yaz0Parser<S> as RestorableStream>::RestoreError,
-                  <Yaz0Parser<S> as MutableStream>::MutateError,
-                  <Yaz0Parser<S> as ResizableStream>::OverwriteError,
-                >,
-              >(())
+              Ok::<_, <Self as ResizableStream>::OverwriteError>(())
             })
             .await
             .map_err(|e| Yaz0OverwriteError::MutateBlockFailed(e))??;
@@ -263,15 +253,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
               tail_block = (tail_underflow, new_tail);
             }
 
-            Ok::<
-              _,
-              Yaz0OverwriteError<
-                <Yaz0Parser<S> as ReadableStream>::ReadError,
-                <Yaz0Parser<S> as RestorableStream>::RestoreError,
-                <Yaz0Parser<S> as MutableStream>::MutateError,
-                <Yaz0Parser<S> as ResizableStream>::OverwriteError,
-              >,
-            >(())
+            Ok::<_, <Self as ResizableStream>::OverwriteError>(())
           })
           .await
           .map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))??;
@@ -288,12 +270,20 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
   }
 }
 
-impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream, St: SnapshotStore<Yaz0Parser<S>>, Sta: Yaz0StreamReadArgument<Yaz0Parser<S>, StoreType = St>> ResizableStream
-  for Yaz0Stream<S, Sta>
+impl<
+    'x,
+    'pool,
+    S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream + StaticPartitionableStream<YAZ0_HEADER_SIZE> + 'x,
+    St: SnapshotStore<S>,
+    Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>,
+  > ResizableStream for Yaz0Stream<'pool, S, Sta>
 where
-  <S as RestorableStream>::Snapshot: Debug,
+  for<'b> S::Partition<'b>: MutableStream<Type = u8> + RestorableStream,
+  for<'b> Sta::HeaderView: MutHeaderView<'pool, S, S::Partition<'b>>,
 {
   type OverwriteError = Yaz0OverwriteError<
+    'pool,
+    S::Partition<'x>,
     <Yaz0Parser<S> as ReadableStream>::ReadError,
     <Yaz0Parser<S> as RestorableStream>::RestoreError,
     <Yaz0Parser<S> as MutableStream>::MutateError,
@@ -311,6 +301,23 @@ where
       assert!(current_offset == 0);
     };
 
+    let uncompressed_size = self
+      .header
+      .value()
+      .decompressed_size()
+      .saturating_sub(length.try_into().unwrap_or(u32::MAX))
+      .checked_add(data.len().try_into().map_err(|_| Yaz0OverwriteError::TooMuchData)?)
+      .ok_or(Yaz0OverwriteError::TooMuchData)?;
+
+    self
+      .header
+      .mutate()
+      .await
+      .map_err(|e| Yaz0OverwriteError::MutateHeaderError(e))?
+      .with_uncompressed_size(uncompressed_size)
+      .await
+      .map_err(|e| Yaz0OverwriteError::MutateHeaderFieldError(e))?;
+
     let block_offset = current_offset - self.offset();
 
     let (starting_block, starting_overflow, _, _) = current_block.split_at_with_pre(block_offset, &mut self.state).unwrap();
@@ -324,8 +331,6 @@ where
     } else {
       ReencodeData::Starting(starting_block)
     };
-
-    println!("state: {:?}", self.state.readback().collect::<heapless::Vec<u8, 0x1000>>());
 
     let (current_block, tail) = self.re_encode_slice(&mut original_state, reencode_data, &mut length, ReadbackReference::of(&data)).await?;
     let tail_len = tail.1.len() as u64 + (if tail.0.is_some() { 1 } else { 0 });
@@ -368,7 +373,6 @@ where
     let repair = fork_original_state.readback().slice(0..(repair_bytes - tail_len) as usize).unwrap();
 
     let repair_len = repair.len();
-    println!("state: {:?}", self.state.readback().collect::<heapless::Vec<u8, 0x1000>>());
 
     let (mut block, tail) = self.re_encode_slice(&mut original_state, ReencodeData::With(current_block), &mut (repair_len as u64), repair).await?;
 
@@ -378,28 +382,38 @@ where
     }
 
     let mut tail = tail.1;
-
-    dbg!(block.clone(), tail.clone());
-    println!("state: {:?}", self.state.readback().collect::<heapless::Vec<u8, 0x1000>>());
-
-    // self.state.feed(block.clone()).unwrap();
-    // self.state.feed(tail.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+    let mut overwrite = false;
 
     loop {
+      self.state.feed(tail.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+
       inflate_pair([&mut block, &mut tail], &self.state).unwrap();
 
       block = if !block.is_full() {
         if self.stream.remaining_decoded_bytes() == 0 {
-          self.stream.overwrite(0, [block]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+          self
+            .stream
+            .overwrite(if overwrite { 1 } else { 0 }, [block])
+            .await
+            .map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
           return Ok(());
         }
 
         block
       } else if !tail.is_full() {
-        self.stream.overwrite(0, [block]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+        self
+          .stream
+          .overwrite(if overwrite { 1 } else { 0 }, [block])
+          .await
+          .map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+
         tail
       } else {
-        self.stream.overwrite(0, [block]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+        self
+          .stream
+          .overwrite(if overwrite { 1 } else { 0 }, [block])
+          .await
+          .map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
         self.stream.overwrite(0, [tail]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
 
         return Ok(());
@@ -409,8 +423,11 @@ where
         return Ok(());
       }
 
+      let back = self.stream.snapshot();
       tail = self.stream.read(CLONED).await.map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))?;
-      self.state.feed(tail.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+      self.stream.restore(back).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
+
+      overwrite = true;
     }
   }
 }
