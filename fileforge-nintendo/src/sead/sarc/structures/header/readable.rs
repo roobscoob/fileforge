@@ -3,6 +3,7 @@ use fileforge::{
   error::FileforgeError,
   stream::{error::user_read::UserReadError, ReadableStream},
 };
+
 use fileforge_std::{
   byte_order_mark::{error::error::ByteOrderMarkError, ByteOrderMark},
   magic::{error::error::MagicError, Magic},

@@ -72,29 +72,26 @@ impl<S: ReadableStream<Type = u8>> ReadableStream for Yaz0Parser<S> {
             Err(StreamReadError::User(e)) => return Err(StreamReadError::User(Yaz0ParserError::ReadError(Component::Literal, e))),
           })
         } else {
-          let b1: u8 = match self.underlying.read(SINGLE).await {
+          let (b1, b2): (u8, u8) = match self.underlying.read(DOUBLE).await {
             Ok(v) => v,
             Err(StreamReadError::StreamExhausted(_)) => break 'block,
             Err(StreamReadError::User(e)) => return Err(StreamReadError::User(Yaz0ParserError::ReadError(Component::SequenceHeader, e))),
           };
 
-          if (b1 & 0xF0) == 0 {
-            // 3-byte form: 0R RR NN
-            let (r_l, n): (u8, u8) = self.underlying.read(DOUBLE).await.map_err(|e| Yaz0ParserError::ReadFailed(Component::LargeSequenceTail, e))?;
-            let rrr = (((b1 as u16) << 8) | (r_l as u16)) as u16;
-            Operation::LongReadback {
-              offset: NonZeroU16::new(rrr + 1).unwrap(),
-              length: NonZeroU16::new((n as u16) + 0x12).unwrap(),
+          let offset = NonZeroU16::new(((((b1 & 0xF) as u16) << 8) | (b2 as u16)) + 1).unwrap();
+
+          match b1 >> 4 {
+            0 => {
+              let v: u8 = self.underlying.read(SINGLE).await.map_err(|e| Yaz0ParserError::ReadFailed(Component::LargeSequenceTail, e))?;
+              Operation::LongReadback {
+                offset,
+                length: NonZeroU16::new(v as u16 + 0x12).unwrap(),
+              }
             }
-          } else {
-            // 2-byte form: NR RR with N = b1>>4 (1..=0xF)
-            let r_l: u8 = self.underlying.read(SINGLE).await.map_err(|e| Yaz0ParserError::ReadFailed(Component::SmallSequenceTail, e))?;
-            let n = (b1 >> 4) as u16;
-            let rrr = ((((b1 & 0x0F) as u16) << 8) | (r_l as u16)) as u16;
-            Operation::ShortReadback {
-              offset: NonZeroU16::new(rrr + 1).unwrap(),
-              length: NonZeroU16::new(n + 2).unwrap(),
-            }
+            n => Operation::ShortReadback {
+              offset,
+              length: NonZeroU16::new(n as u16 + 2).unwrap(),
+            },
           }
         };
 

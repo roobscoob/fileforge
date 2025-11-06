@@ -23,7 +23,9 @@
     "RELAENT",
     "RELASZ",
     "RELSZ",
+    "SARC",
     "SDEVs",
+    "sead",
     "Seekback",
     "Tipc",
     "zerocopy"
