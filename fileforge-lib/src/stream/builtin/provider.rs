@@ -8,9 +8,9 @@ use crate::{
     FileforgeError,
   },
   provider::{
-    error::{provider_mutate::ProviderMutateError, provider_read::ProviderReadError, provider_resize::ProviderResizeError, provider_slice::ProviderSliceError},
+    error::{provider_mutate::ProviderMutateError, provider_partition::ProviderPartitionError, provider_read::ProviderReadError, provider_resize::ProviderResizeError},
     hint::ReadHint,
-    MutProvider, Provider, ResizableProvider,
+    MutProvider, PartitionableProvider, Provider, ResizableProvider,
   },
   stream::{
     error::{
@@ -195,25 +195,34 @@ where
   }
 }
 
-impl<const SIZE: usize, P: Provider> StaticPartitionableStream<SIZE> for ProviderStream<P>
+impl<const SIZE: usize, P: PartitionableProvider> StaticPartitionableStream<SIZE> for ProviderStream<P>
 where
-  P::SliceError: UserPartitionError,
+  P::PartitionError: UserPartitionError,
   P::ReadError: UserReadError,
-  for<'l> <P::StaticSliceProvider<'l, SIZE> as Provider>::ReadError: UserReadError,
+  <P::PartitionLeftProvider as Provider>::ReadError: UserReadError,
+  <P::PartitionRightProvider as Provider>::ReadError: UserReadError,
   P::Type: Copy,
 {
-  type PartitionError = P::SliceError;
+  type PartitionError = P::PartitionError;
 
-  type Partition<'l>
-    = ProviderStream<P::StaticSliceProvider<'l, SIZE>>
-  where
-    P: 'l;
+  type PartitionLeft = ProviderStream<P::PartitionLeftProvider>;
+  type PartitionRight = ProviderStream<P::PartitionRightProvider>;
 
-  async fn partition<'l>(&'l mut self) -> Result<Self::Partition<'l>, StreamPartitionError<Self::PartitionError>> {
-    match self.provider.slice::<SIZE>(self.offset) {
-      Ok(provider) => Ok(ProviderStream::new(provider, self.hint)),
-      Err(ProviderSliceError::User(u)) => Err(StreamPartitionError::User(u)),
-      Err(ProviderSliceError::OutOfBounds(oob)) => Err(StreamPartitionError::StreamExhausted(Option::<StreamExhaustedError>::from(oob).unwrap())),
+  async fn partition(self) -> Result<(Self::PartitionLeft, Self::PartitionRight), StreamPartitionError<Self::PartitionError>> {
+    let offset = self.offset;
+    let hint = self.hint;
+
+    match self.provider.partition(self.offset + SIZE as u64) {
+      Ok((left, right)) => {
+        let mut left = ProviderStream::new(left, hint);
+        let right = ProviderStream::new(right, hint);
+
+        left.offset = offset;
+
+        Ok((left, right))
+      }
+      Err(ProviderPartitionError::User(u)) => Err(StreamPartitionError::User(u)),
+      Err(ProviderPartitionError::OutOfBounds(oob)) => Err(StreamPartitionError::StreamExhausted(Option::<StreamExhaustedError>::from(oob).unwrap())),
     }
   }
 }
@@ -241,22 +250,34 @@ where
   }
 }
 
-impl<'l, P: Provider + 'l> DynamicPartitionableStream<'l> for ProviderStream<P>
+impl<'l, P: PartitionableProvider + 'l> DynamicPartitionableStream<'l> for ProviderStream<P>
 where
-  P::SliceError: UserPartitionError,
+  P::PartitionError: UserPartitionError,
   P::ReadError: UserReadError,
-  <P::DynamicSliceProvider<'l> as Provider>::ReadError: UserReadError,
-  P::DynamicSliceProvider<'l>: 'l,
+  <P::PartitionLeftProvider as Provider>::ReadError: UserReadError,
+  <P::PartitionRightProvider as Provider>::ReadError: UserReadError,
+  P::Type: Copy,
 {
-  type PartitionError = P::SliceError;
+  type PartitionError = P::PartitionError;
 
-  type PartitionDynamic = ProviderStream<P::DynamicSliceProvider<'l>>;
+  type PartitionDynamicLeft = ProviderStream<P::PartitionLeftProvider>;
+  type PartitionDynamicRight = ProviderStream<P::PartitionRightProvider>;
 
-  async fn partition_dynamic(&'l mut self, size: u64) -> Result<Self::PartitionDynamic, StreamPartitionError<Self::PartitionError>> {
-    match self.provider.slice_dynamic(self.offset, Some(size)) {
-      Ok(provider) => Ok(ProviderStream::new(provider, self.hint)),
-      Err(ProviderSliceError::User(u)) => Err(StreamPartitionError::User(u)),
-      Err(ProviderSliceError::OutOfBounds(oob)) => Err(StreamPartitionError::StreamExhausted(Option::<StreamExhaustedError>::from(oob).unwrap())),
+  async fn partition_dynamic(self, size: u64) -> Result<(Self::PartitionDynamicLeft, Self::PartitionDynamicRight), StreamPartitionError<Self::PartitionError>> {
+    let offset = self.offset;
+    let hint = self.hint;
+
+    match self.provider.partition(self.offset + size) {
+      Ok((left, right)) => {
+        let mut left = ProviderStream::new(left, hint);
+        let right = ProviderStream::new(right, hint);
+
+        left.offset = offset;
+
+        Ok((left, right))
+      }
+      Err(ProviderPartitionError::User(u)) => Err(StreamPartitionError::User(u)),
+      Err(ProviderPartitionError::OutOfBounds(oob)) => Err(StreamPartitionError::StreamExhausted(Option::<StreamExhaustedError>::from(oob).unwrap())),
     }
   }
 }

@@ -1,8 +1,12 @@
+pub mod partition;
+
+use std::convert::Infallible;
+
 use crate::provider::{
   builtins::slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider},
-  error::{out_of_bounds::OutOfBoundsError, provider_read::ProviderReadError, provider_slice::ProviderSliceError},
+  error::{out_of_bounds::OutOfBoundsError, provider_partition::ProviderPartitionError, provider_read::ProviderReadError, provider_slice::ProviderSliceError},
   hint::ReadHint,
-  MutProvider, Provider, ResizableProvider,
+  MutProvider, PartitionableProvider, Provider, ResizableProvider,
 };
 
 impl<T> Provider for alloc::vec::Vec<T>
@@ -83,18 +87,24 @@ where
   }
 }
 
-impl ResizableProvider for alloc::vec::Vec<u8> {
-  type ResizeError = core::convert::Infallible;
+pub(crate) trait VecSyncResize {
+  fn resize_at_sync(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), crate::provider::error::provider_resize::ProviderResizeError<Infallible>>;
+}
 
-  async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), crate::provider::error::provider_resize::ProviderResizeError<Self::ResizeError>> {
+impl<T> VecSyncResize for alloc::vec::Vec<T>
+where
+  T: Copy,
+  T: Default,
+{
+  fn resize_at_sync(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), crate::provider::error::provider_resize::ProviderResizeError<Infallible>> {
     // Validate region exists in the current buffer.
-    OutOfBoundsError::assert(<&mut alloc::vec::Vec<u8> as Provider>::len(&self) as u64, offset, Some(old_len))?;
+    OutOfBoundsError::assert(<&mut alloc::vec::Vec<T> as Provider>::len(&self) as u64, offset, Some(old_len))?;
 
     if new_len == old_len {
       return Ok(());
     }
 
-    let old_total = <&mut alloc::vec::Vec<u8> as Provider>::len(&self) as usize;
+    let old_total = <&mut alloc::vec::Vec<T> as Provider>::len(&self) as usize;
     let old_region_end = (offset + old_len) as usize; // start of tail (before growth/shrink)
     let tail_len = old_total - old_region_end;
 
@@ -104,7 +114,7 @@ impl ResizableProvider for alloc::vec::Vec<u8> {
       let new_total = old_total + grow_by;
 
       // 1) extend the vec at the end so there's space for the tail to move into
-      self.resize(new_total, 0);
+      self.resize(new_total, T::default());
 
       // 2) move the tail (which was [old_region_end .. old_total]) to the right by grow_by
       let src_start = old_region_end;
@@ -113,7 +123,7 @@ impl ResizableProvider for alloc::vec::Vec<u8> {
       self.copy_within(src_start..src_end, dst_start);
 
       // 3) zero-fill the newly inserted gap inside the region
-      self[old_region_end..old_region_end + grow_by].fill(0);
+      self[old_region_end..old_region_end + grow_by].fill(T::default());
     } else {
       // SHRINK: slide the tail left over the removed bytes, then truncate.
       let shrink_by = (old_len - new_len) as usize;
@@ -130,6 +140,18 @@ impl ResizableProvider for alloc::vec::Vec<u8> {
     }
 
     Ok(())
+  }
+}
+
+impl<T> ResizableProvider for alloc::vec::Vec<T>
+where
+  T: Copy,
+  T: Default,
+{
+  type ResizeError = core::convert::Infallible;
+
+  async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), crate::provider::error::provider_resize::ProviderResizeError<Self::ResizeError>> {
+    self.resize_at_sync(offset, old_len, new_len)
   }
 }
 

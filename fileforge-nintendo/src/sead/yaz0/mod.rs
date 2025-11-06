@@ -28,9 +28,9 @@ pub mod readable;
 pub mod state;
 pub mod store;
 
-pub struct Yaz0Stream<'pool, UnderlyingStream: ReadableStream<Type = u8>, A: Yaz0StreamReadArgument<'pool, UnderlyingStream>> {
+pub struct Yaz0Stream<'pool, OriginalStream: ReadableStream<Type = u8>, A: Yaz0StreamReadArgument<'pool, OriginalStream>> {
   header: A::HeaderView,
-  stream: Yaz0Parser<UnderlyingStream>,
+  stream: Yaz0Parser<<A::HeaderView as HeaderView<'pool, OriginalStream>>::OtherStream>,
   state: Yaz0State,
   store: A::StoreType,
 }
@@ -38,8 +38,8 @@ pub struct Yaz0Stream<'pool, UnderlyingStream: ReadableStream<Type = u8>, A: Yaz
 impl<'pool, S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<'pool, S>> ReadableStream for Yaz0Stream<'pool, S, St> {
   type Type = u8;
 
-  type ReadError = Yaz0Error<S::ReadError>;
-  type SkipError = Yaz0Error<S::ReadError>;
+  type ReadError = Yaz0Error<<<St::HeaderView as HeaderView<'pool, S>>::OtherStream as ReadableStream>::ReadError>;
+  type SkipError = Yaz0Error<<<St::HeaderView as HeaderView<'pool, S>>::OtherStream as ReadableStream>::ReadError>;
 
   fn len(&self) -> Option<u64> {
     Some(self.header.value().decompressed_size().into())
@@ -112,9 +112,12 @@ impl<'pool, S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<'pool, S>> 
   }
 }
 
-impl<'pool, S: ReadableStream<Type = u8> + RestorableStream, St: MaybeSnapshotStore<S>, Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>> RestorableStream for Yaz0Stream<'pool, S, Sta> {
-  type Snapshot = (Yaz0State, St, <Yaz0Parser<S> as RestorableStream>::Snapshot);
-  type RestoreError = <Yaz0Parser<S> as RestorableStream>::RestoreError;
+impl<'pool, S: ReadableStream<Type = u8>, St: MaybeSnapshotStore<S>, Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>> RestorableStream for Yaz0Stream<'pool, S, Sta>
+where
+  <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream,
+{
+  type Snapshot = (Yaz0State, St, <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::Snapshot);
+  type RestoreError = <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::RestoreError;
 
   fn snapshot(&self) -> Self::Snapshot {
     (self.state.clone(), self.store.clone(), self.stream.snapshot())
@@ -138,16 +141,12 @@ enum ReencodeData {
   With(Block),
 }
 
-impl<
-    'pool,
-    'x,
-    S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream + StaticPartitionableStream<YAZ0_HEADER_SIZE> + 'x,
-    St: SnapshotStore<S>,
-    Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>,
-  > Yaz0Stream<'pool, S, Sta>
+impl<'pool, S: ReadableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE>, Sta: Yaz0StreamReadArgument<'pool, S>> Yaz0Stream<'pool, S, Sta>
 where
-  S::Partition<'x>: RestorableStream<Type = u8> + MutableStream,
-  Sta::HeaderView: MutHeaderView<'pool, S, S::Partition<'x>>,
+  <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream + ResizableStream + MutableStream,
+  <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft: MutableStream<Type = u8> + RestorableStream,
+  Sta::HeaderView: MutHeaderView<'pool, S, <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft>,
+  Sta::StoreType: SnapshotStore<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream>,
 {
   // PLAN: add `until` function that returns a boolean `true` to continue, `false` to stop.
   // PRECONDITION: `offset` MUST BE CONTAINED WITHIN THE FIRST BLOCK.
@@ -270,24 +269,20 @@ where
   }
 }
 
-impl<
-    'x,
-    'pool,
-    S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + MutableStream + StaticPartitionableStream<YAZ0_HEADER_SIZE> + 'x,
-    St: SnapshotStore<S>,
-    Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>,
-  > ResizableStream for Yaz0Stream<'pool, S, Sta>
+impl<'pool, S: ReadableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE>, Sta: Yaz0StreamReadArgument<'pool, S>> ResizableStream for Yaz0Stream<'pool, S, Sta>
 where
-  for<'b> S::Partition<'b>: MutableStream<Type = u8> + RestorableStream,
-  for<'b> Sta::HeaderView: MutHeaderView<'pool, S, S::Partition<'b>>,
+  <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream + ResizableStream + MutableStream,
+  <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft: MutableStream<Type = u8> + RestorableStream,
+  Sta::HeaderView: MutHeaderView<'pool, S, <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft>,
+  Sta::StoreType: SnapshotStore<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream>,
 {
   type OverwriteError = Yaz0OverwriteError<
     'pool,
-    S::Partition<'x>,
-    <Yaz0Parser<S> as ReadableStream>::ReadError,
-    <Yaz0Parser<S> as RestorableStream>::RestoreError,
-    <Yaz0Parser<S> as MutableStream>::MutateError,
-    <Yaz0Parser<S> as ResizableStream>::OverwriteError,
+    <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as ReadableStream>::ReadError,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::RestoreError,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as MutableStream>::MutateError,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as ResizableStream>::OverwriteError,
   >;
 
   async fn overwrite<const SIZE: usize>(&mut self, mut length: u64, data: [Self::Type; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>> {

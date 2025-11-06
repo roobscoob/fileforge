@@ -1,9 +1,11 @@
 pub mod out_of_bounds;
 pub mod provider_mutate;
+pub mod provider_partition;
 pub mod provider_read;
 pub mod provider_resize;
 pub mod provider_slice;
 pub mod user_mutate;
+pub mod user_partition;
 pub mod user_read;
 pub mod user_resize;
 pub mod user_slice;

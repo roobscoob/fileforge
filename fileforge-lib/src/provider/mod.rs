@@ -9,6 +9,8 @@ use error::{
 };
 use hint::ReadHint;
 
+use crate::provider::error::{provider_partition::ProviderPartitionError, user_partition::UserPartitionError};
+
 pub trait Provider {
   type Type;
 
@@ -54,4 +56,12 @@ pub trait ResizableProvider: MutProvider {
   type ResizeError: UserResizeError;
 
   async fn resize_at(&mut self, offset: u64, old_len: u64, new_len: u64) -> Result<(), ProviderResizeError<Self::ResizeError>>;
+}
+
+pub trait PartitionableProvider: Provider + Sized {
+  type PartitionLeftProvider: Provider<Type = Self::Type>;
+  type PartitionRightProvider: Provider<Type = Self::Type>;
+  type PartitionError: UserPartitionError;
+
+  fn partition(self, at: u64) -> Result<(Self::PartitionLeftProvider, Self::PartitionRightProvider), ProviderPartitionError<Self::PartitionError>>;
 }

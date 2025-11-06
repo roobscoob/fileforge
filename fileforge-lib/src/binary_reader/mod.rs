@@ -33,10 +33,10 @@ pub mod diagnostic_store;
 pub mod endianness;
 pub mod error;
 pub mod mutable;
+pub mod partition;
 pub mod primitive;
 pub mod readable;
 pub mod snapshot;
-pub mod subfork;
 pub mod view;
 pub mod writable;
 
@@ -44,6 +44,7 @@ pub struct BinaryReader<'pool, S: ReadableStream<Type = u8>> {
   stream: S,
   endianness: Endianness,
   diagnostics: DiagnosticStore<'pool>,
+  base_offset: u64,
 }
 
 impl<'pool, P: Provider<Type = u8>> BinaryReader<'pool, ProviderStream<P>>
@@ -55,6 +56,7 @@ where
       diagnostics: DiagnosticStore::new(),
       endianness,
       stream: ProviderStream::new(provider, hint),
+      base_offset: 0,
     }
   }
 
@@ -69,6 +71,7 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
       diagnostics: DiagnosticStore::new(),
       endianness,
       stream,
+      base_offset: 0,
     }
   }
 
@@ -93,6 +96,7 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
       diagnostics: DiagnosticStore::new(),
       endianness: self.endianness,
       stream: &mut self.stream,
+      base_offset: 0,
     }
   }
 
@@ -104,11 +108,12 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
       diagnostics: DiagnosticStore::new(),
       endianness: self.endianness,
       stream: self.stream.clone(),
+      base_offset: 0,
     }
   }
 
   pub fn offset(&self) -> u64 {
-    self.stream.offset()
+    self.base_offset + self.stream.offset()
   }
 
   pub fn create_physical_diagnostic(&self, offset: i64, length: Option<u64>, name: &str) -> Option<DiagnosticReference<'pool>> {

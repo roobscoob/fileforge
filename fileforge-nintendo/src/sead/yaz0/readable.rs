@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{convert::Infallible, future::Future};
 
 use fileforge_lib::{
   binary_reader::{
@@ -27,17 +27,19 @@ mod sealed {
 
 pub trait HeaderView<'pool, S: ReadableStream<Type = u8>>: Sized {
   type CreateError: FileforgeError;
+  type OtherStream: ReadableStream<Type = u8>;
 
-  fn create(reader: &mut BinaryReader<'pool, S>) -> impl Future<Output = Result<Self, Self::CreateError>>;
+  fn create(reader: BinaryReader<'pool, S>) -> impl Future<Output = Result<(Self, Self::OtherStream), Self::CreateError>>;
 
   fn value(&self) -> &Yaz0Header;
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> HeaderView<'pool, S> for Yaz0Header {
   type CreateError = <Yaz0Header as Readable<'pool, S>>::Error;
+  type OtherStream = S;
 
-  async fn create(reader: &mut BinaryReader<'pool, S>) -> Result<Self, Self::CreateError> {
-    reader.read::<Yaz0Header>().await
+  async fn create(mut reader: BinaryReader<'pool, S>) -> Result<(Self, S), Self::CreateError> {
+    Ok((reader.read::<Yaz0Header>().await?, reader.into_stream()))
   }
 
   fn value(&self) -> &Yaz0Header {
@@ -67,19 +69,14 @@ impl<'pool, S1: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8>, S2: Rest
   }
 }
 
-impl<'pool, R: RestorableStream<Type = u8>, S: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8, Partition = R>> HeaderView<'pool, S> for View<'pool, S::Partition, Yaz0Header> {
-  type CreateError = HeaderViewError<'pool, S, S::Partition>;
+impl<'pool, R: RestorableStream<Type = u8>, S: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8, PartitionLeft = R>> HeaderView<'pool, S> for View<'pool, S::PartitionLeft, Yaz0Header> {
+  type CreateError = HeaderViewError<'pool, S, S::PartitionLeft>;
+  type OtherStream = S::PartitionRight;
 
-  async fn create(reader: &mut BinaryReader<'pool, S>) -> Result<Self, Self::CreateError> {
-    Ok(
-      reader
-        .subfork_static(Some("header"))
-        .await
-        .map_err(|e| HeaderViewError::Subfork(e))?
-        .into::<View<'pool, S::Partition, Yaz0Header>>()
-        .await
-        .map_err(|e| HeaderViewError::Into(e))?,
-    )
+  async fn create(reader: BinaryReader<'pool, S>) -> Result<(Self, S::PartitionRight), Self::CreateError> {
+    let (l, r) = reader.partition(Some("Yaz0 Header")).await.map_err(|e| HeaderViewError::Subfork(e))?;
+
+    Ok((l.into::<View<'pool, _, Yaz0Header>>().await.map_err(|e| HeaderViewError::Into(e))?, r.into_stream()))
   }
 
   fn value(&self) -> &Yaz0Header {
@@ -87,7 +84,7 @@ impl<'pool, R: RestorableStream<Type = u8>, S: StaticPartitionableStream<YAZ0_HE
   }
 }
 
-impl<'pool, P: MutableStream<Type = u8> + RestorableStream, S: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8, Partition = P>> MutHeaderView<'pool, S, P> for View<'pool, P, Yaz0Header> {
+impl<'pool, P: MutableStream<Type = u8> + RestorableStream, S: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8, PartitionLeft = P>> MutHeaderView<'pool, S, P> for View<'pool, P, Yaz0Header> {
   async fn mutate<'l>(&'l mut self) -> Result<Yaz0HeaderMutator<'pool, 'l, P, 0>, ViewMutateError<'pool, P, Yaz0Header>>
   where
     'pool: 'l,
@@ -97,7 +94,7 @@ impl<'pool, P: MutableStream<Type = u8> + RestorableStream, S: StaticPartitionab
 }
 
 pub trait Yaz0StreamReadArgument<'pool, S1: ReadableStream<Type = u8>>: sealed::Sealed {
-  type StoreType: MaybeSnapshotStore<S1>;
+  type StoreType: MaybeSnapshotStore<<Self::HeaderView as HeaderView<'pool, S1>>::OtherStream>;
   type HeaderView: HeaderView<'pool, S1>;
 }
 
@@ -112,8 +109,10 @@ impl<'pool, S1: ReadableStream<Type = u8>> Yaz0StreamReadArgument<'pool, S1> for
   type HeaderView = Yaz0Header;
 }
 
-impl<'pool, S1: RestorableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE, Partition = S2>, S2: RestorableStream<Type = u8>> Yaz0StreamReadArgument<'pool, S1> for Mutable {
-  type StoreType = Snapshots<S1::Snapshot, S1>;
+impl<'pool, S1: RestorableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE, PartitionLeft = S2, PartitionRight = S3>, S2: RestorableStream<Type = u8>, S3: RestorableStream<Type = u8>>
+  Yaz0StreamReadArgument<'pool, S1> for Mutable
+{
+  type StoreType = Snapshots<S3::Snapshot, S3>;
   type HeaderView = View<'pool, S2, Yaz0Header>;
 }
 
@@ -121,12 +120,12 @@ impl<'pool, S: ReadableStream<Type = u8>, A: Yaz0StreamReadArgument<'pool, S>> I
   type Argument = A;
   type Error = <A::HeaderView as HeaderView<'pool, S>>::CreateError;
 
-  async fn read(mut reader: BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
-    let header = A::HeaderView::create(&mut reader).await?;
+  async fn read(reader: BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
+    let (header, stream) = A::HeaderView::create(reader).await?;
 
     Ok(Yaz0Stream {
       state: Yaz0State::empty(),
-      stream: Yaz0Parser::new(reader.into_stream(), header.value().decompressed_size()),
+      stream: Yaz0Parser::new(stream, header.value().decompressed_size()),
       header,
       store: A::StoreType::default(),
     })

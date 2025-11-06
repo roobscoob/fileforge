@@ -139,39 +139,18 @@ impl<Substream: ResizableStream> ResizableStream for &mut Substream {
 
 pub trait StaticPartitionableStream<const PARTITION_SIZE: usize>: ReadableStream {
   type PartitionError: UserPartitionError;
-  type Partition<'l>: ReadableStream<Type = Self::Type>
-  where
-    Self: 'l;
+  type PartitionLeft: ReadableStream<Type = Self::Type>;
+  type PartitionRight: ReadableStream<Type = Self::Type>;
 
-  async fn partition<'l>(&'l mut self) -> Result<Self::Partition<'l>, StreamPartitionError<Self::PartitionError>>;
-}
-
-impl<const PARTITION_SIZE: usize, Substream: StaticPartitionableStream<PARTITION_SIZE>> StaticPartitionableStream<PARTITION_SIZE> for &mut Substream {
-  type PartitionError = Substream::PartitionError;
-  type Partition<'l>
-    = Substream::Partition<'l>
-  where
-    Self: 'l;
-
-  async fn partition<'l>(&'l mut self) -> Result<Self::Partition<'l>, StreamPartitionError<Self::PartitionError>> {
-    (**self).partition().await
-  }
+  async fn partition(self) -> Result<(Self::PartitionLeft, Self::PartitionRight), StreamPartitionError<Self::PartitionError>>;
 }
 
 pub trait DynamicPartitionableStream<'l>: ReadableStream {
   type PartitionError: UserPartitionError;
-  type PartitionDynamic: ReadableStream<Type = Self::Type>;
+  type PartitionDynamicLeft: ReadableStream<Type = Self::Type>;
+  type PartitionDynamicRight: ReadableStream<Type = Self::Type>;
 
-  async fn partition_dynamic(&'l mut self, size: u64) -> Result<Self::PartitionDynamic, StreamPartitionError<Self::PartitionError>>;
-}
-
-impl<'l, Substream: DynamicPartitionableStream<'l>> DynamicPartitionableStream<'l> for &mut Substream {
-  type PartitionError = Substream::PartitionError;
-  type PartitionDynamic = Substream::PartitionDynamic;
-
-  async fn partition_dynamic(&'l mut self, size: u64) -> Result<Self::PartitionDynamic, StreamPartitionError<Self::PartitionError>> {
-    (**self).partition_dynamic(size).await
-  }
+  async fn partition_dynamic(self, size: u64) -> Result<(Self::PartitionDynamicLeft, Self::PartitionDynamicRight), StreamPartitionError<Self::PartitionError>>;
 }
 
 pub trait RestorableStream: ReadableStream {

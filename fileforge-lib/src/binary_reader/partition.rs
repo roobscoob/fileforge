@@ -17,13 +17,18 @@ impl<'l, 'pool, S: DynamicPartitionableStream<'l, Type = u8>> BinaryReader<'pool
 where
   'pool: 'l,
 {
-  pub async fn subfork_dynamic<'a>(&'a mut self, length: DiagnosticValue<'pool, u64>, name: Option<&str>) -> Result<BinaryReader<'pool, S::PartitionDynamic>, DynamicSubforkError<'l, 'pool, S>>
+  pub async fn subfork_dynamic<'a>(
+    self,
+    length: impl Into<DiagnosticValue<'pool, u64>>,
+    name: Option<&str>,
+  ) -> Result<(BinaryReader<'pool, S::PartitionDynamicLeft>, BinaryReader<'pool, S::PartitionDynamicRight>), DynamicSubforkError<'l, 'pool, S>>
   where
     'a: 'l,
   {
+    let length = length.into();
     let offset = self.stream.offset();
 
-    let base = match self.stream.partition_dynamic(*length).await {
+    let (left, right) = match self.stream.partition_dynamic(*length).await {
       Ok(v) => v,
       Err(StreamPartitionError::User(u)) => return Err(DynamicSubforkError::Stream(u)),
       Err(StreamPartitionError::StreamExhausted(se)) => {
@@ -46,30 +51,37 @@ where
       }
     };
 
-    let mut reader = BinaryReader::new(base, self.endianness);
+    let mut left = BinaryReader::new(left, self.endianness);
+
+    left.base_offset = self.base_offset;
+
+    let mut right = BinaryReader::new(right, self.endianness);
+
+    right.base_offset = self.base_offset + *length;
+    right.diagnostics = self.diagnostics;
 
     if let Some(reference) = self.diagnostics.get(DiagnosticKind::Reader) {
       if let Some(name) = name {
-        reader.set_diagnostic(DiagnosticKind::Reader, Some(reference.create_physical_child(offset, Some(*length), name)));
+        left.set_diagnostic(DiagnosticKind::Reader, Some(reference.create_physical_child(offset, Some(*length), name)));
       }
     }
 
     if let Some(reference) = length.reference() {
-      reader.set_diagnostic(DiagnosticKind::ReaderLength, Some(reference));
+      left.set_diagnostic(DiagnosticKind::ReaderLength, Some(reference));
     }
 
-    Ok(reader)
+    Ok((left, right))
   }
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
-  pub async fn subfork_static<'a, const SIZE: usize>(&'a mut self, name: Option<&str>) -> Result<BinaryReader<'pool, S::Partition<'a>>, StaticSubforkError<'pool, SIZE, S>>
+  pub async fn partition<'a, const SIZE: usize>(self, name: Option<&str>) -> Result<(BinaryReader<'pool, S::PartitionLeft>, BinaryReader<'pool, S::PartitionRight>), StaticSubforkError<'pool, SIZE, S>>
   where
     S: StaticPartitionableStream<SIZE>,
   {
     let offset = self.stream.offset();
 
-    let base = match self.stream.partition().await {
+    let (left, right) = match self.stream.partition().await {
       Ok(v) => v,
       Err(StreamPartitionError::User(u)) => return Err(StaticSubforkError::Stream(u)),
       Err(StreamPartitionError::StreamExhausted(se)) => {
@@ -92,14 +104,21 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
       }
     };
 
-    let mut reader = BinaryReader::new(base, self.endianness);
+    let mut left = BinaryReader::new(left, self.endianness);
+
+    left.base_offset = self.base_offset;
+
+    let mut right = BinaryReader::new(right, self.endianness);
+
+    right.base_offset = self.base_offset + SIZE as u64;
+    right.diagnostics = self.diagnostics;
 
     if let Some(reference) = self.diagnostics.get(DiagnosticKind::Reader) {
       if let Some(name) = name {
-        reader.set_diagnostic(DiagnosticKind::Reader, Some(reference.create_physical_child(offset, Some(SIZE as u64), name)));
+        left.set_diagnostic(DiagnosticKind::Reader, Some(reference.create_physical_child(offset, Some(SIZE as u64), name)));
       }
     }
 
-    Ok(reader)
+    Ok((left, right))
   }
 }
