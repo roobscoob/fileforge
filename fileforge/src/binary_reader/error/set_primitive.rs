@@ -3,9 +3,9 @@ use fileforge_macros::text;
 use crate::{
   diagnostic::pool::DiagnosticPoolProvider,
   error::{
-    FileforgeError,
     render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::Text},
     report::Report,
+    FileforgeError,
   },
   stream::error::user_mutate::UserMutateError,
 };

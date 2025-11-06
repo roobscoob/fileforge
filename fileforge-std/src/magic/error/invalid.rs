@@ -1,4 +1,4 @@
-use fileforge_lib::{diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue}, error::FileforgeError};
+use fileforge::{diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue}, error::FileforgeError};
 
 use super::super::Magic;
 
@@ -21,7 +21,7 @@ impl<'pool, const MAGIC_SIZE: usize> MagicInvalid<'pool, MAGIC_SIZE> {
 }
 
 impl<'pool, const MAGIC_SIZE: usize> FileforgeError for MagicInvalid<'pool, MAGIC_SIZE> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge_lib::diagnostic::pool::DiagnosticPoolProvider>(&self, _: &'pool_ref P, _: impl for<'tag, 'b, 'p2> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> ()) {
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(&self, _: &'pool_ref P, _: impl for<'tag, 'b, 'p2> FnMut(fileforge::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> ()) {
     unimplemented!()
   }
 }

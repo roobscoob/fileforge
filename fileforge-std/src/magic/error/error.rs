@@ -1,4 +1,4 @@
-use fileforge_lib::{binary_reader::error::get_primitive::GetPrimitiveError, error::FileforgeError, stream::error::user_read::UserReadError};
+use fileforge::{binary_reader::error::get_primitive::GetPrimitiveError, error::FileforgeError, stream::error::user_read::UserReadError};
 
 use super::invalid::MagicInvalid;
 
@@ -20,10 +20,10 @@ impl<'pool, const MAGIC_SIZE: usize, U: UserReadError> From<MagicInvalid<'pool, 
 }
 
 impl<'pool, const MAGIC_SIZE: usize, U: UserReadError> FileforgeError for MagicError<'pool, MAGIC_SIZE, U> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge_lib::diagnostic::pool::DiagnosticPoolProvider>(
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'p2> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'p2> FnMut(fileforge::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }

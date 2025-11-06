@@ -1,6 +1,6 @@
 pub mod readable;
 
-use fileforge_lib::binary_reader::endianness::Endianness;
+use fileforge::binary_reader::endianness::Endianness;
 
 pub struct SarcHeader {
   pub endianness: Endianness,

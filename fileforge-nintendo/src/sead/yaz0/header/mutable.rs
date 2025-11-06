@@ -1,4 +1,4 @@
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{
     error::{rewind::RewindError, set_primitive::SetPrimitiveError, skip::SkipError},
     mutable::Mutable,

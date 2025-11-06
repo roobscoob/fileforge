@@ -1,4 +1,4 @@
-use fileforge_lib::{
+use fileforge::{
   binary_reader::endianness::Endianness,
   diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
   error::FileforgeError,
@@ -21,10 +21,10 @@ impl<'pool> ByteOrderMarkInvalid<'pool> {
 }
 
 impl<'pool> FileforgeError for ByteOrderMarkInvalid<'pool> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge_lib::diagnostic::pool::DiagnosticPoolProvider>(
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(
     &self,
     _: &'pool_ref P,
-    _: impl for<'tag, 'b, 'p2> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    _: impl for<'tag, 'b, 'p2> FnMut(fileforge::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }

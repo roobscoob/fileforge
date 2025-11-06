@@ -1,6 +1,6 @@
 pub mod overwrite;
 
-use fileforge_lib::{
+use fileforge::{
   diagnostic::pool::DiagnosticPoolProvider,
   error::FileforgeError,
   stream::error::{stream_read::StreamReadError, user_read::UserReadError, user_skip::UserSkipError},
@@ -21,7 +21,7 @@ impl<SURE: UserReadError> FileforgeError for Yaz0Error<SURE> {
   fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     match self {
       Self::MalformedStream(_) => panic!("MS"),

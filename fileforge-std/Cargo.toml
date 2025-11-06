@@ -4,8 +4,9 @@ version = "0.1.2"
 edition = "2021"
 
 [dependencies]
-fileforge-lib = { path = "../fileforge-lib" }
+fileforge = { path = "../fileforge" }
 
 [features]
-default = ["std"]
-std = ["fileforge-lib/alloc"]
+default = ["alloc", "std"]
+std = ["fileforge/std"]
+alloc = ["fileforge/alloc"]

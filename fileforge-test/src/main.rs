@@ -1,6 +1,6 @@
 use std::{io::Cursor, time::Instant};
 
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{diagnostic_store::DiagnosticKind, endianness::Endianness, BinaryReader},
   diagnostic::{
     node::branch::DiagnosticBranch,

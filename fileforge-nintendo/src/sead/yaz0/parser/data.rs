@@ -1,4 +1,4 @@
-use std::num::NonZero;
+use core::num::NonZero;
 
 use crate::sead::yaz0::state::{malformed_stream::MalformedStream, Yaz0State};
 

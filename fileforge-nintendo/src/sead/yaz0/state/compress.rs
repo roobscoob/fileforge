@@ -1,4 +1,4 @@
-use std::{cmp::min, slice::SliceIndex};
+use core::{cmp::min, slice::SliceIndex};
 
 use crate::sead::yaz0::{
   parser::data::Block,

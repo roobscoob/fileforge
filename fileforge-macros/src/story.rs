@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{
-  bracketed, parse::{Parse, ParseStream, Parser, Peek}, parse_quote, DeriveInput, Expr, Ident, LitStr, Token
+  bracketed,
+  parse::{Parse, ParseStream, Parser, Peek},
+  parse_quote, DeriveInput, Expr, Ident, LitStr, Token,
 };
 
 fn parse_two_or_more<T: Parse, P>(input: ParseStream, peek: impl Fn(ParseStream) -> bool, separator: P) -> syn::Result<Vec<T>>
@@ -157,7 +159,7 @@ impl syn::visit_mut::VisitMut for Visitor {
 
 struct MacroMeta {
   name: LitStr,
-  expr: Expr
+  expr: Expr,
 }
 impl Parse for MacroMeta {
   fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -165,10 +167,7 @@ impl Parse for MacroMeta {
     let _: Token![,] = input.parse()?;
     let expr = input.parse()?;
 
-    Ok(MacroMeta {
-      name,
-      expr
-    })
+    Ok(MacroMeta { name, expr })
   }
 }
 

@@ -1,4 +1,4 @@
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{snapshot::BinaryReaderSnapshot, BinaryReader},
   stream::{ReadableStream, RestorableStream},
 };

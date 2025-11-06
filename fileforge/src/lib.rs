@@ -1,4 +1,4 @@
-// #![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
+#![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
 #![allow(async_fn_in_trait)]
 
 macro_rules! const_text {
@@ -19,6 +19,9 @@ pub mod stream;
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[cfg(feature = "story")]
 pub mod storybook;

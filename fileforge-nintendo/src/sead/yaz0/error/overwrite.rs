@@ -1,4 +1,4 @@
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{error::set_primitive::SetPrimitiveError, mutable::Mutable, view::ViewMutateError},
   diagnostic::pool::DiagnosticPoolProvider,
   error::FileforgeError,
@@ -35,7 +35,7 @@ impl<'pool, S: MutableStream<Type = u8> + RestorableStream, SURE: UserReadError,
   fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'poolx> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'poolx, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'poolx> FnMut(fileforge::error::report::Report<'tag, 'b, 'poolx, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     todo!()
   }

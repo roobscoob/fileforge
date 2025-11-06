@@ -5,9 +5,9 @@ pub mod block_inflate_pair;
 #[cfg(test)]
 pub mod tests;
 
-use std::num::NonZeroU16;
+use core::num::NonZeroU16;
 
-use fileforge_lib::{
+use fileforge::{
   control_flow::ControlFlow,
   stream::{
     error::{stream_mutate::StreamMutateError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError, stream_skip::StreamSkipError},
@@ -267,7 +267,7 @@ impl<S: ReadableStream<Type = u8> + RestorableStream + ResizableStream + Mutable
   async fn mutate<const SIZE: usize, V: ControlFlow>(
     &mut self,
     mutator: impl AsyncFnOnce(&mut [Self::Type; SIZE]) -> V,
-  ) -> Result<V, fileforge_lib::stream::error::stream_mutate::StreamMutateError<Self::MutateError>> {
+  ) -> Result<V, fileforge::stream::error::stream_mutate::StreamMutateError<Self::MutateError>> {
     let snapshot = self.underlying.snapshot();
     let snapshot_len = self.decoded_bytes_thusfar;
 

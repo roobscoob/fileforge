@@ -1,7 +1,7 @@
 [workspace]
 members = [
+  "fileforge",
   "fileforge-cli",
-  "fileforge-lib",
   "fileforge-macros",
   "fileforge-test",
   "fileforge-std",

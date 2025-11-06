@@ -1,21 +1,22 @@
 [package]
-name = "fileforge-lib"
+name = "fileforge"
 version = "0.1.5"
 edition = "2021"
 
 [dependencies]
-bitfield-struct = "0.6.1"
+bitfield-struct = "0.12.1"
 fileforge-macros = { path = "../fileforge-macros" }
-heapless = "0.8.0"
+heapless = "0.9.1"
 intx = "0.1.0"
 unicode-segmentation = "1.11.0"
-unicode-width = "0.1.12"
+unicode-width = "0.2.2"
 inventory = { version = "0.3.19", optional = true }
 
 [features]
-default = ["alloc"]
+default = ["alloc", "std"]
 story = ["dep:inventory"]
 alloc = []
+std = []
 
 [dev-dependencies]
 tokio = { version = "1.48.0", features = ["full"] }

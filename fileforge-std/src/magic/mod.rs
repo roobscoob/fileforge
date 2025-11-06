@@ -1,5 +1,5 @@
 use error::{error::MagicError, invalid::MagicInvalid};
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{readable::Readable, BinaryReader, PrimitiveReader},
   stream::ReadableStream,
 };

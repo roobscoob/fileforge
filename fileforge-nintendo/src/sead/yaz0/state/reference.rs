@@ -1,4 +1,4 @@
-use std::ops::{Bound, Index, RangeBounds};
+use core::ops::{Bound, Index, RangeBounds};
 
 fn normalize_bounds<R: RangeBounds<usize>>(r: R, len: usize) -> Option<(usize, usize)> {
   let start = match r.start_bound() {
@@ -143,7 +143,7 @@ impl<'l, const C: usize> Iterator for ReadbackReference<'l, C> {
 impl<'l, const C: usize> Index<usize> for ReadbackReference<'l, C> {
   type Output = u8;
 
-  fn index(&self, mut i: usize) -> &Self::Output {
+  fn index(&self, mut i: usize) -> &<Self as Index<usize>>::Output {
     for seg in &self.parts {
       if i < seg.len() {
         return &seg[i];

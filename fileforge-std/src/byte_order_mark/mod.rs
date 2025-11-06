@@ -1,5 +1,5 @@
 use error::{error::ByteOrderMarkError, invalid::ByteOrderMarkInvalid};
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{endianness::Endianness, readable::Readable, BinaryReader, PrimitiveReader},
   stream::ReadableStream,
 };

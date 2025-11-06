@@ -8,7 +8,7 @@ use crate::sead::yaz0::parser::{
   data::{Block, Operation},
   Yaz0Parser,
 };
-use fileforge_lib::{
+use fileforge::{
   control_flow::Continue,
   provider::hint::ReadHint,
   stream::{builtin::provider::ProviderStream, MutableStream, ReadableStream, ResizableStream, RestorableStream, CLONED},

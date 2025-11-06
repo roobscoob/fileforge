@@ -1,6 +1,6 @@
-use std::{convert::Infallible, future::Future};
+use core::{convert::Infallible, future::Future};
 
-use fileforge_lib::{
+use fileforge::{
   binary_reader::{
     error::static_subfork::StaticSubforkError,
     readable::{IntoReadable, NoneArgument, Readable},
@@ -60,10 +60,10 @@ pub enum HeaderViewError<'pool, S1: StaticPartitionableStream<YAZ0_HEADER_SIZE, 
 }
 
 impl<'pool, S1: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8>, S2: RestorableStream<Type = u8>> FileforgeError for HeaderViewError<'pool, S1, S2> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge_lib::diagnostic::pool::DiagnosticPoolProvider>(
+  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'poolx> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'poolx, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'poolx> FnMut(fileforge::error::report::Report<'tag, 'b, 'poolx, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     todo!()
   }

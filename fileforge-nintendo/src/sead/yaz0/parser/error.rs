@@ -1,4 +1,4 @@
-use fileforge_lib::{
+use fileforge::{
   diagnostic::pool::DiagnosticPoolProvider,
   error::FileforgeError,
   stream::error::{
@@ -53,7 +53,7 @@ impl<SURE: UserReadError> FileforgeError for Yaz0ParserError<SURE> {
   fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }
@@ -63,7 +63,7 @@ impl<SURE: UserReadError, SUSE: UserSkipError> FileforgeError for Yaz0ParserSkip
   fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }
@@ -73,7 +73,7 @@ impl<SURE: UserReadError, SUREE: UserRestoreError, SUSE: UserSkipError, SUOE: Us
   fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
     &self,
     provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge_lib::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }

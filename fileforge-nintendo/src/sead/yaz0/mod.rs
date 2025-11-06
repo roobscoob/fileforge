@@ -1,6 +1,6 @@
-use std::u32;
+use core::u32;
 
-use fileforge_lib::stream::{
+use fileforge::stream::{
   error::{
     stream_exhausted::StreamExhaustedError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError,
     stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError,
