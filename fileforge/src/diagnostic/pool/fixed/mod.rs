@@ -4,7 +4,10 @@ use crate::diagnostic::node::fixed::FixedDiagnosticNode;
 
 use self::entry::FixedDiagnosticPoolEntry;
 
-use super::{super::node::{branch::DiagnosticBranch, reference::DiagnosticReference}, DiagnosticPoolBuilder, DiagnosticPoolProvider};
+use super::{
+  super::node::{branch::DiagnosticBranch, reference::DiagnosticReference},
+  DiagnosticPoolBuilder, DiagnosticPoolProvider,
+};
 
 pub mod entry;
 pub mod field;
@@ -22,11 +25,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> FixedDiagnosticPool<'pool, NODE_NAME_SI
     }
   }
 
-  fn is_family_of(
-    &self,
-    check: &FixedDiagnosticNode<NODE_NAME_SIZE>,
-    against: Option<&FixedDiagnosticNode<NODE_NAME_SIZE>>,
-  ) -> bool {
+  fn is_family_of(&self, check: &FixedDiagnosticNode<NODE_NAME_SIZE>, against: Option<&FixedDiagnosticNode<NODE_NAME_SIZE>>) -> bool {
     if against.is_none() {
       return false;
     }
@@ -81,11 +80,13 @@ impl<'pool, const NODE_NAME_SIZE: usize> FixedDiagnosticPool<'pool, NODE_NAME_SI
 impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticPoolProvider for FixedDiagnosticPool<'pool, NODE_NAME_SIZE> {
   type Node = FixedDiagnosticNode<NODE_NAME_SIZE>;
 
-  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node> { self.contents.get(index as usize).and_then(|v| v.get()).and_then(|v| v.try_get(generation)) }
+  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node> {
+    self.contents.get(index as usize).and_then(|v| v.get()).and_then(|v| v.try_get(generation))
+  }
 
   fn was_built_by(&self, _: &dyn DiagnosticPoolBuilder) -> bool {
     // TODO: This doesn't support multiple DPPs
-    
+
     true
   }
 
@@ -95,7 +96,7 @@ impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticPoolProvider for FixedDiagnos
 }
 
 impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticPoolBuilder for FixedDiagnosticPool<'pool, NODE_NAME_SIZE> {
-  fn create(&self, branch: DiagnosticBranch, size: Option<u64>, name: &str) -> DiagnosticReference {
+  fn create<'a>(&'a self, branch: DiagnosticBranch, size: Option<u64>, name: &str) -> DiagnosticReference<'a> {
     match self.get_space_to_consume(branch.parent().map(|r| r.relocate(self).dereference(self)).flatten()) {
       None => DiagnosticReference {
         index: (self.contents.len() + 1) as u32,

@@ -14,6 +14,7 @@ use crate::{
   stream::error::{stream_restore::StreamRestoreError, user_restore::UserRestoreError},
 };
 
+#[allow(non_snake_case)]
 pub async fn SINGLE<T>(v: &[T; 1]) -> T
 where
   T: Copy,
@@ -21,6 +22,7 @@ where
   v[0]
 }
 
+#[allow(non_snake_case)]
 pub async fn DOUBLE<T>(v: &[T; 2]) -> (T, T)
 where
   T: Copy,
@@ -28,6 +30,7 @@ where
   (v[0], v[1])
 }
 
+#[allow(non_snake_case)]
 pub async fn CLONED<T>(v: &[T; 1]) -> T
 where
   T: Clone,

@@ -1,9 +1,6 @@
 use core::ops::Deref;
 
-use crate::diagnostic::{
-  node::reference::DislocatedDiagnosticReference,
-  pool::{DiagnosticPoolBuilder, DiagnosticPoolProvider},
-};
+use crate::diagnostic::{node::reference::DislocatedDiagnosticReference, pool::DiagnosticPoolBuilder};
 
 use super::node::reference::DiagnosticReference;
 
@@ -37,7 +34,7 @@ impl<'pool, T> DiagnosticValue<'pool, T> {
     self.1
   }
 
-  pub fn value_ref<'t>(&'t self) -> &'t T {
+  pub fn value<'t>(&'t self) -> &'t T {
     &self.0
   }
 
@@ -59,11 +56,21 @@ impl<T> DislocatedDiagnosticValue<T> {
     &self.0
   }
 
-  fn relocate<'pool>(self, pool: &'pool dyn DiagnosticPoolBuilder) -> DiagnosticValue<'pool, T> {
+  pub fn relocate<'pool>(self, pool: &'pool dyn DiagnosticPoolBuilder) -> DiagnosticValue<'pool, T> {
     DiagnosticValue(self.0, self.1.map(|v| v.relocate(pool)))
   }
 
   pub fn map<N>(self, transformer: impl FnOnce(T) -> N) -> DislocatedDiagnosticValue<N> {
     DislocatedDiagnosticValue(transformer(self.0), self.1)
+  }
+}
+
+pub trait DiagnosticSaturation<'pool, T> {
+  fn saturate(self, with: T) -> DiagnosticValue<'pool, T>;
+}
+
+impl<'pool, T> DiagnosticSaturation<'pool, T> for Option<DiagnosticReference<'pool>> {
+  fn saturate(self, with: T) -> DiagnosticValue<'pool, T> {
+    DiagnosticValue(with, self)
   }
 }

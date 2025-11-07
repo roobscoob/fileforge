@@ -95,7 +95,7 @@ impl<'t, 'l, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider> Renderable<
 
     canvas.set_tagged_str("i ", &REPORT_INFO_SYMBOL);
     let indent = canvas.get_position().column();
-    canvas.write_tagged(self.info_name, &REPORT_INFO_NAME);
+    canvas.write_tagged(self.info_name, &REPORT_INFO_NAME)?;
     canvas.cursor_right();
     canvas.set_tagged_char("(", &REPORT_INFO_TYPENAME_CELL);
     canvas.set_tagged_str(&self.info_typename, &REPORT_INFO_TYPENAME);

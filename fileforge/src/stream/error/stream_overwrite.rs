@@ -1,5 +1,3 @@
-use crate::error::FileforgeError;
-
 use super::{stream_exhausted::StreamExhaustedError, user_overwrite::UserOverwriteError};
 
 #[derive(Debug)]

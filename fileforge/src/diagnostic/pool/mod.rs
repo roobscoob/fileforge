@@ -31,5 +31,5 @@ impl<P: DiagnosticPoolProvider> DiagnosticPoolProvider for &P {
 }
 
 pub trait DiagnosticPoolBuilder {
-  fn create(&self, branch: DiagnosticBranch, size: Option<u64>, name: &str) -> DiagnosticReference;
+  fn create<'a>(&'a self, branch: DiagnosticBranch, size: Option<u64>, name: &str) -> DiagnosticReference<'a>;
 }

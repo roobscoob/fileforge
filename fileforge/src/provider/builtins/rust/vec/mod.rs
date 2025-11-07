@@ -4,9 +4,9 @@ use std::convert::Infallible;
 
 use crate::provider::{
   builtins::slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider},
-  error::{out_of_bounds::OutOfBoundsError, provider_partition::ProviderPartitionError, provider_read::ProviderReadError, provider_slice::ProviderSliceError},
+  error::{out_of_bounds::OutOfBoundsError, provider_read::ProviderReadError, provider_slice::ProviderSliceError},
   hint::ReadHint,
-  MutProvider, PartitionableProvider, Provider, ResizableProvider,
+  MutProvider, Provider, ResizableProvider,
 };
 
 impl<T> Provider for alloc::vec::Vec<T>

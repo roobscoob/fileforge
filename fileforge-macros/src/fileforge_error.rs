@@ -29,6 +29,7 @@ struct FlagExpansion {
   text_args: TokenStream2,
 }
 
+// NEW: add error_fields to carry field-level #[error(...)]
 struct ReportVariantInfo {
   ident: Ident,
   pattern_kind: ReportVariantPatternKind,
@@ -36,6 +37,7 @@ struct ReportVariantInfo {
   named_fields: Vec<Ident>, // only used for Struct variants
   flags: Vec<FlagExpansion>,
   infos: Vec<FlagExpansion>,
+  error_fields: Vec<(Ident, FlagExpansion)>,
 }
 
 fn fileforge_root() -> TokenStream2 {
@@ -111,7 +113,7 @@ fn parse_report_attr(attrs: &[Attribute]) -> syn::Result<Option<TokenStream2>> {
   Ok(result)
 }
 
-/// Take the inside of a text-like attribute (#[flag]/#[info]), e.g.
+/// Take the inside of a text-like attribute (#[flag]/#[info]/#[error]), e.g.
 ///   [Tag] "text {some_num.format().base(16)}", some_num = expr
 /// and:
 /// - turn each `name = expr` into a `let __ff_flag_expr_N = expr;` binding
@@ -139,17 +141,50 @@ fn expand_flag_text_like(tokens: TokenStream2) -> syn::Result<FlagExpansion> {
     }
   }
 
-  // First pass: scan HEAD for string literals and turn `{expr}` into bindings.
+  // First: parse the tail as `name = expr, other = expr2, ...`
+  use std::collections::HashMap;
+
   let mut bindings: Vec<TokenStream2> = Vec::new();
+  let mut new_assigns: Vec<TokenStream2> = Vec::new();
+  let mut tail_map: HashMap<String, usize> = HashMap::new();
+
+  if !tail.is_empty() {
+    let assigns: Punctuated<ExprAssign, Token![,]> = Punctuated::parse_terminated.parse2(tail)?;
+
+    for assign in assigns.into_iter() {
+      // Left side must be an ident (like in your text! macro remaps)
+      let ident: Ident =
+        syn::parse2(assign.left.clone().into_token_stream()).map_err(|e| Error::new(assign.span(), format!("expected identifier on left of = in #[flag]/#[info]/#[error], got {e}")))?;
+
+      let name = ident.to_string();
+      let expr_ts = assign.right.into_token_stream();
+      let idx = bindings.len();
+      let binding_ident = format_ident!("__ff_flag_expr_{}", idx);
+
+      // let __ff_flag_expr_N = <expr>;
+      bindings.push(quote! {
+        let #binding_ident = #expr_ts;
+      });
+
+      // Rewrite mapping to `name = &__ff_flag_expr_N`
+      new_assigns.push(quote! {
+        #ident = &#binding_ident
+      });
+
+      tail_map.insert(name, idx);
+    }
+  }
+
+  // Second: scan HEAD for string literals and turn `{expr}` into bindings.
+  // If `{something}` is a single ident that exists in `tail_map`, we *don't*
+  // create a new binding: it refers to the tail binding.
   let mut rewritten_head = TokenStream2::new();
 
   for tt in head.into_iter() {
     match &tt {
       TokenTree::Literal(_) => {
-        // Try to parse as a string literal
         let ts = TokenStream2::from(tt.clone());
         if let Ok(lit_str) = syn::parse2::<LitStr>(ts.clone()) {
-          // Process the string, generating bindings for each {expr}
           let s = lit_str.value();
           let chars: Vec<char> = s.chars().collect();
           let mut i = 0;
@@ -174,16 +209,32 @@ fn expand_flag_text_like(tokens: TokenStream2) -> syn::Result<FlagExpansion> {
               }
 
               if j == chars.len() {
-                return Err(Error::new(lit_str.span(), "unclosed `{` in #[flag]/#[info] string"));
+                return Err(Error::new(lit_str.span(), "unclosed `{` in #[flag]/#[info]/#[error] string"));
               }
 
               let expr_str: String = chars[start..j].iter().collect();
-              let expr_ts: TokenStream2 = syn::parse_str(&expr_str).map_err(|e| Error::new(lit_str.span(), format!("invalid expression in {{...}} in #[flag]/#[info]: {e}")))?;
+
+              // Try to treat it as a single ident first
+              if let Ok(ident) = syn::parse_str::<Ident>(&expr_str) {
+                let name = ident.to_string();
+                if let Some(&_) = tail_map.get(&name) {
+                  // This placeholder corresponds to a tail binding.
+                  // Keep `{name}` in the literal; text! will see the
+                  // `name = &__ff_flag_expr_idx` mapping we already added.
+                  out.push('{');
+                  out.push_str(&name);
+                  out.push('}');
+                  i = j + 1;
+                  continue;
+                }
+              }
+
+              // Otherwise, treat as a real expression: create a new binding
+              let expr_ts: TokenStream2 = syn::parse_str(&expr_str).map_err(|e| Error::new(lit_str.span(), format!("invalid expression in {{...}} in #[flag]/#[info]/#[error]: {e}")))?;
 
               let idx = bindings.len();
               let binding_ident = format_ident!("__ff_flag_expr_{}", idx);
 
-              // let __ff_flag_expr_N = <expr>;
               bindings.push(quote! {
                 let #binding_ident = #expr_ts;
               });
@@ -204,7 +255,7 @@ fn expand_flag_text_like(tokens: TokenStream2) -> syn::Result<FlagExpansion> {
                 continue;
               }
 
-              return Err(Error::new(lit_str.span(), "unmatched `}` in #[flag]/#[info] string"));
+              return Err(Error::new(lit_str.span(), "unmatched `}` in #[flag]/#[info]/#[error] string"));
             } else {
               out.push(c);
               i += 1;
@@ -225,33 +276,7 @@ fn expand_flag_text_like(tokens: TokenStream2) -> syn::Result<FlagExpansion> {
     }
   }
 
-  head = rewritten_head;
-
-  // Second pass: parse TAIL as `name = expr, other = expr2, ...`
-  let mut new_assigns: Vec<TokenStream2> = Vec::new();
-
-  if !tail.is_empty() {
-    let assigns: Punctuated<ExprAssign, Token![,]> = Punctuated::parse_terminated.parse2(tail)?;
-
-    for assign in assigns.into_iter() {
-      // Left side must be an ident (like in your text! macro remaps)
-      let ident: Ident = syn::parse2(assign.left.clone().into_token_stream()).map_err(|e| Error::new(assign.span(), format!("expected identifier on left of = in #[flag]/#[info], got {e}")))?;
-
-      let expr_ts = assign.right.into_token_stream();
-      let idx = bindings.len();
-      let binding_ident = format_ident!("__ff_flag_expr_{}", idx);
-
-      // let __ff_flag_expr_N = <expr>;
-      bindings.push(quote! {
-        let #binding_ident = #expr_ts;
-      });
-
-      // Rewrite mapping to `name = &__ff_flag_expr_N`
-      new_assigns.push(quote! {
-        #ident = &#binding_ident
-      });
-    }
-  }
+  let head = rewritten_head;
 
   // Rebuild what we'll feed into `text!(...)`:
   //   head
@@ -261,9 +286,10 @@ fn expand_flag_text_like(tokens: TokenStream2) -> syn::Result<FlagExpansion> {
 
   if !new_assigns.is_empty() {
     text_args.extend(quote! { , });
+    let len = new_assigns.len();
     for (i, assign_ts) in new_assigns.into_iter().enumerate() {
       text_args.extend(assign_ts);
-      if i + 1 < bindings.len() {
+      if i + 1 < len {
         text_args.extend(quote! { , });
       }
     }
@@ -311,6 +337,11 @@ fn parse_info_attrs(attrs: &[Attribute]) -> syn::Result<Vec<FlagExpansion>> {
   parse_text_line_attrs(attrs, "info")
 }
 
+/// Parse #[error(...)] on *fields* (we'll only use this on struct-like enum variants).
+fn parse_error_attrs(attrs: &[Attribute]) -> syn::Result<Vec<FlagExpansion>> {
+  parse_text_line_attrs(attrs, "error")
+}
+
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let input = parse_macro_input!(input as DeriveInput);
 
@@ -319,7 +350,16 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let fileforge = fileforge_root();
 
   let expanded = match data {
-    Data::Struct(_data_struct) => {
+    Data::Struct(data_struct) => {
+      // Disallow #[error] on plain structs for now (only enum #[report] variants supported).
+      for field in data_struct.fields.iter() {
+        for attr in &field.attrs {
+          if attr.path().is_ident("error") {
+            return Error::new(attr.span(), "#[error(..)] is only supported on enum variants with #[report(..)]").to_compile_error().into();
+          }
+        }
+      }
+
       // Struct-level FileforgeError using #[report] and optional #[flag]/#[info].
       let report_expr = match parse_report_attr(&attrs) {
         Ok(Some(expr)) => expr,
@@ -434,6 +474,27 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             Fields::Named(named) => {
               let field_idents: Vec<Ident> = named.named.iter().filter_map(|f| f.ident.clone()).collect();
 
+              // NEW: collect field-level #[error(...)] attributes.
+              let mut error_fields: Vec<(Ident, FlagExpansion)> = Vec::new();
+
+              for field in named.named.iter() {
+                let field_ident = field.ident.clone().unwrap();
+                let errs = match parse_error_attrs(&field.attrs) {
+                  Ok(e) => e,
+                  Err(e) => return e.to_compile_error().into(),
+                };
+
+                if errs.len() > 1 {
+                  return Error::new_spanned(field, "multiple #[error(..)] attributes on the same field are not supported")
+                    .to_compile_error()
+                    .into();
+                }
+
+                if let Some(err_expansion) = errs.into_iter().next() {
+                  error_fields.push((field_ident.clone(), err_expansion));
+                }
+              }
+
               report_variants.push(ReportVariantInfo {
                 ident: v_ident,
                 pattern_kind: ReportVariantPatternKind::Struct,
@@ -441,6 +502,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 named_fields: field_idents,
                 flags,
                 infos,
+                error_fields,
               });
             }
             Fields::Unnamed(_) => {
@@ -450,6 +512,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                   .into();
               }
 
+              // For now, #[error] on tuple-like variants is not supported either.
               report_variants.push(ReportVariantInfo {
                 ident: v_ident,
                 pattern_kind: ReportVariantPatternKind::Tuple,
@@ -457,6 +520,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 named_fields: Vec::new(),
                 flags,
                 infos,
+                error_fields: Vec::new(),
               });
             }
             Fields::Unit => {
@@ -471,6 +535,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 named_fields: Vec::new(),
                 flags,
                 infos,
+                error_fields: Vec::new(),
               });
             }
           }
@@ -483,6 +548,17 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
           return Error::new_spanned(v_ident, "#[flag]/#[info] is only supported on variants with #[report(..)] for now")
             .to_compile_error()
             .into();
+        }
+
+        // Disallow #[error] on delegating variants for now.
+        if let Fields::Named(named) = &fields {
+          for field in &named.named {
+            for attr in &field.attrs {
+              if attr.path().is_ident("error") {
+                return Error::new(attr.span(), "#[error(..)] is only supported on enum variants with #[report(..)]").to_compile_error().into();
+              }
+            }
+          }
         }
 
         match fields {
@@ -540,7 +616,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
       });
 
-      // #[report] variants generate new reports, plus flags/infos if any.
+      // #[report] variants generate new reports, plus flags/infos/errors if any.
       let report_match_arms = report_variants.iter().map(|info| {
         let v_ident = &info.ident;
         let report_expr = &info.report_expr;
@@ -581,6 +657,35 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
           });
         }
 
+        // NEW: field-level #[error] handling for struct variants.
+        let mut error_stmts = TokenStream2::new();
+        let mut error_chains = TokenStream2::new();
+
+        if !info.error_fields.is_empty() {
+          for (i, (field_ident, expansion)) in info.error_fields.iter().enumerate() {
+            let err_ident = format_ident!("__ff_error_text_{}", i);
+            let bindings = &expansion.bindings;
+            let text_args = &expansion.text_args;
+            let field_name_str = field_ident.to_string();
+
+            // Build the text!(...) for this field.
+            error_stmts.extend(quote! {
+              #(#bindings)*
+              let #err_ident = ::fileforge_macros::text!( #text_args );
+            });
+
+            // Add context + contextual error note for this field.
+            error_chains.extend(quote! {
+              .with_context(#field_name_str, #field_ident)
+              .with_contextual_note_or_info(
+                #field_name_str,
+                &#err_ident,
+                |n| n.with_tag(&#fileforge::error::render::buffer::cell::tag::builtin::report::REPORT_ERROR_TEXT)
+              )
+            });
+          }
+        }
+
         match info.pattern_kind {
           ReportVariantPatternKind::Unit => {
             quote! {
@@ -608,14 +713,32 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
           }
           ReportVariantPatternKind::Struct => {
             let field_idents = &info.named_fields;
-            quote! {
-              Self::#v_ident { #(#field_idents),* } => {
-                #flag_stmts
-                #info_stmts
-                #fileforge::error::report::Report::new::<Self>(provider, #report_expr)
-                  #flag_chains
-                  #info_chains
-                  .apply(callback)
+
+            if info.error_fields.is_empty() {
+              quote! {
+                Self::#v_ident { #(#field_idents),* } => {
+                  #flag_stmts
+                  #info_stmts
+                  #fileforge::error::report::Report::new::<Self>(provider, #report_expr)
+                    #flag_chains
+                    #info_chains
+                    .apply(callback)
+                }
+              }
+            } else {
+              quote! {
+                Self::#v_ident { #(#field_idents),* } => {
+                  #flag_stmts
+                  #info_stmts
+                  #error_stmts
+                  #fileforge::error::report::Report::new::<Self>(provider, #report_expr)
+                    #flag_chains
+                    .with_error_context()
+                    #error_chains
+                    .finalize_context()
+                    #info_chains
+                    .apply(callback)
+                }
               }
             }
           }

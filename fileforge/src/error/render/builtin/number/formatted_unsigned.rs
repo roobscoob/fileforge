@@ -43,6 +43,12 @@ impl<'tag> From<u64> for FormattedUnsigned<'tag> {
   }
 }
 
+impl<'tag> From<usize> for FormattedUnsigned<'tag> {
+  fn from(value: usize) -> Self {
+    Self::new(value as u128)
+  }
+}
+
 impl<'tag, T: Into<FormattedUnsigned<'tag>> + Copy> From<&T> for FormattedUnsigned<'tag> {
   fn from(value: &T) -> Self {
     (*value).into()

@@ -1,12 +1,6 @@
 use core::slice::Iter;
 
-use crate::{
-  diagnostic::{
-    node::reference::{DiagnosticReference, DislocatedDiagnosticReference},
-    value::{DiagnosticValue, DislocatedDiagnosticValue},
-  },
-  error::render::{buffer::cell::tag::CellTag, r#trait::renderable::Renderable},
-};
+use crate::error::render::{buffer::cell::tag::CellTag, r#trait::renderable::Renderable};
 
 use super::location::ReportLocation;
 

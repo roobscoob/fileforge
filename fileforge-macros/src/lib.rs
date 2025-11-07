@@ -31,7 +31,7 @@ pub fn dv(input: TokenStream) -> TokenStream {
   input
 }
 
-#[proc_macro_derive(FileforgeError, attributes(from, report, flag, info))]
+#[proc_macro_derive(FileforgeError, attributes(from, report, flag, info, error))]
 pub fn derive_fileforge_error(input: TokenStream) -> TokenStream {
   fileforge_error::derive(input)
 }

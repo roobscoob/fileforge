@@ -1,8 +1,6 @@
 #![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
 #![allow(async_fn_in_trait)]
 
-use fileforge_macros::with_text;
-
 macro_rules! const_text {
   ($x: tt $y: tt) => {{
     const R: [&'static dyn $crate::error::render::buffer::cell::tag::CellTag; 1] = $x;

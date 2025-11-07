@@ -68,7 +68,7 @@ where
     self.range.end as u64 - self.range.start as u64
   }
 
-  async fn read<const SIZE: usize, V>(&self, offset: u64, hint: ReadHint, reader: impl for<'v> AsyncFnOnce(&'v [Self::Type; SIZE]) -> V) -> Result<V, ProviderReadError<Self::ReadError>> {
+  async fn read<const SIZE: usize, V>(&self, offset: u64, _: ReadHint, reader: impl for<'v> AsyncFnOnce(&'v [Self::Type; SIZE]) -> V) -> Result<V, ProviderReadError<Self::ReadError>> {
     let v: &[T; SIZE] = unsafe { &*self.vec.get() }.as_slice()[self.range.clone()][offset as usize..offset as usize + SIZE].try_into().unwrap();
     let v: [T; SIZE] = *v;
 
@@ -107,7 +107,7 @@ where
     unsafe { &*self.vec.get() }.len() as u64 - self.start as u64
   }
 
-  async fn read<const SIZE: usize, V>(&self, offset: u64, hint: ReadHint, reader: impl for<'v> AsyncFnOnce(&'v [Self::Type; SIZE]) -> V) -> Result<V, ProviderReadError<Self::ReadError>> {
+  async fn read<const SIZE: usize, V>(&self, offset: u64, _: ReadHint, reader: impl for<'v> AsyncFnOnce(&'v [Self::Type; SIZE]) -> V) -> Result<V, ProviderReadError<Self::ReadError>> {
     let v: &[T; SIZE] = unsafe { &*self.vec.get() }.as_slice()[self.start..][offset as usize..offset as usize + SIZE].try_into().unwrap();
     let v: [T; SIZE] = *v;
 

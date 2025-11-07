@@ -53,7 +53,7 @@ impl<'l, 't, 'pool, T: Renderable<'t>> TryFrom<&'l DiagnosticValue<'pool, T>> fo
     if let Some(reference) = value.reference() {
       Ok(ReportLocation {
         reference: reference.dislocate(),
-        value: Some(value.value_ref()),
+        value: Some(value.value()),
       })
     } else {
       Err(())
