@@ -17,3 +17,13 @@ impl<UserRead: UserReadError> From<StreamExhaustedError> for StreamReadError<Use
     Self::StreamExhausted(value)
   }
 }
+
+impl<T, UserRead: UserReadError, I: From<UserRead>> super::MapExhausted<T, UserRead, I> for Result<T, StreamReadError<UserRead>> {
+  fn map_exhausted<Midpoint: Into<I>>(self, mapper: impl FnOnce(StreamExhaustedError) -> Midpoint) -> Result<T, I> {
+    match self {
+      Ok(v) => Ok(v),
+      Err(StreamReadError::User(u)) => Err(u.into()),
+      Err(StreamReadError::StreamExhausted(e)) => Err(mapper(e).into()),
+    }
+  }
+}

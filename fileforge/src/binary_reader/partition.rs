@@ -1,17 +1,10 @@
 use crate::{
+  binary_reader::error::{common::SeekOffset, DynamicSubforkError, StaticSubforkError},
   diagnostic::value::DiagnosticValue,
   stream::{error::stream_partition::StreamPartitionError, DynamicPartitionableStream, ReadableStream, StaticPartitionableStream},
 };
 
-use super::{
-  diagnostic_store::DiagnosticKind,
-  error::{
-    dynamic_subfork::DynamicSubforkError,
-    seek_out_of_bounds::{SeekOffset, SeekOutOfBounds},
-    static_subfork::StaticSubforkError,
-  },
-  BinaryReader,
-};
+use super::{diagnostic_store::DiagnosticKind, error::seek_out_of_bounds::SeekOutOfBounds, BinaryReader};
 
 impl<'l, 'pool, S: DynamicPartitionableStream<'l, Type = u8>> BinaryReader<'pool, S>
 where
@@ -21,7 +14,7 @@ where
     self,
     length: impl Into<DiagnosticValue<'pool, u64>>,
     name: Option<&str>,
-  ) -> Result<(BinaryReader<'pool, S::PartitionDynamicLeft>, BinaryReader<'pool, S::PartitionDynamicRight>), DynamicSubforkError<'l, 'pool, S>>
+  ) -> Result<(BinaryReader<'pool, S::PartitionDynamicLeft>, BinaryReader<'pool, S::PartitionDynamicRight>), DynamicSubforkError<'pool, S::PartitionError>>
   where
     'a: 'l,
   {
@@ -75,7 +68,10 @@ where
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
-  pub async fn partition<'a, const SIZE: usize>(self, name: Option<&str>) -> Result<(BinaryReader<'pool, S::PartitionLeft>, BinaryReader<'pool, S::PartitionRight>), StaticSubforkError<'pool, SIZE, S>>
+  pub async fn partition<'a, const SIZE: usize>(
+    self,
+    name: Option<&str>,
+  ) -> Result<(BinaryReader<'pool, S::PartitionLeft>, BinaryReader<'pool, S::PartitionRight>), StaticSubforkError<'pool, S::PartitionError>>
   where
     S: StaticPartitionableStream<SIZE>,
   {

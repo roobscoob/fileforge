@@ -1,8 +1,14 @@
 use core::ops::Deref;
 
+use crate::diagnostic::{
+  node::reference::DislocatedDiagnosticReference,
+  pool::{DiagnosticPoolBuilder, DiagnosticPoolProvider},
+};
+
 use super::node::reference::DiagnosticReference;
 
 pub struct DiagnosticValue<'pool, T>(pub T, pub Option<DiagnosticReference<'pool>>);
+pub struct DislocatedDiagnosticValue<T>(pub T, pub Option<DislocatedDiagnosticReference>);
 
 impl<'pool, T: Clone> Clone for DiagnosticValue<'pool, T> {
   fn clone(&self) -> Self {
@@ -33,5 +39,31 @@ impl<'pool, T> DiagnosticValue<'pool, T> {
 
   pub fn value_ref<'t>(&'t self) -> &'t T {
     &self.0
+  }
+
+  pub fn dislocate(self) -> DislocatedDiagnosticValue<T> {
+    DislocatedDiagnosticValue(self.0, self.1.map(|v| v.dislocate()))
+  }
+
+  pub fn map<N>(self, transformer: impl FnOnce(T) -> N) -> DiagnosticValue<'pool, N> {
+    DiagnosticValue(transformer(self.0), self.1)
+  }
+}
+
+impl<T> DislocatedDiagnosticValue<T> {
+  pub fn reference(&self) -> Option<DislocatedDiagnosticReference> {
+    self.1
+  }
+
+  pub fn value_ref<'t>(&'t self) -> &'t T {
+    &self.0
+  }
+
+  fn relocate<'pool>(self, pool: &'pool dyn DiagnosticPoolBuilder) -> DiagnosticValue<'pool, T> {
+    DiagnosticValue(self.0, self.1.map(|v| v.relocate(pool)))
+  }
+
+  pub fn map<N>(self, transformer: impl FnOnce(T) -> N) -> DislocatedDiagnosticValue<N> {
+    DislocatedDiagnosticValue(transformer(self.0), self.1)
   }
 }

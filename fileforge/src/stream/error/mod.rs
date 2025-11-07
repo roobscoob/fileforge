@@ -18,3 +18,7 @@ pub mod user_rewind;
 pub mod user_seek;
 pub mod user_skip;
 pub mod user_write;
+
+pub trait MapExhausted<T, User, I: From<User>> {
+  fn map_exhausted<Midpoint: Into<I>>(self, mapper: impl FnOnce(stream_exhausted::StreamExhaustedError) -> Midpoint) -> Result<T, I>;
+}

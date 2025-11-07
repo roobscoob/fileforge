@@ -1,8 +1,6 @@
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::error::render::{
-  grapheme::Grapheme, position::RenderPosition, r#trait::renderable::Renderable,
-};
+use crate::error::render::{grapheme::Grapheme, position::RenderPosition, r#trait::renderable::Renderable};
 
 use self::summary::RenderBufferCanvasSummary;
 
@@ -17,17 +15,33 @@ pub struct RenderBufferCanvas<'buffer_reference, 'buffer_contents, 'tag> {
   pub(crate) buffer: &'buffer_reference mut RenderBuffer<'buffer_contents, 'tag>,
   pub(crate) start_position: RenderPosition,
   pub(crate) position: RenderPosition,
+  pub(crate) default_tag: Option<&'tag dyn CellTag>,
 }
 
 impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag> {
-  pub fn write(
-    &mut self,
-    renderable: &dyn Renderable<'tag>,
-  ) -> Result<RenderBufferCanvasSummary, ()> {
+  pub fn write(&mut self, renderable: &dyn Renderable<'tag>) -> Result<RenderBufferCanvasSummary, ()> {
     let mut new_canvas = RenderBufferCanvas {
       buffer: self.buffer,
       position: self.position,
       start_position: self.position,
+      default_tag: None,
+    };
+
+    renderable.render_into(&mut new_canvas)?;
+
+    let result = new_canvas.end();
+
+    self.position = result.end_position;
+
+    Ok(result)
+  }
+
+  pub fn write_tagged(&mut self, renderable: &dyn Renderable<'tag>, default_tag: &'tag dyn CellTag) -> Result<RenderBufferCanvasSummary, ()> {
+    let mut new_canvas = RenderBufferCanvas {
+      buffer: self.buffer,
+      position: self.position,
+      start_position: self.position,
+      default_tag: Some(default_tag),
     };
 
     renderable.render_into(&mut new_canvas)?;
@@ -40,7 +54,12 @@ impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag
   }
 
   pub fn set_char(&mut self, str: &str) -> bool {
-    let cell = RenderBufferCell::from_str(str);
+    let cell = if let Some(tag) = self.default_tag {
+      RenderBufferCell::from_str(str).with_tag(tag)
+    } else {
+      RenderBufferCell::from_str(str)
+    };
+
     let result = self.buffer.set_char(self.position, cell);
     self.position = self.position.right(cell.width());
     result
@@ -51,10 +70,7 @@ impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag
 
     for grapheme in str.graphemes(true) {
       if !self.set_char(grapheme) {
-        self
-          .cursor_down()
-          .set_column(start.column())
-          .set_char(grapheme);
+        self.cursor_down().set_column(start.column()).set_char(grapheme);
       };
     }
   }
@@ -71,16 +87,18 @@ impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag
 
     for grapheme in str.graphemes(true) {
       if !self.set_tagged_char(grapheme, tag) {
-        self
-          .cursor_down()
-          .set_column(start.column())
-          .set_tagged_char(grapheme, tag);
+        self.cursor_down().set_column(start.column()).set_tagged_char(grapheme, tag);
       };
     }
   }
 
   pub fn set_grapheme(&mut self, grapheme: Grapheme) -> bool {
-    let cell = RenderBufferCell::new(grapheme);
+    let cell = if let Some(tag) = self.default_tag {
+      RenderBufferCell::new(grapheme).with_tag(tag)
+    } else {
+      RenderBufferCell::new(grapheme)
+    };
+
     let result = self.buffer.set_char(self.position, cell);
     self.position = self.position.right(cell.width());
     result
@@ -100,8 +118,12 @@ impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag
     }
   }
 
-  pub fn get_start_position(&self) -> RenderPosition { self.start_position }
-  pub fn get_position(&self) -> RenderPosition { self.position }
+  pub fn get_start_position(&self) -> RenderPosition {
+    self.start_position
+  }
+  pub fn get_position(&self) -> RenderPosition {
+    self.position
+  }
   pub fn set_position(&mut self, position: RenderPosition) -> &mut Self {
     self.position = position;
     self
@@ -140,17 +162,11 @@ impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag
     }
   }
   pub fn cursor_up(&mut self) -> &mut Self {
-    self.position = self
-      .position
-      .try_up(1)
-      .expect("Expected to be able to move the cursor up");
+    self.position = self.position.try_up(1).expect("Expected to be able to move the cursor up");
     self
   }
   pub fn cursor_up_by(&mut self, count: usize) -> &mut Self {
-    self.position = self
-      .position
-      .try_up(count)
-      .expect("Expected to be able to move the cursor up");
+    self.position = self.position.try_up(count).expect("Expected to be able to move the cursor up");
     self
   }
   pub fn try_cursor_left(&mut self) -> bool {
@@ -170,17 +186,11 @@ impl<'reference, 'contents, 'tag> RenderBufferCanvas<'reference, 'contents, 'tag
     }
   }
   pub fn cursor_left(&mut self) -> &mut Self {
-    self.position = self
-      .position
-      .try_left(1)
-      .expect("Expected to be able to move the cursor left");
+    self.position = self.position.try_left(1).expect("Expected to be able to move the cursor left");
     self
   }
   pub fn cursor_left_by(&mut self, count: usize) -> &mut Self {
-    self.position = self
-      .position
-      .try_left(count)
-      .expect("Expected to be able to move the cursor left");
+    self.position = self.position.try_left(count).expect("Expected to be able to move the cursor left");
     self
   }
   pub fn cursor_right(&mut self) -> &mut Self {

@@ -43,29 +43,17 @@ impl<'l, 't> Text<'l, 't> {
   }
 
   pub fn with(mut self, value: &'l dyn Renderable<'t>) -> Self {
-    self
-      .segments
-      .push(TextSegment::Renderable(value))
-      .map_err(|_| {})
-      .expect("Failed to push Renderable, Text full.");
+    self.segments.push(TextSegment::Renderable(value)).map_err(|_| {}).expect("Failed to push Renderable, Text full.");
     self
   }
 
   pub fn push_tagged(mut self, text: &'l str, tag: &'t dyn CellTag) -> Self {
-    self
-      .segments
-      .push(TextSegment::Segment(text, Some(tag)))
-      .map_err(|_| {})
-      .expect("Failed to push Segment. Text full.");
+    self.segments.push(TextSegment::Segment(text, Some(tag))).map_err(|_| {}).expect("Failed to push Segment. Text full.");
     self
   }
 
   pub fn push(mut self, text: &'l str) -> Self {
-    self
-      .segments
-      .push(TextSegment::Segment(text, None))
-      .map_err(|_| {})
-      .expect("Failed to push Segment. Text full.");
+    self.segments.push(TextSegment::Segment(text, None)).map_err(|_| {}).expect("Failed to push Segment. Text full.");
     self
   }
 }
@@ -93,17 +81,11 @@ impl<'l, 't> Renderable<'t> for Text<'l, 't> {
               for grapheme in chunk.graphemes(true) {
                 if let Some(tag) = tag {
                   if !canvas.set_tagged_char(grapheme, *tag) {
-                    canvas
-                      .cursor_down()
-                      .set_column(start.column())
-                      .set_tagged_char(grapheme, *tag);
+                    canvas.cursor_down().set_column(start.column()).set_tagged_char(grapheme, *tag);
                   };
                 } else {
                   if !canvas.set_char(grapheme) {
-                    canvas
-                      .cursor_down()
-                      .set_column(start.column())
-                      .set_char(grapheme);
+                    canvas.cursor_down().set_column(start.column()).set_char(grapheme);
                   };
                 }
               }
@@ -114,20 +96,14 @@ impl<'l, 't> Renderable<'t> for Text<'l, 't> {
                 canvas.cursor_down().set_column(start.column());
                 continue;
               }
-  
+
               if let Some(tag) = tag {
                 if !canvas.set_tagged_char(grapheme, *tag) {
-                  canvas
-                    .cursor_down()
-                    .set_column(start.column())
-                    .set_tagged_char(grapheme, *tag);
+                  canvas.cursor_down().set_column(start.column()).set_tagged_char(grapheme, *tag);
                 };
               } else {
                 if !canvas.set_char(grapheme) {
-                  canvas
-                    .cursor_down()
-                    .set_column(start.column())
-                    .set_char(grapheme);
+                  canvas.cursor_down().set_column(start.column()).set_char(grapheme);
                 };
               }
             }

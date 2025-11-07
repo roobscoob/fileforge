@@ -9,7 +9,7 @@ impl<'t, const SEGMENTS: usize> Renderable<'t> for Version<SEGMENTS> {
     for (index, segment) in self.versions.iter().enumerate() {
       let number = FormattedUnsigned::new(Into::<u128>::into(*segment));
 
-      canvas.write(&number);
+      canvas.write(&number)?;
 
       if index != self.versions.len() - 1 {
         canvas.set_str(".");

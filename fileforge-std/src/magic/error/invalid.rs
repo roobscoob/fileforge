@@ -1,4 +1,7 @@
-use fileforge::{diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue}, error::FileforgeError};
+use fileforge::{
+  diagnostic::{node::reference::DiagnosticReference, pool::DiagnosticPoolProvider, value::DiagnosticValue},
+  error::{report::Report, FileforgeError},
+};
 
 use super::super::Magic;
 
@@ -10,18 +13,18 @@ pub struct MagicInvalid<'pool, const MAGIC_SIZE: usize> {
 impl<'pool, const MAGIC_SIZE: usize> MagicInvalid<'pool, MAGIC_SIZE> {
   pub fn assert(expected: Magic<MAGIC_SIZE>, actual: Magic<MAGIC_SIZE>, get_dr: impl FnOnce() -> Option<DiagnosticReference<'pool>>) -> Result<(), Self> {
     if expected == actual {
-      return Ok(())
+      return Ok(());
     }
 
     Err(MagicInvalid {
       expected,
-      actual: DiagnosticValue(actual, get_dr())
+      actual: DiagnosticValue(actual, get_dr()),
     })
   }
 }
 
 impl<'pool, const MAGIC_SIZE: usize> FileforgeError for MagicInvalid<'pool, MAGIC_SIZE> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(&self, _: &'pool_ref P, _: impl for<'tag, 'b, 'p2> FnMut(fileforge::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> ()) {
+  fn render_into_report<P: DiagnosticPoolProvider, const ITEM_NAME_SIZE: usize>(&self, _: P, _: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
     unimplemented!()
   }
 }

@@ -4,7 +4,7 @@ use crate::{
   diagnostic::pool::DiagnosticPoolProvider,
   error::{
     render::buffer::cell::tag::builtin::report::{REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT},
-    report::{kind::ReportKind, Report},
+    report::Report,
     FileforgeError,
   },
   provider::{
@@ -290,11 +290,7 @@ pub enum ProviderOverwriteError<P: ResizableProvider> {
 }
 
 impl<'pool, P: ResizableProvider> FileforgeError for ProviderOverwriteError<P> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, Pr: DiagnosticPoolProvider>(
-    &self,
-    provider: &'pool_ref Pr,
-    callback: impl for<'tag, 'b, 'p2> FnMut(Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, Pr>) -> (),
-  ) {
+  fn render_into_report<Pr: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: Pr, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, Pr>) -> ()) {
     match self {
       Self::Poisoned(p) => p.render_into_report(provider, callback),
       Self::Allocate(a) => a.render_into_report(provider, callback),
@@ -321,11 +317,7 @@ impl<T: UserReadError> UserReadError for ProviderStreamError<T> {}
 impl<T: UserMutateError> UserMutateError for ProviderStreamError<T> {}
 
 impl<T: FileforgeError> FileforgeError for ProviderStreamError<T> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
-    &self,
-    provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
-  ) {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
     match self {
       Self::Poisoned(p) => p.render_into_report(provider, callback),
       Self::Specific(s) => s.render_into_report(provider, callback),
@@ -341,18 +333,12 @@ impl UserSeekError for ProviderStreamPoisonedError {}
 impl UserRewindError for ProviderStreamPoisonedError {}
 
 impl FileforgeError for ProviderStreamPoisonedError {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
-    &self,
-    provider: &'pool_ref P,
-    mut callback: impl for<'tag, 'b, 'pool> FnMut(Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
-  ) {
-    let report = Report::new::<Self>(provider, ReportKind::Error, "Provider Stream Poisoned")
-      .with_flag_line(const_text!([&REPORT_FLAG_LINE_TEXT] "This is a low-level error, intended to be consumed by higher-level error handling code. This error is not intended to be displayed to the user. If you're seeing this error and *not* a library author, it may be confusing. Please report this error to the library author."))
-      .unwrap()
-      .with_info_line(const_text!([&REPORT_INFO_LINE_TEXT] "This error occurs when a ProviderStream is \"poisoned\".")).unwrap()
-      .with_info_line(const_text!([&REPORT_INFO_LINE_TEXT] "Poisoning occurs when a provider encounters an error from the stream it cannot recover from.")).unwrap()
-      .with_info_line(const_text!([&REPORT_INFO_LINE_TEXT] "If this error is being displayed, you're probably not properly handling a previous error emitted by the ProviderStream")).unwrap();
-
-    callback(report)
+  fn render_into_report<P: DiagnosticPoolProvider, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    Report::new::<Self>(provider, &"Provider Stream Poisoned")
+      .with_flag_line(const_text!([&REPORT_FLAG_LINE_TEXT] "This is a low-level error, intended to be consumed by higher-level error handling code. This error is not intended to be displayed to the user. If you're seeing this error and *not* a library author, Please report this error to the library author."))
+      .with_info_line(const_text!([&REPORT_INFO_LINE_TEXT] "This error occurs when a ProviderStream is \"poisoned\"."))
+      .with_info_line(const_text!([&REPORT_INFO_LINE_TEXT] "Poisoning occurs when a provider encounters an error from the stream it cannot recover from."))
+      .with_info_line(const_text!([&REPORT_INFO_LINE_TEXT] "If this error is being displayed, you're probably not properly handling a previous error emitted by the ProviderStream"))
+      .apply(callback);
   }
 }

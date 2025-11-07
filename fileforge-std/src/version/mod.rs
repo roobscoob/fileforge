@@ -1,9 +1,4 @@
-use core::convert::Infallible;
-
-use fileforge::{
-  binary_reader::{primitive::Primitive, readable::Readable, BinaryReader, PrimitiveReader},
-  stream::ReadableStream,
-};
+use fileforge::binary_reader::{endianness::Endianness, primitive::Primitive};
 
 pub mod renderable;
 
@@ -45,11 +40,11 @@ impl Version<4> {
 }
 
 impl<'pool: 'l, 'l, const SEGMENTS: usize> Primitive<SEGMENTS> for Version<SEGMENTS> {
-  fn read(data: &[u8; SEGMENTS], endianness: fileforge::binary_reader::endianness::Endianness) -> Self {
+  fn read(data: &[u8; SEGMENTS], _: Endianness) -> Self {
     Self::new_raw(*data)
   }
 
-  fn write(&self, data: &mut [u8; SEGMENTS], endianness: fileforge::binary_reader::endianness::Endianness) {
+  fn write(&self, data: &mut [u8; SEGMENTS], _: Endianness) {
     *data = self.versions;
   }
 }

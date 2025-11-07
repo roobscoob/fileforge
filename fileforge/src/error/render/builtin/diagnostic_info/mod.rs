@@ -1,14 +1,15 @@
 use heapless::Vec;
 
 use crate::{
-  diagnostic::{node::{branch::DiagnosticBranch, fixed::name::FixedDiagnosticNodeName, name::DiagnosticNodeName, reference::DiagnosticReference, DiagnosticNode}, pool::DiagnosticPoolProvider},
+  diagnostic::{
+    node::{branch::DiagnosticBranch, fixed::name::FixedDiagnosticNodeName, name::DiagnosticNodeName, reference::DislocatedDiagnosticReference, DiagnosticNode},
+    pool::DiagnosticPoolProvider,
+  },
   error::{
     render::{
       buffer::{
         canvas::RenderBufferCanvas,
-        cell::tag::builtin::diagnostic_info::{
-          DIAGNOSTIC_INFO_NAME, DIAGNOSTIC_LOCATION, DIAGNOSTIC_LOCATION_SEPARATOR, DIAGNOSTIC_SEPARATOR, DIAGNOSTIC_VALUE_SEPARATOR,
-        },
+        cell::tag::builtin::diagnostic_info::{DIAGNOSTIC_INFO_NAME, DIAGNOSTIC_LOCATION, DIAGNOSTIC_LOCATION_SEPARATOR, DIAGNOSTIC_SEPARATOR, DIAGNOSTIC_VALUE_SEPARATOR},
       },
       position::RenderPosition,
       r#trait::renderable::Renderable,
@@ -27,48 +28,43 @@ use super::{
   transformation::Transformation,
 };
 
-pub enum DiagnosticInfoTail<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> {
-  PathSeparator(&'l DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>),
-  Transformation(Transformation, &'l DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>),
-  Arrow(
-    usize,
-    heapless::Vec<(Option<Transformation>, &'l DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>), 0x10>,
-  ),
+pub enum DiagnosticInfoTail<'l, 't, 'a, const ITEM_NAME_SIZE: usize> {
+  PathSeparator(&'l DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>),
+  Transformation(Transformation, &'l DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>),
+  Arrow(usize, heapless::Vec<(Option<Transformation>, &'l DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>), 0x10>),
   Diagnostic(
     // determines if this should render the note
     bool,
-    &'l ReportNote<'t, 'a, 'pool>,
+    &'l ReportNote<'t, 'a>,
     Option<&'l dyn Renderable<'t>>,
-    heapless::Vec<(Option<Transformation>, &'l DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>), 0x10>,
+    heapless::Vec<(Option<Transformation>, &'l DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>), 0x10>,
   ),
   None,
 }
 
-pub struct DiagnosticInfo<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> {
+pub struct DiagnosticInfo<'l, 't, 'a, const ITEM_NAME_SIZE: usize> {
   name: FixedDiagnosticNodeName<ITEM_NAME_SIZE>,
   offset_in_parent: u64,
   length: Option<u64>,
-  tail: DiagnosticInfoTail<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>,
+  tail: DiagnosticInfoTail<'l, 't, 'a, ITEM_NAME_SIZE>,
   should_display_length: bool,
 }
 
-impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE> {
+impl<'l, 't, 'a, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE> {
   // turns each diagnostic into a DiagnosticInfo
-  fn local_transform_diagnostic<
-    'pool_ref,
-    P: DiagnosticPoolProvider,
-    Cb: for<'x> FnOnce(Option<&'x StackSinglyLinkedList<(DiagnosticReference<'pool>, DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>)>>)
-  >(
-    pool: &'pool_ref P,
-    note_set: &'l ReportNoteSet<'t, 'a, 'pool>,
-    note: &'l ReportNote<'t, 'a, 'pool>,
+  fn local_transform_diagnostic<P: DiagnosticPoolProvider, Cb: for<'x> FnOnce(Option<&'x StackSinglyLinkedList<(DislocatedDiagnosticReference, DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>)>>)>(
+    pool: &P,
+    note_set: &'l ReportNoteSet<'t, 'a>,
+    note: &'l ReportNote<'t, 'a>,
     index: usize,
-    previous: Option<&StackSinglyLinkedList<(DiagnosticReference<'pool>, DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>)>>,
+    previous: Option<&StackSinglyLinkedList<(DislocatedDiagnosticReference, DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>)>>,
     callback: Cb,
   ) {
     if index >= note.locations().len() {
       return callback(previous);
     }
+
+    let builder = pool.get_builder();
 
     let c = note.locations().skip(index).next().unwrap();
     let v = c.dereference(pool).expect("Expected valid reference when building a report");
@@ -81,7 +77,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
       .notes
       .iter()
       .flat_map(|note| note.locations())
-      .flat_map(|l| l.reference.parents(pool))
+      .flat_map(|l| l.reference.relocate(builder).parents(pool))
       .any(|p| p.eq(&v))
     {
       // skip (will create later!)
@@ -103,39 +99,25 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
         (DiagnosticBranch::None, _) => false,
         (DiagnosticBranch::Logical { .. }, _) => false,
         (DiagnosticBranch::Physical { .. }, None) => false,
-        (DiagnosticBranch::Physical { offset, parent }, Some(size)) => {
-          match parent
-            .relocate(c.reference.pool)
-            .dereference(pool)
-            .expect("Expected valid reference when building a report")
-            .size()
-          {
-            Some(parent_size) => offset + size != parent_size,
-            None => true,
-          }
-        }
+        (DiagnosticBranch::Physical { offset, parent }, Some(size)) => match parent.relocate(builder).dereference(pool).expect("Expected valid reference when building a report").size() {
+          Some(parent_size) => offset + size != parent_size,
+          None => true,
+        },
       },
       tail: DiagnosticInfoTail::Diagnostic(should_render_note, note, c.value, Vec::new()),
     };
 
-    let l = StackSinglyLinkedList {
-      contents: (c.reference, d),
-      previous,
-    };
+    let l = StackSinglyLinkedList { contents: (c.reference, d), previous };
 
     Self::local_transform_diagnostic(pool, note_set, note, index + 1, Some(&l), callback)
   }
 
   // calls local_transform_diagnostic for each diagnostic, storing the result in a stack linked list
-  fn local_transform_diagnostics<
-    'pool_ref,
-    P: DiagnosticPoolProvider,
-    Cb: for<'x> FnOnce(Option<&'x StackSinglyLinkedList<(DiagnosticReference<'pool>, DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>)>>),
-  >(
-    pool: &'pool_ref P,
-    notes: &'l ReportNoteSet<'t, 'a, 'pool>,
+  fn local_transform_diagnostics<P: DiagnosticPoolProvider, Cb: for<'x> FnOnce(Option<&'x StackSinglyLinkedList<(DislocatedDiagnosticReference, DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>)>>)>(
+    pool: &P,
+    notes: &'l ReportNoteSet<'t, 'a>,
     index: usize,
-    previous: Option<&StackSinglyLinkedList<(DiagnosticReference<'pool>, DiagnosticInfo<'l, 't, 'a, 'pool, ITEM_NAME_SIZE>)>>,
+    previous: Option<&StackSinglyLinkedList<(DislocatedDiagnosticReference, DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE>)>>,
     callback: Cb,
   ) {
     if index >= notes.notes.len() {
@@ -149,21 +131,19 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
     });
   }
 
-  fn local_tree_recurse<
-    'g,
-    'pool_ref,
-    P: DiagnosticPoolProvider,
-    Cb: for<'x> FnMut(&'x DiagnosticInfo<'x, 't, 'a, 'pool, ITEM_NAME_SIZE>),
-  >(
-    pool: &'pool_ref P,
-    notes: &'l ReportNoteSet<'t, 'a, 'pool>,
-    array: Option<&'g StackSinglyLinkedList<(DiagnosticReference<'pool>, DiagnosticInfo<'g, 't, 'a, 'pool, ITEM_NAME_SIZE>)>>,
-    called_back: Option<&StackSinglyLinkedList<&DiagnosticReference<'pool>>>,
+  fn local_tree_recurse<'g_ref, P: DiagnosticPoolProvider, Cb: for<'x> FnMut(&'x DiagnosticInfo<'x, 't, 'a, ITEM_NAME_SIZE>)>(
+    pool: &P,
+    notes: &'l ReportNoteSet<'t, 'a>,
+    array: Option<&'g_ref StackSinglyLinkedList<(DislocatedDiagnosticReference, DiagnosticInfo<'g_ref, 't, 'a, ITEM_NAME_SIZE>)>>,
+    called_back: Option<&StackSinglyLinkedList<&DislocatedDiagnosticReference>>,
     mut callback: Cb,
   ) {
+    let builder = pool.get_builder();
+
     let y = 'wider: {
       'wide: for (reference, info) in array.iter().flat_map(|v| v.iter()) {
         let parent = reference
+          .relocate(builder)
           .dereference(pool)
           .expect("Expected valid reference when building a report")
           .branch()
@@ -190,15 +170,13 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
           }
         }
 
-        let parent_reference = parent.unwrap().relocate(reference.pool);
-        let parent = parent_reference
-          .dereference(pool)
-          .expect("Expected valid parent reference when building a report");
+        let parent_reference = parent.unwrap().relocate(builder);
+        let parent = parent_reference.dereference(pool).expect("Expected valid parent reference when building a report");
 
         if array
           .iter()
           .flat_map(|v| v.iter())
-          .any(|i| i.0.dereference(pool).expect("Expected valid reference when building a report").eq(&parent))
+          .any(|i| i.0.relocate(builder).dereference(pool).expect("Expected valid reference when building a report").eq(&parent))
         {
           continue;
         }
@@ -216,26 +194,17 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
             (DiagnosticBranch::Logical { .. }, _) => false,
             (DiagnosticBranch::Physical { .. }, None) => false,
             (DiagnosticBranch::Physical { offset, parent: parent2 }, Some(size)) => {
-              match parent2
-                .relocate(reference.pool)
-                .dereference(pool)
-                .expect("Expected valid reference when building a report")
-                .size()
-              {
+              match parent2.relocate(builder).dereference(pool).expect("Expected valid reference when building a report").size() {
                 Some(parent2_size) => offset + size != parent2_size,
                 None => true,
               }
             }
           },
-          tail: if let Some(x) = notes
-            .notes
-            .iter()
-            .find(|note| note.locations().any(|l| l.reference == parent_reference))
-          {
+          tail: if let Some(x) = notes.notes.iter().find(|note| note.locations().any(|l| l.reference.relocate(builder) == parent_reference)) {
             DiagnosticInfoTail::Diagnostic(
-              x.locations().last().unwrap().reference == parent_reference,
+              x.locations().last().unwrap().reference.relocate(builder) == parent_reference,
               x,
-              x.locations().find(|l| l.reference == parent_reference).unwrap().value,
+              x.locations().find(|l| l.reference.relocate(builder) == parent_reference).unwrap().value,
               Vec::new(),
             )
           } else {
@@ -252,16 +221,11 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
             .notes
             .iter()
             .flat_map(|v| v.locations())
-            .flat_map(|l| l.reference.parents_incl_self(pool))
+            .flat_map(|l| l.reference.relocate(builder).parents_incl_self(pool))
             .filter(|l| {
               l.branch()
                 .parent()
-                .map(|p| {
-                  p.relocate(reference.pool)
-                    .dereference(pool)
-                    .expect("Expected valid parent reference when building a report")
-                    .eq(&parent_of)
-                })
+                .map(|p| p.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").eq(&parent_of))
                 .unwrap_or(false)
             })
             .enumerate()
@@ -270,16 +234,11 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
               .notes
               .iter()
               .flat_map(|v| v.locations())
-              .flat_map(|l| l.reference.parents_incl_self(pool))
+              .flat_map(|l| l.reference.relocate(builder).parents_incl_self(pool))
               .filter(|l| {
                 l.branch()
                   .parent()
-                  .map(|p| {
-                    p.relocate(reference.pool)
-                      .dereference(pool)
-                      .expect("Expected valid parent reference when building a report")
-                      .eq(&parent_of)
-                  })
+                  .map(|p| p.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").eq(&parent_of))
                   .unwrap_or(false)
               })
               .enumerate()
@@ -305,26 +264,16 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
           .notes
           .iter()
           .flat_map(|v| v.locations())
-          .flat_map(|l| l.reference.parents_incl_self(pool))
-          .filter(|l| {
-            l.branch()
-              .parent()
-              .map(|p| p.relocate(reference.pool).eq(&parent_reference))
-              .unwrap_or(false)
-          })
+          .flat_map(|l| l.reference.relocate(builder).parents_incl_self(pool))
+          .filter(|l| l.branch().parent().map(|p| p.relocate(builder).eq(&parent_reference)).unwrap_or(false))
           .enumerate()
         {
           'checking_dupes: for (other_child_index, other_child) in notes
             .notes
             .iter()
             .flat_map(|v| v.locations())
-            .flat_map(|l| l.reference.parents_incl_self(pool))
-            .filter(|l| {
-              l.branch()
-                .parent()
-                .map(|p| p.relocate(reference.pool).eq(&parent_reference))
-                .unwrap_or(false)
-            })
+            .flat_map(|l| l.reference.relocate(builder).parents_incl_self(pool))
+            .filter(|l| l.branch().parent().map(|p| p.relocate(builder).eq(&parent_reference)).unwrap_or(false))
             .enumerate()
           {
             if other_child.eq(&child) && other_child_index != child_index {
@@ -340,7 +289,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
             None => None,
             Some(i) => 'pl: {
               for v in i.iter() {
-                if v.0.dereference(pool).expect("Expected valid parent reference when building a report").eq(&child) {
+                if v.0.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").eq(&child) {
                   break 'pl Some(v);
                 }
               }
@@ -357,11 +306,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
 
           match &mut new.tail {
             DiagnosticInfoTail::Diagnostic(_, _, _, vec) => {
-              match reference
-                .dereference(pool)
-                .expect("Expected valid parent reference when building a report")
-                .branch()
-              {
+              match reference.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").branch() {
                 DiagnosticBranch::None => unreachable!(),
                 DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
                 DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
@@ -369,11 +314,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
             }
 
             DiagnosticInfoTail::None => {
-              new.tail = match reference
-                .dereference(pool)
-                .expect("Expected valid parent reference when building a report")
-                .branch()
-              {
+              new.tail = match reference.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").branch() {
                 DiagnosticBranch::None => unreachable!(),
                 DiagnosticBranch::Logical { name, .. } => DiagnosticInfoTail::Transformation(Transformation { name }, &info),
                 DiagnosticBranch::Physical { .. } => DiagnosticInfoTail::PathSeparator(&info),
@@ -385,11 +326,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
 
               vec.push((None, *other_ref)).map_err(|_| {}).unwrap();
 
-              match reference
-                .dereference(pool)
-                .expect("Expected valid parent reference when building a report")
-                .branch()
-              {
+              match reference.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").branch() {
                 DiagnosticBranch::None => unreachable!(),
                 DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
                 DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
@@ -403,11 +340,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
 
               vec.push((Some(*transformation), *other_ref)).map_err(|_| {}).unwrap();
 
-              match reference
-                .dereference(pool)
-                .expect("Expected valid parent reference when building a report")
-                .branch()
-              {
+              match reference.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").branch() {
                 DiagnosticBranch::None => unreachable!(),
                 DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
                 DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
@@ -417,11 +350,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
             }
 
             DiagnosticInfoTail::Arrow(_, vec) => {
-              match reference
-                .dereference(pool)
-                .expect("Expected valid parent reference when building a report")
-                .branch()
-              {
+              match reference.relocate(builder).dereference(pool).expect("Expected valid parent reference when building a report").branch() {
                 DiagnosticBranch::None => unreachable!(),
                 DiagnosticBranch::Logical { name, .. } => vec.push((Some(Transformation { name }), info)).map_err(|_| {}).unwrap(),
                 DiagnosticBranch::Physical { .. } => vec.push((None, info)).map_err(|_| {}).unwrap(),
@@ -431,7 +360,7 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
         }
 
         break 'wider StackSinglyLinkedList {
-          contents: (parent_reference, new),
+          contents: (parent_reference.dislocate(), new),
           previous: array,
         };
       }
@@ -442,37 +371,27 @@ impl<'l, 't, 'a, 'pool, const ITEM_NAME_SIZE: usize> DiagnosticInfo<'l, 't, 'a, 
   }
 }
 
-impl<'l, 't, 'a, 'b> DiagnosticInfo<'l, 't, 'a, 'b, 0> {
-  pub fn transform_diagnostics<
-    'pool_ref,
-    P: DiagnosticPoolProvider,
-    const ITEM_NAME_SIZE: usize
-  >(
+impl<'l, 't, 'a> DiagnosticInfo<'l, 't, 'a, 0> {
+  pub fn transform_diagnostics<'pool_ref, P: DiagnosticPoolProvider, const ITEM_NAME_SIZE: usize>(
     pool: &'pool_ref P,
-    notes: &'l ReportNoteSet<'t, 'a, 'b>,
-    callback: impl for<'x> FnMut(&'x DiagnosticInfo<'x, 't, 'a, 'b, ITEM_NAME_SIZE>),
+    notes: &'l ReportNoteSet<'t, 'a>,
+    callback: impl for<'x> FnMut(&'x DiagnosticInfo<'x, 't, 'a, ITEM_NAME_SIZE>),
   ) {
-    DiagnosticInfo::<'l, 't, 'a, 'b, ITEM_NAME_SIZE>::local_transform_diagnostics(pool, notes, 0, None, |res| {
-      DiagnosticInfo::<'l, 't, 'a, 'b, ITEM_NAME_SIZE>::local_tree_recurse(pool, notes, res, None, callback);
+    DiagnosticInfo::<'l, 't, 'a, ITEM_NAME_SIZE>::local_transform_diagnostics(pool, notes, 0, None, |res| {
+      DiagnosticInfo::<'l, 't, 'a, ITEM_NAME_SIZE>::local_tree_recurse(pool, notes, res, None, callback);
     });
   }
 }
 
-impl<'l, 't, 'a, 'b, const ITEM_NAME_SIZE: usize> Renderable<'t> for DiagnosticInfo<'l, 't, 'a, 'b, ITEM_NAME_SIZE> {
+impl<'l, 't, 'a, const ITEM_NAME_SIZE: usize> Renderable<'t> for DiagnosticInfo<'l, 't, 'a, ITEM_NAME_SIZE> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
     canvas.set_tagged_str(self.name.as_str(), &DIAGNOSTIC_INFO_NAME);
 
-    let mut start_offset = FormattedUnsigned::new(self.offset_in_parent as u128)
-      .base(16)
-      .uppercase()
-      .tag(&DIAGNOSTIC_LOCATION);
+    let mut start_offset = FormattedUnsigned::new(self.offset_in_parent as u128).base(16).uppercase().tag(&DIAGNOSTIC_LOCATION);
 
-    let mut end_offset = self.length.map(|length| {
-      FormattedUnsigned::new(self.offset_in_parent as u128 + length as u128)
-        .base(16)
-        .uppercase()
-        .tag(&DIAGNOSTIC_LOCATION)
-    });
+    let mut end_offset = self
+      .length
+      .map(|length| FormattedUnsigned::new(self.offset_in_parent as u128 + length as u128).base(16).uppercase().tag(&DIAGNOSTIC_LOCATION));
 
     let max_padding = end_offset
       .as_ref()
@@ -576,10 +495,7 @@ impl<'l, 't, 'a, 'b, const ITEM_NAME_SIZE: usize> Renderable<'t> for DiagnosticI
         let pos = canvas.get_position();
 
         let result = if *should_render_note {
-          canvas
-            .set_column(canvas.start_position.column())
-            .cursor_down()
-            .cursor_right_by(if children.len() == 0 { 0 } else { 2 });
+          canvas.set_column(canvas.start_position.column()).cursor_down().cursor_right_by(if children.len() == 0 { 0 } else { 2 });
 
           canvas.write(note.message)?.get_line_height()
         } else {

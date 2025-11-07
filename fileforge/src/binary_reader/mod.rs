@@ -1,29 +1,31 @@
-use core::{any::type_name, future::ready};
+use core::future::ready;
 
 use diagnostic_store::{DiagnosticKind, DiagnosticStore};
 use endianness::Endianness;
-use error::{
-  exhausted::ReaderExhaustedError,
-  get_primitive::GetPrimitiveError,
-  rewind::RewindError,
-  seek_out_of_bounds::{SeekOffset, SeekOutOfBounds},
-  set_primitive::SetPrimitiveError,
-  skip::SkipError,
-};
+use error::{exhausted::ReaderExhaustedError, seek_out_of_bounds::SeekOutOfBounds};
 use mutable::Mutable;
 use primitive::Primitive;
 use readable::{NoneArgument, Readable};
 use writable::Writable;
 
 use crate::{
-  binary_reader::{readable::IntoReadable, snapshot::BinaryReaderSnapshot},
+  binary_reader::{
+    error::{
+      common::{ExhaustedType, Read, SeekOffset, Write},
+      primitive_name_annotation::PrimitiveName,
+      GetPrimitiveError, RewindError, SetPrimitiveError, SkipError,
+    },
+    readable::IntoReadable,
+    snapshot::BinaryReaderSnapshot,
+  },
   diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
+  error::ext::annotations::annotated::{Annotated, AnnotationExt},
   provider::{hint::ReadHint, Provider},
   stream::{
     builtin::provider::ProviderStream,
     error::{
-      stream_mutate::StreamMutateError, stream_read::StreamReadError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
-      stream_skip::StreamSkipError, user_read::UserReadError,
+      stream_exhausted::StreamExhaustedError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
+      stream_skip::StreamSkipError, user_read::UserReadError, MapExhausted,
     },
     MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream,
   },
@@ -116,7 +118,7 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
     self.base_offset + self.stream.offset()
   }
 
-  pub fn create_physical_diagnostic(&self, offset: i64, length: Option<u64>, name: &str) -> Option<DiagnosticReference<'pool>> {
+  pub fn create_physical_diagnostic(&self, offset: i128, length: Option<u64>, name: &str) -> Option<DiagnosticReference<'pool>> {
     Some(
       self
         .diagnostics
@@ -159,12 +161,12 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
           base_offset: offset,
           add: seek_forwards_distance,
         },
-        provider_size: DiagnosticValue(stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
+        provider_size: self.diagnostics.infuse(DiagnosticKind::ReaderLength, stream_length),
         container_dr: self.diagnostics.get(DiagnosticKind::Reader),
       }),
       StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError { stream_length, seek_point }) => SkipError::OutOfBounds(SeekOutOfBounds {
         seek_offset: SeekOffset::InBounds(seek_point),
-        provider_size: DiagnosticValue(stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
+        provider_size: self.diagnostics.infuse(DiagnosticKind::ReaderLength, stream_length),
         container_dr: self.diagnostics.get(DiagnosticKind::Reader),
       }),
     })
@@ -173,73 +175,45 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
   pub fn into_stream(self) -> S {
     self.stream
   }
-}
 
-impl<'pool, S: RewindableStream<Type = u8>> BinaryReader<'pool, S> {
-  pub async fn rewind(&mut self, size: u64) -> Result<(), RewindError<'pool, S::RewindError>> {
-    self.stream.rewind(size).await.map_err(|e| match e {
-      StreamRewindError::User(u) => RewindError::User(u),
-      StreamRewindError::SeekPointUnderflowed {
-        stream_length,
-        offset,
-        seek_backwards_distance,
-      } => RewindError::OutOfBounds(SeekOutOfBounds {
-        seek_offset: SeekOffset::Underflow {
-          base_offset: offset,
-          subtract: seek_backwards_distance,
-        },
-        provider_size: DiagnosticValue(stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
-        container_dr: self.diagnostics.get(DiagnosticKind::Reader),
-      }),
-    })
+  fn saturate_exhausted<T: ExhaustedType, const SIZE: usize>(&self, e: StreamExhaustedError) -> ReaderExhaustedError<'pool, T> {
+    ReaderExhaustedError {
+      container: self.diagnostics.get(DiagnosticKind::Reader),
+      length: DiagnosticValue(SIZE as u64, None),
+      offset: e.read_offset,
+      stream_length: DiagnosticValue(e.stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
+      t: T::VALUE,
+    }
   }
 }
 
 pub trait PrimitiveReader<'pool, const SIZE: usize, S: ReadableStream<Type = u8>> {
-  async fn get<P: Primitive<SIZE>>(&mut self) -> Result<P, GetPrimitiveError<'pool, S::ReadError>>;
+  async fn get<P: Primitive<SIZE>>(&mut self) -> Result<P, Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>;
 }
 
 impl<'pool, S: ReadableStream<Type = u8>, const SIZE: usize> PrimitiveReader<'pool, SIZE, S> for BinaryReader<'pool, S> {
-  async fn get<'a, P: Primitive<SIZE>>(&'a mut self) -> Result<P, GetPrimitiveError<'pool, <S as ReadableStream>::ReadError>> {
-    self.stream.read(|data: &[u8; SIZE]| ready(P::read(data, self.endianness))).await.map_err(|e| {
-      let typename = type_name::<P>();
-      match e {
-        StreamReadError::StreamExhausted(e) => GetPrimitiveError::ReaderExhausted(
-          typename,
-          ReaderExhaustedError {
-            container: self.diagnostics.get(DiagnosticKind::Reader),
-            length: DiagnosticValue(SIZE as u64, None),
-            offset: e.read_offset,
-            stream_length: DiagnosticValue(e.stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
-          },
-        ),
-        StreamReadError::User(u) => GetPrimitiveError::User(typename, u),
-      }
-    })
+  async fn get<'a, P: Primitive<SIZE>>(&'a mut self) -> Result<P, Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, <S as ReadableStream>::ReadError>>> {
+    self
+      .stream
+      .read(|data: &[u8; SIZE]| ready(P::read(data, self.endianness)))
+      .await
+      .map_exhausted(|e| self.saturate_exhausted::<_, SIZE>(e))
+      .annotate(PrimitiveName::for_type::<P>())
   }
 }
 
 pub trait PrimitiveWriter<'pool, const SIZE: usize, S: MutableStream<Type = u8>> {
-  async fn set<P: Primitive<SIZE>>(&mut self, primitive: P) -> Result<(), SetPrimitiveError<'pool, S::MutateError>>;
+  async fn set<P: Primitive<SIZE>>(&mut self, primitive: P) -> Result<(), Annotated<PrimitiveName<Write>, SetPrimitiveError<'pool, S::MutateError>>>;
 }
 
 impl<'pool, S: MutableStream<Type = u8>, const SIZE: usize> PrimitiveWriter<'pool, SIZE, S> for BinaryReader<'pool, S> {
-  async fn set<P: Primitive<SIZE>>(&mut self, primitive: P) -> Result<(), SetPrimitiveError<'pool, S::MutateError>> {
-    self.stream.mutate(|data: &mut [u8; SIZE]| ready(P::write(&primitive, data, self.endianness))).await.map_err(|e| {
-      let typename = type_name::<P>();
-      match e {
-        StreamMutateError::StreamExhausted(e) => SetPrimitiveError::ReaderExhausted(
-          typename,
-          ReaderExhaustedError {
-            container: self.diagnostics.get(DiagnosticKind::Reader),
-            length: DiagnosticValue(SIZE as u64, None),
-            offset: e.read_offset,
-            stream_length: DiagnosticValue(e.stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
-          },
-        ),
-        StreamMutateError::User(u) => SetPrimitiveError::User(typename, u),
-      }
-    })
+  async fn set<P: Primitive<SIZE>>(&mut self, primitive: P) -> Result<(), Annotated<PrimitiveName<Write>, SetPrimitiveError<'pool, S::MutateError>>> {
+    self
+      .stream
+      .mutate(|data: &mut [u8; SIZE]| ready(P::write(&primitive, data, self.endianness)))
+      .await
+      .map_exhausted(|e| self.saturate_exhausted::<_, SIZE>(e))
+      .annotate(PrimitiveName::for_type::<P>())
   }
 }
 
@@ -277,5 +251,25 @@ impl<'pool, S: RestorableStream<Type = u8>> BinaryReader<'pool, S> {
     self.diagnostics = snapshot.diagnostics;
 
     Ok(())
+  }
+}
+
+impl<'pool, S: RewindableStream<Type = u8>> BinaryReader<'pool, S> {
+  pub async fn rewind(&mut self, size: u64) -> Result<(), RewindError<'pool, S::RewindError>> {
+    self.stream.rewind(size).await.map_err(|e| match e {
+      StreamRewindError::User(u) => RewindError::User(u),
+      StreamRewindError::SeekPointUnderflowed {
+        stream_length,
+        offset,
+        seek_backwards_distance,
+      } => RewindError::OutOfBounds(SeekOutOfBounds {
+        seek_offset: SeekOffset::Underflow {
+          base_offset: offset,
+          subtract: seek_backwards_distance,
+        },
+        provider_size: DiagnosticValue(stream_length, self.diagnostics.get(DiagnosticKind::ReaderLength)),
+        container_dr: self.diagnostics.get(DiagnosticKind::Reader),
+      }),
+    })
   }
 }

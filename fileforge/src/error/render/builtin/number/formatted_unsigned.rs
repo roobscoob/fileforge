@@ -1,6 +1,9 @@
-use crate::error::render::{
-  buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag},
-  r#trait::renderable::Renderable,
+use crate::{
+  diagnostic::value::DiagnosticValue,
+  error::render::{
+    buffer::{canvas::RenderBufferCanvas, cell::tag::CellTag},
+    r#trait::renderable::Renderable,
+  },
 };
 
 use super::{separator::Separator, DIGITS_LOWER, DIGITS_UPPER};
@@ -14,6 +17,52 @@ pub struct FormattedUnsigned<'tag> {
   tag: Option<&'tag dyn CellTag>,
   separator: Option<Separator>,
   prefix: Option<&'static str>,
+}
+
+impl<'tag> From<u8> for FormattedUnsigned<'tag> {
+  fn from(value: u8) -> Self {
+    Self::new(value as u128)
+  }
+}
+
+impl<'tag> From<u16> for FormattedUnsigned<'tag> {
+  fn from(value: u16) -> Self {
+    Self::new(value as u128)
+  }
+}
+
+impl<'tag> From<u32> for FormattedUnsigned<'tag> {
+  fn from(value: u32) -> Self {
+    Self::new(value as u128)
+  }
+}
+
+impl<'tag> From<u64> for FormattedUnsigned<'tag> {
+  fn from(value: u64) -> Self {
+    Self::new(value as u128)
+  }
+}
+
+impl<'tag, T: Into<FormattedUnsigned<'tag>> + Copy> From<&T> for FormattedUnsigned<'tag> {
+  fn from(value: &T) -> Self {
+    (*value).into()
+  }
+}
+
+impl<'tag, 'pool, T: Into<FormattedUnsigned<'tag>> + Copy> From<DiagnosticValue<'pool, T>> for FormattedUnsigned<'tag> {
+  fn from(value: DiagnosticValue<'pool, T>) -> Self {
+    (*value).into()
+  }
+}
+
+pub trait FormattedExt<'tag> {
+  fn format(self) -> FormattedUnsigned<'tag>;
+}
+
+impl<'tag, T: Into<FormattedUnsigned<'tag>>> FormattedExt<'tag> for T {
+  fn format(self) -> FormattedUnsigned<'tag> {
+    self.into()
+  }
 }
 
 impl<'tag> FormattedUnsigned<'tag> {

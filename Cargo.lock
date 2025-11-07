@@ -186,6 +186,7 @@ name = "fileforge-std"
 version = "0.1.2"
 dependencies = [
  "fileforge",
+ "fileforge-macros",
 ]
 
 [[package]]

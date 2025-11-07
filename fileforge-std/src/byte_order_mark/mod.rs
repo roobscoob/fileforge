@@ -1,8 +1,10 @@
-use error::{error::ByteOrderMarkError, invalid::ByteOrderMarkInvalid};
+use error::invalid::ByteOrderMarkInvalid;
 use fileforge::{
   binary_reader::{endianness::Endianness, readable::Readable, BinaryReader, PrimitiveReader},
   stream::ReadableStream,
 };
+
+use crate::byte_order_mark::error::ByteOrderMarkError;
 
 pub mod error;
 pub mod renderable;

@@ -14,6 +14,22 @@ pub trait DiagnosticPoolProvider {
   fn get_builder(&self) -> &dyn DiagnosticPoolBuilder;
 }
 
+impl<P: DiagnosticPoolProvider> DiagnosticPoolProvider for &P {
+  type Node = P::Node;
+
+  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node> {
+    (**self).get(index, generation)
+  }
+
+  fn was_built_by(&self, builder: &dyn DiagnosticPoolBuilder) -> bool {
+    (**self).was_built_by(builder)
+  }
+
+  fn get_builder(&self) -> &dyn DiagnosticPoolBuilder {
+    (**self).get_builder()
+  }
+}
+
 pub trait DiagnosticPoolBuilder {
   fn create(&self, branch: DiagnosticBranch, size: Option<u64>, name: &str) -> DiagnosticReference;
 }
