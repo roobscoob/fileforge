@@ -1,12 +1,13 @@
 use fileforge::{
   binary_reader::{
-    error::{rewind::RewindError, set_primitive::SetPrimitiveError, skip::SkipError},
+    error::{primitive_name_annotation::PrimitiveName, RewindError, SetPrimitiveError, SkipError},
     mutable::Mutable,
     BinaryReader, PrimitiveWriter,
   },
+  error::ext::annotations::annotated::Annotated,
   stream::{MutableStream, RewindableStream},
 };
-use fileforge_std::magic::{error::error::MagicError, Magic};
+use fileforge_std::magic::{Magic, MagicError};
 
 use super::{readable::YAZ0_MAGIC, Yaz0Header};
 
@@ -20,7 +21,10 @@ pub struct Yaz0HeaderMutator<'pool, 'l, S: MutableStream<Type = u8> + 'l, const 
 }
 
 impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S, 0> {
-  pub async fn with_uncompressed_size(self, size: u32) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 1>, SetPrimitiveError<'pool, S::MutateError>> {
+  pub async fn with_uncompressed_size(
+    self,
+    size: u32,
+  ) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 1>, Annotated<PrimitiveName<fileforge::binary_reader::error::common::Write>, SetPrimitiveError<'pool, <S as MutableStream>::MutateError>>> {
     self.reader.set(size).await?;
     Ok(Yaz0HeaderMutator { reader: self.reader })
   }
@@ -40,7 +44,10 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
     Ok(Yaz0HeaderMutator { reader: self.reader })
   }
 
-  pub async fn with_alignment(self, alignment: u32) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 2>, SetPrimitiveError<'pool, S::MutateError>> {
+  pub async fn with_alignment(
+    self,
+    alignment: u32,
+  ) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 2>, Annotated<PrimitiveName<fileforge::binary_reader::error::common::Write>, SetPrimitiveError<'pool, <S as MutableStream>::MutateError>>> {
     self.reader.set(alignment).await?;
     Ok(Yaz0HeaderMutator { reader: self.reader })
   }

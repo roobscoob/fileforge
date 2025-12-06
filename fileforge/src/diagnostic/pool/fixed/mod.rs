@@ -78,20 +78,23 @@ impl<'pool, const NODE_NAME_SIZE: usize> FixedDiagnosticPool<'pool, NODE_NAME_SI
 }
 
 impl<'pool, const NODE_NAME_SIZE: usize> DiagnosticPoolProvider for FixedDiagnosticPool<'pool, NODE_NAME_SIZE> {
-  type Node = FixedDiagnosticNode<NODE_NAME_SIZE>;
+  type Node<'a>
+    = FixedDiagnosticNode<NODE_NAME_SIZE>
+  where
+    Self: 'a;
 
-  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node> {
+  fn get<'a>(&'a self, index: u32, generation: NonZero<u32>) -> Option<Self::Node<'a>> {
     self.contents.get(index as usize).and_then(|v| v.get()).and_then(|v| v.try_get(generation))
-  }
-
-  fn was_built_by(&self, _: &dyn DiagnosticPoolBuilder) -> bool {
-    // TODO: This doesn't support multiple DPPs
-
-    true
   }
 
   fn get_builder(&self) -> &dyn DiagnosticPoolBuilder {
     self
+  }
+
+  fn was_built_by(&self, other: &dyn DiagnosticPoolBuilder) -> bool {
+    // TODO: This doesn't support multiple DPPs
+
+    true
   }
 }
 

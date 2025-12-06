@@ -1,9 +1,13 @@
 use fileforge::{
-  binary_reader::{error::get_primitive::GetPrimitiveError, readable::Readable, BinaryReader, PrimitiveReader},
-  error::FileforgeError,
+  binary_reader::{
+    error::{primitive_name_annotation::PrimitiveName, GetPrimitiveError},
+    readable::Readable,
+    BinaryReader, PrimitiveReader,
+  },
+  error::{ext::annotations::annotated::Annotated, FileforgeError},
   stream::{error::user_read::UserReadError, ReadableStream},
 };
-use fileforge_std::magic::{error::error::MagicError, Magic};
+use fileforge_std::magic::{Magic, MagicError};
 
 use super::Yaz0Header;
 
@@ -26,16 +30,16 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for Yaz0Header {
 
 pub enum Yaz0HeaderReadError<'pool, U: UserReadError> {
   Magic(MagicError<'pool, 4, U>),
-  TotalSize(GetPrimitiveError<'pool, U>),
-  Alignment(GetPrimitiveError<'pool, U>),
-  Unused(GetPrimitiveError<'pool, U>),
+  TotalSize(Annotated<PrimitiveName<fileforge::binary_reader::error::common::Read>, GetPrimitiveError<'pool, U>>),
+  Alignment(Annotated<PrimitiveName<fileforge::binary_reader::error::common::Read>, GetPrimitiveError<'pool, U>>),
+  Unused(Annotated<PrimitiveName<fileforge::binary_reader::error::common::Read>, GetPrimitiveError<'pool, U>>),
 }
 
 impl<'pool, U: UserReadError> FileforgeError for Yaz0HeaderReadError<'pool, U> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(
+  fn render_into_report<P: fileforge::diagnostic::pool::DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
     &self,
-    _provider: &'pool_ref P,
-    _callback: impl for<'tag, 'b, 'p2> FnMut(fileforge::error::report::Report<'tag, 'b, 'p2, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    provider: P,
+    callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }

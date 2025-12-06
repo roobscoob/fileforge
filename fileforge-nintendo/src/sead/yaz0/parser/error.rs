@@ -50,30 +50,30 @@ impl<SURE: UserReadError, SUREE: UserRestoreError, SUSE: UserSkipError, SUOE: Us
 impl<SURE: UserReadError, SUREE: UserRestoreError, SUSE: UserSkipError, SUOE: UserOverwriteError, SUME: UserMutateError> UserOverwriteError for Yaz0ParserMutateError<SURE, SUREE, SUSE, SUOE, SUME> {}
 
 impl<SURE: UserReadError> FileforgeError for Yaz0ParserError<SURE> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
     &self,
-    provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    provider: P,
+    callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }
 }
 
 impl<SURE: UserReadError, SUSE: UserSkipError> FileforgeError for Yaz0ParserSkipError<SURE, SUSE> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
     &self,
-    provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    provider: P,
+    callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }
 }
 
 impl<SURE: UserReadError, SUREE: UserRestoreError, SUSE: UserSkipError, SUOE: UserOverwriteError, SUME: UserMutateError> FileforgeError for Yaz0ParserMutateError<SURE, SUREE, SUSE, SUOE, SUME> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
     &self,
-    provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'pool> FnMut(fileforge::error::report::Report<'tag, 'b, 'pool, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    provider: P,
+    callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
     unimplemented!()
   }

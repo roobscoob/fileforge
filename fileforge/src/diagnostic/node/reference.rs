@@ -63,7 +63,7 @@ impl<'pool> DiagnosticReference<'pool> {
     self.dereference(provider).is_some()
   }
 
-  pub fn dereference<P: DiagnosticPoolProvider>(&self, provider: &P) -> Option<P::Node> {
+  pub fn dereference<'a, P: DiagnosticPoolProvider>(&self, provider: &'a P) -> Option<P::Node<'a>> {
     if !provider.was_built_by(self.pool) {
       return None;
     }
@@ -71,7 +71,7 @@ impl<'pool> DiagnosticReference<'pool> {
     provider.get(self.index, self.generation)
   }
 
-  pub fn root<P: DiagnosticPoolProvider>(&self, provider: &P) -> Option<P::Node> {
+  pub fn root<'a, P: DiagnosticPoolProvider>(&self, provider: &'a P) -> Option<P::Node<'a>> {
     let mut own = self.dereference(provider)?;
 
     while let Some(parent) = own.branch().parent().iter().flat_map(|p| p.relocate(self.pool).dereference(provider)).next() {
@@ -81,7 +81,7 @@ impl<'pool> DiagnosticReference<'pool> {
     Some(own)
   }
 
-  pub fn parent<P: DiagnosticPoolProvider>(&self, provider: &P) -> Option<P::Node> {
+  pub fn parent<'a, P: DiagnosticPoolProvider>(&self, provider: &'a P) -> Option<P::Node<'a>> {
     self.dereference(provider)?.branch().parent().map(|p| p.relocate(self.pool).dereference(provider)).flatten()
   }
 
@@ -89,13 +89,19 @@ impl<'pool> DiagnosticReference<'pool> {
     self.dereference(provider)?.branch().parent().map(|p| p.relocate(self.pool))
   }
 
-  pub fn parents<'provider, P: DiagnosticPoolProvider>(&self, provider: &'provider P) -> core::iter::Successors<P::Node, impl (for<'a> FnMut(&'a P::Node) -> Option<P::Node>) + 'provider> {
+  pub fn parents<'provider, P: DiagnosticPoolProvider>(
+    &self,
+    provider: &'provider P,
+  ) -> core::iter::Successors<P::Node<'provider>, impl (for<'a> FnMut(&'a P::Node<'provider>) -> Option<P::Node<'provider>>) + 'provider> {
     core::iter::successors(self.parent(provider), move |v| {
       v.branch().parent().map(move |v| v.relocate(provider.get_builder()).dereference(provider)).flatten()
     })
   }
 
-  pub fn parents_incl_self<'provider, P: DiagnosticPoolProvider>(&self, provider: &'provider P) -> core::iter::Successors<P::Node, impl (for<'a> FnMut(&'a P::Node) -> Option<P::Node>) + 'provider> {
+  pub fn parents_incl_self<'provider, P: DiagnosticPoolProvider>(
+    &self,
+    provider: &'provider P,
+  ) -> core::iter::Successors<P::Node<'provider>, impl (for<'a> FnMut(&'a P::Node<'provider>) -> Option<P::Node<'provider>>) + 'provider> {
     core::iter::successors(self.dereference(provider), |v| {
       v.branch().parent().map(|v| v.relocate(provider.get_builder()).dereference(provider)).flatten()
     })
@@ -124,12 +130,6 @@ impl DislocatedDiagnosticReference {
     }
   }
 }
-
-// impl<'pool, const NODE_NAME_SIZE: usize> Debug for DiagnosticReference<'pool, NODE_NAME_SIZE> {
-//   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-//     f.write_fmt(format_args!("DiagnosticReference[{} @ {}]", self.index, self.generation))
-//   }
-// }
 
 impl<'pool> Eq for DiagnosticReference<'pool> {}
 impl<'pool> PartialEq for DiagnosticReference<'pool> {

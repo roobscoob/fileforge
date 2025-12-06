@@ -1,7 +1,10 @@
 use fileforge::{
-  binary_reader::{error::set_primitive::SetPrimitiveError, mutable::Mutable, view::ViewMutateError},
+  binary_reader::{
+    error::{primitive_name_annotation::PrimitiveName, SetPrimitiveError},
+    view::ViewMutateError,
+  },
   diagnostic::pool::DiagnosticPoolProvider,
-  error::FileforgeError,
+  error::{ext::annotations::annotated::Annotated, FileforgeError},
   stream::{
     error::{
       stream_mutate::StreamMutateError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError, user_mutate::UserMutateError,
@@ -21,7 +24,7 @@ pub enum Yaz0OverwriteError<'pool, S: MutableStream<Type = u8> + RestorableStrea
   MalformedStream(MalformedStream),
   MutateHeaderError(ViewMutateError<'pool, S, Yaz0Header>),
   TooMuchData,
-  MutateHeaderFieldError(SetPrimitiveError<'pool, S::MutateError>),
+  MutateHeaderFieldError(Annotated<PrimitiveName<fileforge::binary_reader::error::common::Write>, SetPrimitiveError<'pool, <S as MutableStream>::MutateError>>),
 }
 
 impl<'pool, S: MutableStream<Type = u8> + RestorableStream, SURE: UserReadError, SUREE: UserRestoreError, SUME: UserMutateError, SUOE: UserOverwriteError> UserOverwriteError
@@ -32,11 +35,11 @@ impl<'pool, S: MutableStream<Type = u8> + RestorableStream, SURE: UserReadError,
 impl<'pool, S: MutableStream<Type = u8> + RestorableStream, SURE: UserReadError, SUREE: UserRestoreError, SUME: UserMutateError, SUOE: UserOverwriteError> FileforgeError
   for Yaz0OverwriteError<'pool, S, SURE, SUREE, SUME, SUOE>
 {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: DiagnosticPoolProvider>(
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
     &self,
-    provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'poolx> FnMut(fileforge::error::report::Report<'tag, 'b, 'poolx, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    provider: P,
+    callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
-    todo!()
+    unimplemented!()
   }
 }

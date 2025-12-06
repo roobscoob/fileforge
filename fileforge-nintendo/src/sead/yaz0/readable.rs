@@ -2,13 +2,13 @@ use core::{convert::Infallible, future::Future};
 
 use fileforge::{
   binary_reader::{
-    error::static_subfork::StaticSubforkError,
+    error::StaticSubforkError,
     readable::{IntoReadable, NoneArgument, Readable},
     view::{View, ViewMutateError},
     BinaryReader,
   },
   error::FileforgeError,
-  stream::{MutableStream, ReadableStream, RestorableStream, StaticPartitionableStream},
+  stream::{error::user_partition::UserPartitionError, MutableStream, ReadableStream, RestorableStream, StaticPartitionableStream},
 };
 
 use crate::sead::yaz0::{
@@ -54,23 +54,23 @@ pub trait MutHeaderView<'pool, S1: ReadableStream<Type = u8>, S2: MutableStream<
     S2: 'l;
 }
 
-pub enum HeaderViewError<'pool, S1: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8>, S2: RestorableStream<Type = u8>> {
-  Subfork(StaticSubforkError<'pool, YAZ0_HEADER_SIZE, S1>),
+pub enum HeaderViewError<'pool, S1: UserPartitionError, S2: RestorableStream<Type = u8>> {
+  Subfork(StaticSubforkError<'pool, S1>),
   Into(<View<'pool, S2, Yaz0Header> as IntoReadable<'pool, S2>>::Error),
 }
 
-impl<'pool, S1: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8>, S2: RestorableStream<Type = u8>> FileforgeError for HeaderViewError<'pool, S1, S2> {
-  fn render_into_report<'pool_ref, const ITEM_NAME_SIZE: usize, P: fileforge::diagnostic::pool::DiagnosticPoolProvider>(
+impl<'pool, S1: UserPartitionError, S2: RestorableStream<Type = u8>> FileforgeError for HeaderViewError<'pool, S1, S2> {
+  fn render_into_report<P: fileforge::diagnostic::pool::DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
     &self,
-    provider: &'pool_ref P,
-    callback: impl for<'tag, 'b, 'poolx> FnMut(fileforge::error::report::Report<'tag, 'b, 'poolx, 'pool_ref, ITEM_NAME_SIZE, P>) -> (),
+    provider: P,
+    callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
-    todo!()
+    unimplemented!()
   }
 }
 
 impl<'pool, R: RestorableStream<Type = u8>, S: StaticPartitionableStream<YAZ0_HEADER_SIZE, Type = u8, PartitionLeft = R>> HeaderView<'pool, S> for View<'pool, S::PartitionLeft, Yaz0Header> {
-  type CreateError = HeaderViewError<'pool, S, S::PartitionLeft>;
+  type CreateError = HeaderViewError<'pool, S::PartitionError, S::PartitionLeft>;
   type OtherStream = S::PartitionRight;
 
   async fn create(reader: BinaryReader<'pool, S>) -> Result<(Self, S::PartitionRight), Self::CreateError> {

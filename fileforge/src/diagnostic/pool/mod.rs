@@ -1,3 +1,4 @@
+pub mod dynamic;
 pub mod fixed;
 
 use core::num::NonZero;
@@ -5,9 +6,11 @@ use core::num::NonZero;
 use super::node::{branch::DiagnosticBranch, reference::DiagnosticReference, DiagnosticNode};
 
 pub trait DiagnosticPoolProvider {
-  type Node: DiagnosticNode;
+  type Node<'a>: DiagnosticNode + 'a
+  where
+    Self: 'a;
 
-  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node>;
+  fn get<'a>(&'a self, index: u32, generation: NonZero<u32>) -> Option<Self::Node<'a>>;
 
   fn was_built_by(&self, builder: &dyn DiagnosticPoolBuilder) -> bool;
 
@@ -15,9 +18,12 @@ pub trait DiagnosticPoolProvider {
 }
 
 impl<P: DiagnosticPoolProvider> DiagnosticPoolProvider for &P {
-  type Node = P::Node;
+  type Node<'a>
+    = P::Node<'a>
+  where
+    Self: 'a;
 
-  fn get(&self, index: u32, generation: NonZero<u32>) -> Option<Self::Node> {
+  fn get<'a>(&'a self, index: u32, generation: NonZero<u32>) -> Option<Self::Node<'a>> {
     (**self).get(index, generation)
   }
 

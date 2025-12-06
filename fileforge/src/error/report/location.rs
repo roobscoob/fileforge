@@ -14,7 +14,7 @@ pub struct ReportLocation<'t, 'l> {
 }
 
 impl<'t, 'l> ReportLocation<'t, 'l> {
-  pub fn dereference<P: DiagnosticPoolProvider>(&self, provider: &P) -> Option<P::Node> {
+  pub fn dereference<'a, P: DiagnosticPoolProvider>(&self, provider: &'a P) -> Option<P::Node<'a>> {
     self.reference.relocate(provider.get_builder()).dereference(provider)
   }
 }

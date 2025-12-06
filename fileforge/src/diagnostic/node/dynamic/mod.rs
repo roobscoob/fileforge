@@ -1,17 +1,13 @@
-use name::FixedDiagnosticNodeName;
-
 use super::{branch::DiagnosticBranch, name::DiagnosticNodeName, DiagnosticNode};
 
-pub mod name;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct FixedDiagnosticNode<const NAME_SIZE: usize> {
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DynamicDiagnosticNode {
   pub branch: DiagnosticBranch,
   pub size: Option<u64>,
-  pub name: FixedDiagnosticNodeName<NAME_SIZE>,
+  pub name: alloc::string::String,
 }
 
-impl<const NAME_SIZE: usize> DiagnosticNode for FixedDiagnosticNode<NAME_SIZE> {
+impl DiagnosticNode for DynamicDiagnosticNode {
   fn branch(&self) -> &DiagnosticBranch {
     &self.branch
   }
@@ -22,5 +18,15 @@ impl<const NAME_SIZE: usize> DiagnosticNode for FixedDiagnosticNode<NAME_SIZE> {
 
   fn size(&self) -> Option<u64> {
     self.size
+  }
+}
+
+impl DiagnosticNodeName for alloc::string::String {
+  fn as_str(&self) -> &str {
+    self
+  }
+
+  fn show_ellipsis(&self) -> bool {
+    false
   }
 }

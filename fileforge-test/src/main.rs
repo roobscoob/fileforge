@@ -5,6 +5,7 @@ use fileforge::{
   diagnostic::{
     node::branch::DiagnosticBranch,
     pool::{
+      dynamic::DynamicDiagnosticPool,
       fixed::{entry::FixedDiagnosticPoolEntry, FixedDiagnosticPool},
       DiagnosticPoolBuilder,
     },
@@ -38,8 +39,7 @@ struct AwSoSadError;
 
 #[tokio::main]
 async fn main() {
-  let mut entries: [FixedDiagnosticPoolEntry<32>; 100] = core::array::from_fn(|_| FixedDiagnosticPoolEntry::default());
-  let pool = FixedDiagnosticPool::new(&mut entries);
+  let pool = DynamicDiagnosticPool::new();
 
   let sl = include_bytes!("../binaries/SkyWorldHomeStageMap.szs");
   // let sl = include_bytes!("T:\\unsorted-torrents\\Super Mario 3D World\\Super Mario 3D World [ARDP01]\\content\\ObjectData\\ArrangeHexScrollStepA.szs");
@@ -54,7 +54,7 @@ async fn main() {
   let mut val = r.into_with::<Yaz0Stream<_, _>>(Mutable).await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
 
   val.skip(0xA8).await.unwrap();
-  val.overwrite(3, *b"AAAA").await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
+  val.overwrite(3, *b"AAAA").await.map + _.unwrap();
 
   let mut out: Vec<u8> = Vec::with_capacity(val.len().unwrap() as usize + 0x111);
   out.resize(val.len().unwrap() as usize + 0x111, 0xDE);
