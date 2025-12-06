@@ -1,4 +1,4 @@
 pub mod header;
-pub mod structures;
+pub mod sfat;
 
 pub struct Sarc {}

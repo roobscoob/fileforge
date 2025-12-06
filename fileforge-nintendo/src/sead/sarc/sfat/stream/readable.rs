@@ -1,22 +1,15 @@
 use fileforge::{
-  binary_reader::{
-    error::{common::SeekOffset, SkipError},
-    BinaryReader,
-  },
+  binary_reader::error::{common::SeekOffset, SkipError},
   stream::{
     error::{stream_read::StreamReadError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError},
     ReadableStream,
   },
 };
 
-use crate::sead::sarc::structures::sfat::entry::{SfatEntry, SfatEntryError, SFAT_ENTRY_SIZE};
-
-pub mod entry;
-pub mod header;
-
-pub struct SfatStream<'pool, UnderlyingStream: ReadableStream<Type = u8>> {
-  stream: BinaryReader<'pool, UnderlyingStream>,
-}
+use crate::sead::sarc::sfat::{
+  entry::{SfatEntry, SfatEntryError, SFAT_ENTRY_SIZE},
+  stream::SfatStream,
+};
 
 impl<'pool, Underlying: ReadableStream<Type = u8>> ReadableStream for SfatStream<'pool, Underlying> {
   type Type = SfatEntry;

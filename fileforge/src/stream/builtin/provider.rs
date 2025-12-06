@@ -250,7 +250,7 @@ where
   }
 }
 
-impl<'l, P: PartitionableProvider + 'l> DynamicPartitionableStream<'l> for ProviderStream<P>
+impl<P: PartitionableProvider> DynamicPartitionableStream for ProviderStream<P>
 where
   P::PartitionError: UserPartitionError,
   P::ReadError: UserReadError,

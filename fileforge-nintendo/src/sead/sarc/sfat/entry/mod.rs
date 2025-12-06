@@ -11,7 +11,7 @@ use fileforge::{
 };
 use fileforge_macros::FileforgeError;
 
-use crate::sead::sarc::structures::sfat::entry::attributes::{FilenameAttributes, FilenameAttributesError};
+use crate::sead::sarc::sfat::entry::attributes::{FilenameAttributes, FilenameAttributesError};
 
 pub const SFAT_ENTRY_SIZE: u64 = 0x10;
 

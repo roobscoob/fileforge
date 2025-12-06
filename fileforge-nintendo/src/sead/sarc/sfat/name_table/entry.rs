@@ -9,7 +9,7 @@ use fileforge::{
   stream::ReadableStream,
 };
 
-use crate::sead::sarc::structures::name_table::hasher::SfntHasher;
+use crate::sead::sarc::sfat::name_table::hasher::SfntHasher;
 
 pub struct NameTableEntry<'r, 'pool, UnderlyingStream: ReadableStream<Type = u8>> {
   pub(super) hasher: SfntHasher,

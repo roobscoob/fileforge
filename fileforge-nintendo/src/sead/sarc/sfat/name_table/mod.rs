@@ -3,7 +3,7 @@ pub mod hasher;
 
 use fileforge::{binary_reader::BinaryReader, stream::ReadableStream};
 
-use crate::sead::sarc::structures::name_table::{entry::NameTableEntry, hasher::SfntHasher};
+use crate::sead::sarc::sfat::name_table::{entry::NameTableEntry, hasher::SfntHasher};
 
 pub struct SarcNameTable<'pool, UnderlyingStream: ReadableStream<Type = u8>> {
   length: u32,

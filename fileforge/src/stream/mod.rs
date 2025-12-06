@@ -1,6 +1,7 @@
 pub mod builtin;
 pub mod collectable;
 pub mod error;
+pub mod extensions;
 
 use collectable::Collectable;
 use error::{
@@ -148,7 +149,7 @@ pub trait StaticPartitionableStream<const PARTITION_SIZE: usize>: ReadableStream
   async fn partition(self) -> Result<(Self::PartitionLeft, Self::PartitionRight), StreamPartitionError<Self::PartitionError>>;
 }
 
-pub trait DynamicPartitionableStream<'l>: ReadableStream {
+pub trait DynamicPartitionableStream: ReadableStream {
   type PartitionError: UserPartitionError;
   type PartitionDynamicLeft: ReadableStream<Type = Self::Type>;
   type PartitionDynamicRight: ReadableStream<Type = Self::Type>;

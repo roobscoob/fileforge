@@ -1,10 +1,11 @@
 use core::hash::Hasher;
 
 /// Hash mode for sead name table entries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HashMode {
   /// Modern sead: explicit i8 cast, consistent across platforms.
   /// This is also the behavior of legacy Clang builds (x86, AArch64).
+  #[default]
   Signed,
   /// Legacy GHS/Wii U: unsigned char (u8).
   Unsigned,
@@ -19,6 +20,16 @@ pub struct SfntHasher {
   hash: u32,
   multiplier: u32,
   mode: HashMode,
+}
+
+impl Default for SfntHasher {
+  fn default() -> Self {
+    SfntHasher {
+      hash: 0,
+      multiplier: 0x65,
+      mode: HashMode::default(),
+    }
+  }
 }
 
 impl SfntHasher {

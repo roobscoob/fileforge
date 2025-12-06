@@ -6,18 +6,12 @@ use crate::{
 
 use super::{diagnostic_store::DiagnosticKind, error::seek_out_of_bounds::SeekOutOfBounds, BinaryReader};
 
-impl<'l, 'pool, S: DynamicPartitionableStream<'l, Type = u8>> BinaryReader<'pool, S>
-where
-  'pool: 'l,
-{
+impl<'pool, S: DynamicPartitionableStream<Type = u8>> BinaryReader<'pool, S> {
   pub async fn subfork_dynamic<'a>(
     self,
     length: impl Into<DiagnosticValue<'pool, u64>>,
     name: Option<&str>,
-  ) -> Result<(BinaryReader<'pool, S::PartitionDynamicLeft>, BinaryReader<'pool, S::PartitionDynamicRight>), DynamicSubforkError<'pool, S::PartitionError>>
-  where
-    'a: 'l,
-  {
+  ) -> Result<(BinaryReader<'pool, S::PartitionDynamicLeft>, BinaryReader<'pool, S::PartitionDynamicRight>), DynamicSubforkError<'pool, S::PartitionError>> {
     let length = length.into();
     let offset = self.stream.offset();
 
