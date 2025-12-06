@@ -3,7 +3,10 @@ pub mod field;
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::{cell::RefCell, num::NonZero, str::FromStr};
+use core::{
+  cell::{Ref, RefCell},
+  num::NonZero,
+};
 
 use crate::diagnostic::{
   node::{branch::DiagnosticBranch, dynamic::DynamicDiagnosticNode, reference::DiagnosticReference},
@@ -58,24 +61,42 @@ impl DynamicDiagnosticPool {
     v
   }
 
-  fn get_space_to_consume(&self, keeping_tree: Option<DynamicDiagnosticNode>) -> Option<usize> {
+  fn is_family_of(&self, check: &DynamicDiagnosticNode, against: Option<&Ref<'_, DynamicDiagnosticNode>>) -> bool {
+    if against.is_none() {
+      return false;
+    }
+
+    let against = against.unwrap();
+
+    if **against == *check {
+      return true;
+    }
+
+    let parent = against.branch.parent();
+
+    if parent.is_none() {
+      return false;
+    }
+
+    let parent = parent.unwrap();
+
+    parent.relocate(self).parents(self).any(|p| *p == *check)
+  }
+
+  fn get_space_to_consume(&self, keeping_tree: Option<&Ref<'_, DynamicDiagnosticNode>>) -> Option<usize> {
     let contents = self.contents.borrow();
     let mut lowest_generation_index_pair: Option<(NonZero<u32>, usize)> = None;
 
     for (index, field) in contents.iter().enumerate() {
-      if !self.is_family_of(&field.contents, keeping_tree.as_ref()) {
-        if let Some(lowest_generation_index_pair) = lowest_generation_index_pair {
+      if !self.is_family_of(&field.contents, keeping_tree) {
+        if let Some(existing) = lowest_generation_index_pair {
+          if existing.0 > field.generation() {
+            lowest_generation_index_pair = Some((field.generation(), index))
+          }
         } else {
+          lowest_generation_index_pair = Some((field.generation(), index))
         }
       }
-
-      //   match (entry, lowest_generation_index_pair) {
-      //     (field, None) if !self.is_family_of(&field.contents, keeping_tree.as_ref()) => lowest_generation_index_pair = Some((field.generation(), index)),
-
-      //     (field, Some(existing)) if !self.is_family_of(&field.contents, keeping_tree.as_ref()) && existing.0 > field.generation() => lowest_generation_index_pair = Some((field.generation(), index)),
-
-      //     _ => continue,
-      //   }
     }
 
     lowest_generation_index_pair.map(|v| v.1)
@@ -115,14 +136,7 @@ impl DiagnosticPoolBuilder for DynamicDiagnosticPool {
       let index = contents.len();
       let generation = NonZero::new(1).unwrap();
 
-      contents.push(DynamicDiagnosticPoolField {
-        contents: DynamicDiagnosticNode {
-          branch,
-          size,
-          name: alloc::string::String::from_str(name).unwrap(),
-        },
-        generation,
-      });
+      contents.push(DynamicDiagnosticPoolField { contents: node, generation });
 
       DiagnosticReference {
         index: index as u32,
@@ -133,22 +147,18 @@ impl DiagnosticPoolBuilder for DynamicDiagnosticPool {
       // Fallback: reuse existing slot (generations protect against stale references)
       let parent_node = branch.parent().map(|r| r.relocate(self).dereference(self)).flatten();
 
-      match self.get_space_to_consume(parent_node) {
-        None => {
-          // Pool is full and no slots can be reused - return invalid reference
-          let contents = self.contents.borrow();
-          DiagnosticReference {
-            index: (contents.len() + 1) as u32,
-            generation: NonZero::new(1u32).unwrap(),
-            pool: self,
-          }
-        }
+      match self.get_space_to_consume(parent_node.as_ref()) {
+        None => DiagnosticReference::new_invalid_from_pool(self),
         Some(index) => {
           let new_generation = NonZero::new(self.increment_generation()).unwrap();
 
-          let contents = self.contents.borrow();
-          if let Some(entry) = contents.get(index) {
-            entry.write(node, new_generation);
+          let mut contents = self.contents.borrow_mut();
+
+          if let Some(entry) = contents.get_mut(index) {
+            *entry = DynamicDiagnosticPoolField {
+              contents: node,
+              generation: new_generation,
+            };
           }
 
           DiagnosticReference {
