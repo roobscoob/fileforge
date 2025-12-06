@@ -1,3 +1,5 @@
+pub mod builtins;
+
 use crate::{error::FileforgeError, stream::ReadableStream};
 
 use super::BinaryReader;
@@ -23,5 +25,11 @@ pub trait NoneArgument {
 impl NoneArgument for () {
   fn none() -> Self {
     ()
+  }
+}
+
+impl<N: NoneArgument, const C: usize> NoneArgument for [N; C] {
+  fn none() -> Self {
+    core::array::from_fn(|_| N::none())
   }
 }
