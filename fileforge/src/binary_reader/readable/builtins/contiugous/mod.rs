@@ -6,7 +6,7 @@ use crate::{
     readable::{IntoReadable, Readable, RefReadable, builtins::array::ArrayReadError},
   },
   error::FileforgeError,
-  stream::{self, ReadableStream, builtin::provider::ProviderStream},
+  stream::{self, ReadableStream},
 };
 
 pub struct Contiguous<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64) -> T::Argument> {
@@ -48,10 +48,7 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
 
 pub enum ContiguousSkipError<'pool, S: stream::UserSkipError, R: FileforgeError> {
   Overflowed, // todo: item size + size
-  Read {
-    index: u64,
-    read_error: R
-  },
+  Read { index: u64, read_error: R },
   Stream(binary_reader::SkipError<'pool, S>),
 }
 impl<'pool, S: stream::UserSkipError, R: FileforgeError> FileforgeError for ContiguousSkipError<'pool, S, R> {
@@ -95,7 +92,15 @@ where
       self.index.checked_add(size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
 
       for i in 0..size {
-        self.reader.read_with(self.index + i).await.map_err(|error| ContiguousSkipError::Read { index: self.index + i, read_error: error }).map_err(stream::StreamSkipError::User)?;
+        self
+          .reader
+          .read_with::<T>((self.generator)(self.index + i))
+          .await
+          .map_err(|error| ContiguousSkipError::Read {
+            index: self.index + i,
+            read_error: error,
+          })
+          .map_err(stream::StreamSkipError::User)?;
       }
 
       self.index += size;
