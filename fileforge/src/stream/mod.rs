@@ -4,7 +4,7 @@ pub mod error;
 pub mod extensions;
 
 use collectable::Collectable;
-use error::{
+pub use error::{
   stream_mutate::StreamMutateError, stream_overwrite::StreamOverwriteError, stream_partition::StreamPartitionError, stream_read::StreamReadError, stream_rewind::StreamRewindError,
   stream_seek::StreamSeekError, stream_skip::StreamSkipError, user_mutate::UserMutateError, user_overwrite::UserOverwriteError, user_partition::UserPartitionError, user_read::UserReadError,
   user_rewind::UserRewindError, user_seek::UserSeekError, user_skip::UserSkipError,

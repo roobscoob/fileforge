@@ -7,7 +7,7 @@ use crate::{
 use super::{diagnostic_store::DiagnosticKind, error::seek_out_of_bounds::SeekOutOfBounds, BinaryReader};
 
 impl<'pool, S: DynamicPartitionableStream<Type = u8>> BinaryReader<'pool, S> {
-  pub async fn subfork_dynamic<'a>(
+  pub async fn partition_dynamic<'a>(
     self,
     length: impl Into<DiagnosticValue<'pool, u64>>,
     name: Option<&str>,

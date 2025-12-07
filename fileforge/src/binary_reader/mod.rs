@@ -11,23 +11,23 @@ use writable::Writable;
 use crate::{
   binary_reader::{
     error::{
+      GetPrimitiveError, RewindError, SetPrimitiveError, SkipError,
       common::{ExhaustedType, Read, SeekOffset, Write},
       primitive_name_annotation::PrimitiveName,
-      GetPrimitiveError, RewindError, SetPrimitiveError, SkipError,
     },
     readable::IntoReadable,
     snapshot::BinaryReaderSnapshot,
   },
   diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
   error::ext::annotations::annotated::{Annotated, AnnotationExt},
-  provider::{hint::ReadHint, Provider},
+  provider::{Provider, hint::ReadHint},
   stream::{
+    MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream,
     builtin::provider::ProviderStream,
     error::{
-      stream_exhausted::StreamExhaustedError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
-      stream_skip::StreamSkipError, user_read::UserReadError, MapExhausted,
+      MapExhausted, stream_exhausted::StreamExhaustedError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
+      stream_skip::StreamSkipError, user_read::UserReadError,
     },
-    MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream,
   },
 };
 
@@ -170,6 +170,14 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
         container_dr: self.diagnostics.get(DiagnosticKind::Reader),
       }),
     })
+  }
+
+  pub fn stream(&self) -> &S {
+    &self.stream
+  }
+
+  pub fn stream_mut(&mut self) -> &mut S {
+    &mut self.stream
   }
 
   pub fn into_stream(self) -> S {

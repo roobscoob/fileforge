@@ -43,13 +43,13 @@
           #   ];
         };
       in
-        with pkgs; rec {
+        with pkgs; {
           formatter = pkgs.alejandra;
           devShells.default = mkShell {
             buildInputs = with pkgs; [
               (pkgs.fenix.fromToolchainFile {
                 file = ./rust-toolchain.toml;
-                sha256 = "sha256-AJ6LX/Q/Er9kS15bn9iflkUwcgYqRQxiOIL2ToVAXaU=";
+                sha256 = "sha256-SDu4snEWjuZU475PERvu+iO50Mi39KVjqCeJeNvpguU=";
               })
               _1password-cli
             ];
