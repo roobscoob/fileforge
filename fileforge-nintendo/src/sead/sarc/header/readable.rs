@@ -1,3 +1,5 @@
+use core::ops::Sub;
+
 use fileforge::{
   binary_reader::{
     endianness::Endianness,
@@ -14,19 +16,23 @@ use fileforge_std::{
   magic::{Magic, MagicError},
 };
 
-use crate::sead::sarc::header::SarcHeader;
+use crate::sead::sarc::{header::SarcHeader, sfat::SfatTable};
 
 pub const SARC_MAGIC: Magic<4> = Magic::from_byte_ref(b"SARC");
 pub const SARC_BOM: ByteOrderMark = ByteOrderMark::from_byte_ref(Endianness::BigEndian, &[0xFE, 0xFF]);
 
-impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for SarcHeader {
+impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for SarcHeader<'pool, S> {
   type Error = SarcHeaderReadError<'pool, S::ReadError>;
   type Argument = ();
 
   async fn read(reader: &mut fileforge::binary_reader::BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
     reader.read_with::<Magic<4>>(SARC_MAGIC).await.map_err(|e| SarcHeaderReadError::Magic(e))?;
 
-    let _header_length: u16 = reader.get().await.map_err(|e| SarcHeaderReadError::HeaderLength(e))?;
+    let header_length: u16 = reader.get().await.map_err(|e| SarcHeaderReadError::HeaderLength(e))?;
+
+    if header_length != 0x14 {
+      panic!("todo: make this an error");
+    }
 
     let endianness = reader.read_with::<ByteOrderMark>(SARC_BOM).await.map_err(|e| SarcHeaderReadError::BOM(e))?.endianness();
 
@@ -35,18 +41,24 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for SarcHeader {
     reader.set_endianness(endianness);
 
     let size = reader.get().await.map_err(|e| SarcHeaderReadError::Size(e))?;
-    let data_section_offset = reader.get().await.map_err(|e| SarcHeaderReadError::DataSectionOffset(e))?;
+    let data_section_offset: u32 = reader.get().await.map_err(|e| SarcHeaderReadError::DataSectionOffset(e))?;
     let version: u16 = reader.get().await.map_err(|e| SarcHeaderReadError::Version(e))?;
     let version = ((version >> 8) as u8, (version & 0xFF) as u8);
 
     let _unused: u16 = reader.get().await.map_err(|e| SarcHeaderReadError::Unused(e))?;
 
-    Ok(SarcHeader {
-      endianness,
-      size,
-      version,
-      data_section_offset,
-    })
+    let Some(sfat_table_size) = data_section_offset.checked_sub(header_length as u32) else {
+      panic!("todo: make this an error");
+    };
+
+    todo!();
+    // Ok(SarcHeader {
+    //   endianness,
+    //   size,
+    //   version,
+    //   data_section_offset,
+    //   sfat_table:
+    // })
   }
 }
 

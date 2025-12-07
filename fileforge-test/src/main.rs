@@ -22,7 +22,6 @@ use fileforge::{
       },
       position::RenderPosition,
     },
-    report::{kind::ReportKind, note::ReportNote, Report},
     FileforgeError, RenderableResult,
   },
   provider::hint::ReadHint,
@@ -54,7 +53,7 @@ async fn main() {
   let mut val = r.into_with::<Yaz0Stream<_, _>>(Mutable).await.unwrap_renderable::<32>(RenderMode::TerminalAnsi, &pool);
 
   val.skip(0xA8).await.unwrap();
-  val.overwrite(3, *b"AAAA").await.map + _.unwrap();
+  val.overwrite(3, *b"AAAA").await;
 
   let mut out: Vec<u8> = Vec::with_capacity(val.len().unwrap() as usize + 0x111);
   out.resize(val.len().unwrap() as usize + 0x111, 0xDE);

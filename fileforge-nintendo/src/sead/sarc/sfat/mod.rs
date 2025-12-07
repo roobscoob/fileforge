@@ -1,19 +1,6 @@
-use core::hash::Hasher;
+use fileforge::{binary_reader::BinaryReader, stream::ReadableStream};
 
-use fileforge::{
-  binary_reader::BinaryReader,
-  stream::{DynamicPartitionableStream, ReadableStream},
-};
-
-use crate::sead::sarc::sfat::{
-  entry::SfatEntry,
-  header::SfatHeader,
-  name_table::{
-    hasher::{HashMode, SfntHasher},
-    SarcNameTable,
-  },
-  stream::SfatStream,
-};
+use crate::sead::sarc::sfat::{header::SfatHeader, name_table::hasher::SfntHasher};
 
 pub mod entry;
 pub mod header;
@@ -21,8 +8,7 @@ pub mod name_table;
 pub mod stream;
 
 pub struct SfatTable<'pool, UnderlyingStream: ReadableStream<Type = u8>> {
-  hash_mode: HashMode,
-  hash_multiplier: u32,
+  hasher: SfntHasher,
   header: SfatHeader,
   reader: BinaryReader<'pool, UnderlyingStream>,
 }
