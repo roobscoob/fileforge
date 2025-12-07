@@ -1,7 +1,7 @@
 use crate::{
   binary_reader::readable::{NoneArgument, Readable},
   error::FileforgeError,
-  stream::ReadableStream,
+  stream::{self, ReadableStream},
 };
 
 pub struct ArrayReadError<E: FileforgeError> {
@@ -18,6 +18,8 @@ impl<E: FileforgeError> FileforgeError for ArrayReadError<E> {
     todo!()
   }
 }
+
+impl<E: FileforgeError> stream::UserReadError for ArrayReadError<E> {}
 
 impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, const N: usize> Readable<'pool, S> for [T; N]
 {

@@ -9,6 +9,18 @@ pub trait Readable<'pool, S: ReadableStream<Type = u8>>: Sized {
   type Argument;
 
   async fn read(reader: &mut BinaryReader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error>;
+
+  const SIZE: Option<u64> = None;
+  fn measure(&self) -> Option<u64> {
+    None
+  }
+}
+
+pub trait RefReadable<'s, 'pool: 's, S: ReadableStream<Type = u8>>: Sized + 's {
+  type Error: FileforgeError;
+  type Argument;
+
+  async fn read_ref(reader: &'s mut BinaryReader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error>;
 }
 
 pub trait IntoReadable<'pool, S: ReadableStream<Type = u8>>: Sized {
