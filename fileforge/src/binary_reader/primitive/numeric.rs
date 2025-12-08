@@ -1,5 +1,15 @@
 use crate::binary_reader::endianness::Endianness::{self, *};
 
+use crate::{
+  binary_reader::{
+    error::{common::Read, primitive_name_annotation::PrimitiveName, GetPrimitiveError},
+    readable::Readable,
+    BinaryReader, PrimitiveReader,
+  },
+  error::ext::annotations::annotated::Annotated,
+  stream::ReadableStream,
+};
+
 use super::Primitive;
 
 macro_rules! numeric {
@@ -17,6 +27,21 @@ macro_rules! numeric {
           LittleEndian => *data = self.to_le_bytes(),
           BigEndian => *data = self.to_be_bytes(),
         }
+      }
+    }
+
+    impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for $type {
+      type Argument = ();
+      type Error = Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>;
+
+      const SIZE: Option<u64> = Some($size);
+
+      async fn read(reader: &mut BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
+        reader.get().await
+      }
+
+      fn measure(&self) -> Option<u64> {
+        Some($size)
       }
     }
   };

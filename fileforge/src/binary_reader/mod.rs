@@ -11,23 +11,23 @@ use writable::Writable;
 use crate::{
   binary_reader::{
     error::{
-      GetPrimitiveError, RewindError, SetPrimitiveError, SkipError,
       common::{ExhaustedType, Read, SeekOffset, Write},
       primitive_name_annotation::PrimitiveName,
+      GetPrimitiveError, RewindError, SetPrimitiveError, SkipError,
     },
-    readable::IntoReadable,
+    readable::{IntoReadable, RefReadable},
     snapshot::BinaryReaderSnapshot,
   },
   diagnostic::{node::reference::DiagnosticReference, value::DiagnosticValue},
   error::ext::annotations::annotated::{Annotated, AnnotationExt},
-  provider::{Provider, hint::ReadHint},
+  provider::{hint::ReadHint, Provider},
   stream::{
-    MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream,
     builtin::provider::ProviderStream,
     error::{
-      MapExhausted, stream_exhausted::StreamExhaustedError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
-      stream_skip::StreamSkipError, user_read::UserReadError,
+      stream_exhausted::StreamExhaustedError, stream_restore::StreamRestoreError, stream_rewind::StreamRewindError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError,
+      stream_skip::StreamSkipError, user_read::UserReadError, MapExhausted,
     },
+    MutableStream, ReadableStream, ResizableStream, RestorableStream, RewindableStream,
   },
 };
 
@@ -141,12 +141,23 @@ impl<'pool, S: ReadableStream<Type = u8>> BinaryReader<'pool, S> {
     P::read(self, P::Argument::none()).await
   }
 
+  pub async fn read_ref<'s, P: RefReadable<'s, 'pool, S>>(&'s mut self) -> Result<P, P::Error>
+  where
+    P::Argument: NoneArgument,
+  {
+    P::read_ref(self, P::Argument::none()).await
+  }
+
   pub async fn read_with<P: Readable<'pool, S>>(&mut self, argument: P::Argument) -> Result<P, P::Error> {
     P::read(self, argument).await
   }
 
   pub async fn into_with<P: IntoReadable<'pool, S>>(self, argument: P::Argument) -> Result<P, P::Error> {
     P::read(self, argument).await
+  }
+
+  pub async fn read_ref_with<'s, P: RefReadable<'s, 'pool, S>>(&'s mut self, argument: P::Argument) -> Result<P, P::Error> {
+    P::read_ref(self, argument).await
   }
 
   pub async fn skip(&mut self, size: u64) -> Result<(), SkipError<'pool, S::SkipError>> {

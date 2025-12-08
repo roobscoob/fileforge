@@ -13,6 +13,10 @@ pub struct ByteOrderMarkInvalid<'pool> {
 
 impl<'pool> ByteOrderMarkInvalid<'pool> {
   pub fn assert(expected: ByteOrderMark, actual: ByteOrderMark, get_dr: impl FnOnce() -> Option<DiagnosticReference<'pool>>) -> Result<Endianness, Self> {
+    if expected.le() == actual.le() {
+      return Ok(actual.endianness());
+    }
+
     Err(ByteOrderMarkInvalid {
       expected,
       actual: DiagnosticValue(actual, get_dr()),

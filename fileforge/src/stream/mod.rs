@@ -55,12 +55,6 @@ pub trait ReadableStream: Sized {
 
   async fn read<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>>;
   async fn skip(&mut self, size: u64) -> Result<(), StreamSkipError<Self::SkipError>>;
-
-  async fn collect<C: Collectable<Self>>(&mut self, mut collector: C) -> Result<C, C::Error> {
-    collector.collect(self).await?;
-
-    Ok(collector)
-  }
 }
 
 impl<Substream: ReadableStream> ReadableStream for &mut Substream {

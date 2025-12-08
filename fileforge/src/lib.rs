@@ -1,6 +1,8 @@
 #![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
 #![allow(async_fn_in_trait)]
 
+use core::convert::Infallible;
+
 macro_rules! const_text {
   ($x: tt $y: tt) => {{
     const R: [&'static dyn $crate::error::render::buffer::cell::tag::CellTag; 1] = $x;
@@ -18,6 +20,7 @@ macro_rules! const_text {
 pub mod binary_reader;
 pub mod control_flow;
 pub mod diagnostic;
+pub mod encoding;
 pub mod error;
 pub mod provider;
 pub mod stream;
@@ -30,3 +33,13 @@ extern crate std;
 
 #[cfg(feature = "story")]
 pub mod storybook;
+
+pub trait ResultIgnoreExt<R> {
+  fn ignore(self) -> R;
+}
+
+impl<T> ResultIgnoreExt<T> for Result<T, Infallible> {
+  fn ignore(self) -> T {
+    unsafe { self.unwrap_unchecked() }
+  }
+}

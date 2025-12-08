@@ -2,8 +2,9 @@ use core::{convert::Infallible, marker::PhantomData};
 
 use crate::{
   binary_reader::{
-    self, BinaryReader,
-    readable::{IntoReadable, Readable, RefReadable, builtins::array::ArrayReadError},
+    self,
+    readable::{builtins::array::ArrayReadError, IntoReadable, Readable, RefReadable},
+    BinaryReader,
   },
   error::FileforgeError,
   stream::{self, ReadableStream},
@@ -13,7 +14,13 @@ pub struct Contiguous<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>
   reader: BinaryReader<'pool, S>,
   index: u64,
   generator: Gen,
-  _phantom: PhantomData<T>,
+  _phantom: PhantomData<fn() -> T>,
+}
+
+impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64) -> T::Argument> Contiguous<'pool, S, T, Gen> {
+  pub async fn finish(mut self, length: u64) -> Result<(), stream::StreamSkipError<ContiguousSkipError<'pool, <S as ReadableStream>::SkipError, <T as Readable<'pool, S>>::Error>>> {
+    self.skip(length - self.index).await
+  }
 }
 
 impl<'s, 'pool: 's, S: ReadableStream<Type = u8>, T: Readable<'pool, &'s mut S> + 's, Gen: 's + FnMut(u64) -> T::Argument> RefReadable<'s, 'pool, S> for Contiguous<'pool, &'s mut S, T, Gen> {
@@ -62,10 +69,7 @@ impl<'pool, S: stream::UserSkipError, R: FileforgeError> FileforgeError for Cont
 }
 impl<'pool, S: stream::UserSkipError, E: FileforgeError> stream::UserSkipError for ContiguousSkipError<'pool, S, E> {}
 
-impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64) -> T::Argument> ReadableStream for Contiguous<'pool, S, T, Gen>
-where
-  T::Error: stream::UserReadError,
-{
+impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64) -> T::Argument> ReadableStream for Contiguous<'pool, S, T, Gen> {
   type Type = T;
 
   type ReadError = ArrayReadError<T::Error>;
