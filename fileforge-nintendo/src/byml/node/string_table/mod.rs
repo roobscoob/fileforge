@@ -1,3 +1,4 @@
+use fileforge::binary_reader::primitive::numeric::u24;
 use fileforge::binary_reader::PrimitiveReader;
 use fileforge::stream::builtin::read_until::ReadUntil;
 use fileforge::stream::extensions::readable::ReadableStreamExt;
@@ -16,42 +17,44 @@ use fileforge::{
 };
 use fileforge_macros::FileforgeError;
 
-use crate::byml::node::BymlConstructable;
+use crate::byml::node::BymlDynConstructable;
 
 pub struct BymlStringTableNode<'pool, S: ReadableStream<Type = u8>> {
   count: u32,
   reader: BinaryReader<'pool, S>,
 }
 
+#[derive(FileforgeError)]
 pub enum BymlStringTableNodeConstructableError<'pool, S: ReadableStream<Type = u8>> {
-  AcquireReaderError(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>),
+  ReadCountError(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>),
 }
 
-impl<'pool, S: ReadableStream<Type = u8>, E> BymlConstructable<'pool, S, E> for BymlStringTableNode<'pool, S> {
+impl<'pool, S: ReadableStream<Type = u8>> BymlDynConstructable<'pool, S> for BymlStringTableNode<'pool, S> {
   type Error = BymlStringTableNodeConstructableError<'pool, S>;
 
-  async fn construct<F: AsyncFnOnce(u64) -> Result<BinaryReader<'pool, S>, E>>(value: u32, acquirer: F) -> Result<Result<Self, Self::Error>, E> {
-    let mut reader = acquirer(value as u64).await?;
-
-    let count: u32 = match reader.get().await {
-      Ok(v) => v,
-      Err(e) => return Ok(Err(BymlStringTableNodeConstructableError::AcquireReaderError(e))),
-    };
-
-    Ok(Ok(BymlStringTableNode { count, reader }))
+  async fn construct_dyn(mut reader: BinaryReader<'pool, S>) -> Result<Self, Self::Error> {
+    Ok(BymlStringTableNode {
+      count: reader.get::<u24>().await.map_err(BymlStringTableNodeConstructableError::ReadCountError)?.into(),
+      reader,
+    })
   }
 }
 
 #[derive(FileforgeError)]
 pub enum BymlStringTableNodeIntoStringError<'pool, S: ReadableStream<Type = u8>> {
+  #[report(&"FailedToSkipToIndex")]
   FailedToSkipToIndex(StreamSkipError<ContiguousSkipError<'pool, S::SkipError, Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>>),
+
+  #[report(&"FailedToReadOffset")]
   FailedToReadOffset(StreamReadError<ArrayReadError<Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>>),
+
+  #[report(&"FailedToConsumeAddressTable")]
   FailedToConsumeAddressTable(StreamSkipError<ContiguousSkipError<'pool, S::SkipError, Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>>),
 
   #[report(&"OOB offset :(")]
   OobOffset,
 
-  FailedToSkipToString(SkipError<'pool, S::SkipError>),
+  FailedToSkipToString(#[from] SkipError<'pool, S::SkipError>),
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> BymlStringTableNode<'pool, S> {
@@ -77,7 +80,7 @@ impl<'pool, S: ReadableStream<Type = u8>> BymlStringTableNode<'pool, S> {
 
     let data_offset = self.node_offset_to_data_offset(node_offset).ok_or(BymlStringTableNodeIntoStringError::OobOffset)?;
 
-    self.reader.skip(data_offset as u64).await.map_err(BymlStringTableNodeIntoStringError::FailedToSkipToString)?;
+    self.reader.skip(data_offset as u64).await?;
 
     Ok(self.reader.into_stream().read_until(0))
   }

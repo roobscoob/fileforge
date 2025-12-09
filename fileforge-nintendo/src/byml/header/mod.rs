@@ -1,5 +1,7 @@
 use core::num::NonZero;
 
+use fileforge::binary_reader::endianness::Endianness;
+
 pub mod readable;
 
 pub static BYML_HEADER_SIZE: usize = 0x10;
@@ -7,6 +9,7 @@ pub static BYML_HEADER_SIZE: usize = 0x10;
 #[derive(Debug)]
 pub struct BymlHeader {
   config: BymlHeaderConfig,
+  endianness: Endianness,
   version: u16,
   key_table_offset: u32,
   string_table_offset: u32,
@@ -15,6 +18,14 @@ pub struct BymlHeader {
 }
 
 impl BymlHeader {
+  pub fn size(&self) -> u64 {
+    if self.config.feat_binary_data_table {
+      0x14
+    } else {
+      0x10
+    }
+  }
+
   pub fn config(&self) -> BymlHeaderConfig {
     self.config
   }
@@ -42,7 +53,7 @@ impl BymlHeader {
 
 #[derive(Clone, Copy, Debug)]
 pub struct BymlHeaderConfig {
-  include_binary_data_table: bool,
+  pub feat_binary_data_table: bool,
 }
 
 impl BymlHeaderConfig {
@@ -82,7 +93,7 @@ impl BymlHeaderConfigBuilder {
   /// Builds the final BymlHeaderConfig
   pub fn build(self) -> BymlHeaderConfig {
     BymlHeaderConfig {
-      include_binary_data_table: self.include_binary_data_table,
+      feat_binary_data_table: self.include_binary_data_table,
     }
   }
 }

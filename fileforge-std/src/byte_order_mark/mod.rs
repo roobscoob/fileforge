@@ -9,7 +9,7 @@ use crate::byte_order_mark::error::ByteOrderMarkError;
 pub mod error;
 pub mod renderable;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ByteOrderMark {
   endianness: Endianness,
   bytes: [u8; 2],
@@ -28,28 +28,15 @@ impl ByteOrderMark {
     self.endianness
   }
 
-  pub fn be(&self) -> Self {
-    match self.endianness {
-      Endianness::BigEndian => *self,
-      Endianness::LittleEndian => Self {
-        endianness: Endianness::LittleEndian,
-        bytes: [self.bytes[1], self.bytes[0]],
-      },
-    }
-  }
-
-  pub fn le(&self) -> Self {
-    match self.endianness {
-      Endianness::BigEndian => Self {
-        endianness: Endianness::BigEndian,
-        bytes: [self.bytes[1], self.bytes[0]],
-      },
-      Endianness::LittleEndian => *self,
-    }
-  }
-
   pub fn bytes(&self) -> [u8; 2] {
     self.bytes
+  }
+
+  pub fn swap(self) -> Self {
+    ByteOrderMark {
+      endianness: self.endianness.swap(),
+      bytes: [self.bytes[1], self.bytes[0]],
+    }
   }
 }
 
@@ -59,10 +46,9 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for ByteOrderMark {
 
   async fn read(reader: &mut BinaryReader<'pool, S>, argument: Self::Argument) -> Result<Self, Self::Error> {
     let bytes = reader.get::<[u8; 2]>().await?;
-    let content = ByteOrderMark::from_bytes(reader.get_endianness(), bytes);
 
-    ByteOrderMarkInvalid::assert(argument, content, || reader.create_physical_diagnostic(-2, Some(2), "ByteOrderMark"))?;
+    let endianness = ByteOrderMarkInvalid::assert(argument, bytes, || reader.create_physical_diagnostic(-2, Some(2), "ByteOrderMark"))?;
 
-    Ok(content)
+    Ok(Self::from_bytes(endianness, bytes))
   }
 }

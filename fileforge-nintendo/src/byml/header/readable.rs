@@ -22,14 +22,17 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for BymlHeader {
   type Argument = BymlHeaderConfig;
 
   async fn read(reader: &mut BinaryReader<'pool, S>, config: Self::Argument) -> Result<Self, Self::Error> {
-    reader.read_with::<ByteOrderMark>(BYML_BOM).await.map_err(|e| BymlHeaderReadError::ByteOrderMark(e))?;
+    let bom = reader.read_with::<ByteOrderMark>(BYML_BOM).await.map_err(|e| BymlHeaderReadError::ByteOrderMark(e))?;
+
+    reader.set_endianness(bom.endianness());
 
     Ok(BymlHeader {
       config,
+      endianness: bom.endianness(),
       version: reader.get().await.map_err(|e| BymlHeaderReadError::Version(e))?,
       key_table_offset: reader.get().await.map_err(|e| BymlHeaderReadError::KeyTableOffset(e))?,
       string_table_offset: reader.get().await.map_err(|e| BymlHeaderReadError::StringTableOffset(e))?,
-      binary_data_table_offset: if config.include_binary_data_table {
+      binary_data_table_offset: if config.feat_binary_data_table {
         reader.get().await.map_err(|e| BymlHeaderReadError::BinaryDataTableOffset(e))?
       } else {
         0

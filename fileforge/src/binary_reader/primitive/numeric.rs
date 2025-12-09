@@ -59,3 +59,34 @@ numeric!(8, i64);
 numeric!(16, i128);
 numeric!(4, f32);
 numeric!(8, f64);
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct u24(u32);
+numeric!(3, u24);
+
+impl u24 {
+  pub fn from_le_bytes(bytes: [u8; 3]) -> Self {
+    let value = u32::from(bytes[0]) | (u32::from(bytes[1]) << 8) | (u32::from(bytes[2]) << 16);
+    u24(value)
+  }
+
+  pub fn from_be_bytes(bytes: [u8; 3]) -> Self {
+    let value = (u32::from(bytes[0]) << 16) | (u32::from(bytes[1]) << 8) | u32::from(bytes[2]);
+    u24(value)
+  }
+
+  pub fn to_le_bytes(self) -> [u8; 3] {
+    [(self.0 & 0xFF) as u8, ((self.0 >> 8) & 0xFF) as u8, ((self.0 >> 16) & 0xFF) as u8]
+  }
+
+  pub fn to_be_bytes(self) -> [u8; 3] {
+    [((self.0 >> 16) & 0xFF) as u8, ((self.0 >> 8) & 0xFF) as u8, (self.0 & 0xFF) as u8]
+  }
+}
+
+impl Into<u32> for u24 {
+  fn into(self) -> u32 {
+    self.0
+  }
+}

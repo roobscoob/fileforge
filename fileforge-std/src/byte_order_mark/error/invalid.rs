@@ -8,14 +8,16 @@ use super::super::ByteOrderMark;
 
 pub struct ByteOrderMarkInvalid<'pool> {
   pub expected: ByteOrderMark,
-  pub actual: DiagnosticValue<'pool, ByteOrderMark>,
+  pub actual: DiagnosticValue<'pool, [u8; 2]>,
 }
 
 impl<'pool> ByteOrderMarkInvalid<'pool> {
-  pub fn assert(expected: ByteOrderMark, actual: ByteOrderMark, get_dr: impl FnOnce() -> Option<DiagnosticReference<'pool>>) -> Result<Endianness, Self> {
-    if expected.le() == actual.le() {
-      return Ok(actual.endianness());
-    }
+  pub fn assert(expected: ByteOrderMark, actual: [u8; 2], get_dr: impl FnOnce() -> Option<DiagnosticReference<'pool>>) -> Result<Endianness, Self> {
+    if expected.bytes() == actual {
+      return Ok(expected.endianness());
+    } else if expected.swap().bytes() == actual {
+      return Ok(expected.endianness().swap());
+    };
 
     Err(ByteOrderMarkInvalid {
       expected,

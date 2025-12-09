@@ -17,9 +17,11 @@ pub struct Contiguous<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>
   _phantom: PhantomData<fn() -> T>,
 }
 
+extern crate std;
+
 impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64) -> T::Argument> Contiguous<'pool, S, T, Gen> {
   pub async fn finish(mut self, length: u64) -> Result<(), stream::StreamSkipError<ContiguousSkipError<'pool, <S as ReadableStream>::SkipError, <T as Readable<'pool, S>>::Error>>> {
-    self.skip(length - self.index).await
+    self.skip(length.saturating_sub(self.index)).await
   }
 }
 
@@ -84,12 +86,15 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
     let arguments = core::array::from_fn(|index| (self.generator)(self.index + index as u64));
     let actual = self.reader.read_with::<[T; SIZE]>(arguments).await.map_err(stream::StreamReadError::User)?;
 
+    self.index += SIZE as u64;
+
     Ok(reader(&actual).await)
   }
 
   async fn skip(&mut self, size: u64) -> Result<(), stream::StreamSkipError<Self::SkipError>> {
     if let Some(item_size) = T::SIZE {
-      let total_size = size.checked_add(item_size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
+      let total_size = size.checked_mul(item_size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
+      self.index += size;
       self.reader.skip(total_size).await.map_err(ContiguousSkipError::Stream).map_err(stream::StreamSkipError::User)
     } else {
       // ensure that we can read at `size` items

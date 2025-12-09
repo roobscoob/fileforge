@@ -11,7 +11,7 @@ pub struct BymlStringNode {
 impl<'pool, S: ReadableStream<Type = u8>, E> BymlConstructable<'pool, S, E> for BymlStringNode {
   type Error = Infallible;
 
-  async fn construct<F: AsyncFnOnce(u64) -> Result<BinaryReader<'pool, S>, E>>(value: u32, _: F) -> Result<Result<Self, Self::Error>, E> {
-    Ok(Ok(Self { string_table_index: value }))
+  async fn construct<F: AsyncFnOnce(u64) -> Result<BinaryReader<'pool, S>, E>>(value: u32, _: F) -> Result<Self, Infallible> {
+    Ok(Self { string_table_index: value })
   }
 }
