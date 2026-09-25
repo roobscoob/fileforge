@@ -3,9 +3,9 @@
 i BYML node type not allowed here (fileforge_nintendo::byml::node::discriminant:
                                    :BymlNodeDiscriminantsReadError<'_, fileforge
                                    ::storybook::StoryStream>)
-  ❯ Found node type 0xD3 (an unsigned 32-bit integer), which BYML only allows
-    from version 2 on.
-  ❯ This file is version 1.
+  ❯ Found node type 0xC3 (a binary data table), which is only allowed in files
+    that have a binary data table.
+  ❯ This file doesn't have one.
 
 ⚑ This usually means the file is corrupted.
 

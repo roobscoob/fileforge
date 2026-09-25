@@ -2,8 +2,8 @@
 
 i Invalid SFAT filename attributes (fileforge_nintendo::sead::sarc::sfat::entry:
                                     :attributes::FilenameAttributesError)
-  ❯ The entry's filename attributes are set, but their first byte (a collision
-    index, which starts at 1) is 0.
+  ❯ The entry's filename attributes are 0x00001234.
+  ❯ They're set, but their top byte (a collision index, which starts at 1) is 0.
   ❯ This happened while reading an SFAT entry.
 
 ⚑ This usually means the file is corrupted.

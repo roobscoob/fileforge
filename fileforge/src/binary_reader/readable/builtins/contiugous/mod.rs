@@ -70,23 +70,50 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
   };
   error
 })]
-#[story("skip distance overflowed", ContiguousSkipError::<StoryUserError, StoryUserError>::Overflowed)]
+#[story("index overflowed", {
+  let error: ContiguousSkipError<'_, StoryUserError, StoryUserError> = ContiguousSkipError::Overflowed { index: u64::MAX, count: 5, item_size: None };
+  error
+})]
+#[story("byte count overflowed", {
+  let error: ContiguousSkipError<'_, StoryUserError, StoryUserError> = ContiguousSkipError::Overflowed {
+    index: 0,
+    count: 5_000_000_000_000_000_000,
+    item_size: Some(4),
+  };
+  error
+})]
 #[story("stream failed", ContiguousSkipError::<StoryUserError, StoryUserError>::Stream(binary_reader::SkipError::User(StoryUserError)))]
 pub enum ContiguousSkipError<'pool, S: stream::UserSkipError, R: FileforgeError> {
-  Overflowed, // todo: item size + size
+  /// Skipping `count` items from `index` overflowed, either the index or (for items of
+  /// `item_size` bytes) the number of bytes to skip.
+  Overflowed { index: u64, count: u64, item_size: Option<u64> },
   Read { index: u64, read_error: R },
   Stream(binary_reader::SkipError<'pool, S>),
 }
-const SKIP_OVERFLOWED: ConstText = ConstText::new("Skipping that many items would go past the largest possible position.", &REPORT_ERROR_TEXT);
 const SKIPPING_ITEMS: ConstText = ConstText::new("This happened while skipping over items.", &REPORT_INFO_LINE_TEXT);
 
 impl<'pool, S: stream::UserSkipError, R: FileforgeError> FileforgeError for ContiguousSkipError<'pool, S, R> {
   fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
     match self {
-      Self::Overflowed => Report::new::<Self>(provider, &"Skip overflowed")
-        .with_info_line(&SKIP_OVERFLOWED)
-        .with_flag_line(LOW_LEVEL_ERROR)
-        .apply(callback),
+      Self::Overflowed { index, count, item_size } => {
+        let index_overflowed = index.checked_add(*count).is_none();
+
+        let index = FormattedUnsigned::new(*index as u128).separator(3, ",");
+        let count = FormattedUnsigned::new(*count as u128).separator(3, ",");
+        let item_size = FormattedUnsigned::new(item_size.unwrap_or(0) as u128).separator(3, ",");
+
+        let overflow_text = text!(
+          { index_overflowed }
+            [&REPORT_ERROR_TEXT] "Skipping {&count} items from index {&index} goes past the largest possible index.",
+
+          [&REPORT_ERROR_TEXT] "Skipping {&count} items of {&item_size} bytes each is more bytes than the largest possible offset."
+        );
+
+        Report::new::<Self>(provider, &"Skip overflowed")
+          .with_info_line(&overflow_text)
+          .with_flag_line(LOW_LEVEL_ERROR)
+          .apply(callback)
+      }
 
       Self::Read { index, read_error } => read_error.render_into_report(provider, |report| {
         let index = FormattedUnsigned::new(*index as u128).separator(3, ",");
@@ -122,11 +149,20 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
   }
 
   async fn skip(&mut self, size: u64) -> Result<(), stream::StreamSkipError<Self::SkipError>> {
+    let index = self.index;
+    let overflowed = || {
+      stream::StreamSkipError::User(ContiguousSkipError::Overflowed {
+        index,
+        count: size,
+        item_size: T::SIZE,
+      })
+    };
+
     // ensure that we can skip `size` items
-    let end_index = self.index.checked_add(size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
+    let end_index = index.checked_add(size).ok_or_else(overflowed)?;
 
     if let Some(item_size) = T::SIZE {
-      let total_size = size.checked_mul(item_size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
+      let total_size = size.checked_mul(item_size).ok_or_else(overflowed)?;
       self.reader.skip(total_size).await.map_err(ContiguousSkipError::Stream).map_err(stream::StreamSkipError::User)?;
 
       // only once the skip succeeded, so a failed skip leaves the index where the reader is

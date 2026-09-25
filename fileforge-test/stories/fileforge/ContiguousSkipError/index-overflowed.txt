@@ -3,7 +3,8 @@
 i Skip overflowed (fileforge::binary_reader::readable::builtins::contiugous::Con
                    tiguousSkipError<'_, fileforge::storybook::StoryUserError, fi
                    leforge::storybook::StoryUserError>)
-  ❯ Skipping that many items would go past the largest possible position.
+  ❯ Skipping 5 items from index 18,446,744,073,709,551,615 goes past the largest
+    possible index.
 
 ⚑ This is a low-level error, intended to be consumed by higher-level error
   handling code. This error is not intended to be displayed to the user. If

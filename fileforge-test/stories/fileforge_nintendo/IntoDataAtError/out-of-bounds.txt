@@ -2,7 +2,8 @@
 
 i Node offset points into the header (fileforge_nintendo::byml::IntoDataAtError<
                                       '_, fileforge::storybook::StoryStream>)
-  ❯ A node's offset points inside the BYML header, where no node data can be.
+  ❯ A node's offset is 0x8, but the BYML header takes up the first 16 (0x10)
+    bytes.
 
 ⚑ This usually means the file is corrupted.
 

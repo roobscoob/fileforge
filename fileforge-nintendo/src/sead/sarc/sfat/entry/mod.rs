@@ -29,7 +29,7 @@ pub struct SfatEntry {
 #[story("file ends inside the filename attributes", SfatEntryError::FilenameAttributesReadError(read_exhausted::<u32, StoryUserError>(dr!("archive.sarc" @ 0..38), 36, DiagnosticValue(38, None))))]
 #[story("file ends inside the start offset", SfatEntryError::StartOffsetReadError(read_exhausted::<u32, StoryUserError>(dr!("archive.sarc" @ 0..42), 40, DiagnosticValue(42, None))))]
 #[story("file ends inside the end offset", SfatEntryError::EndOffsetReadError(read_exhausted::<u32, StoryUserError>(dr!("archive.sarc" @ 0..46), 44, DiagnosticValue(46, None))))]
-#[story("invalid filename attributes", SfatEntryError::<StoryUserError>::FilenameAttributesError(FilenameAttributesError::ZeroSequence))]
+#[story("invalid filename attributes", SfatEntryError::<StoryUserError>::FilenameAttributesError(FilenameAttributesError::ZeroSequence { attributes: 0x0000_1234 }))]
 pub enum SfatEntryError<'pool, U: UserReadError> {
   FilenameHashReadError(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, U>>),
   StartOffsetReadError(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, U>>),

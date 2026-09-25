@@ -56,9 +56,9 @@ impl<'pool, S: ReadableStream<Type = u8>> BymlDynConstructable<'pool, S> for Bym
   }
 }
 
-#[story("failed to skip to the index", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToSkipToIndex(fileforge::stream::error::stream_skip::StreamSkipError::User(fileforge::binary_reader::readable::builtins::contiugous::ContiguousSkipError::Overflowed)))]
+#[story("failed to skip to the index", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToSkipToIndex(fileforge::stream::error::stream_skip::StreamSkipError::User(fileforge::binary_reader::readable::builtins::contiugous::ContiguousSkipError::Overflowed { index: 0, count: u64::MAX, item_size: Some(4) })))]
 #[story("failed to read the offset", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToReadOffset(fileforge::stream::error::stream_read::StreamReadError::StreamExhausted(fileforge::stream::error::stream_exhausted::StreamExhaustedError { stream_length: 16, read_length: 4, read_offset: 14 })))]
-#[story("failed to consume the address table", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToConsumeAddressTable(fileforge::stream::error::stream_skip::StreamSkipError::User(fileforge::binary_reader::readable::builtins::contiugous::ContiguousSkipError::Overflowed)))]
+#[story("failed to consume the address table", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToConsumeAddressTable(fileforge::stream::error::stream_skip::StreamSkipError::User(fileforge::binary_reader::readable::builtins::contiugous::ContiguousSkipError::Overflowed { index: 3, count: u64::MAX, item_size: Some(4) })))]
 #[story("offset out of bounds", BymlStringTableNodeIntoStringError::<StoryStream>::OobOffset)]
 #[story("failed to skip to the string", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToSkipToString(fileforge::binary_reader::error::SkipError::User(StoryUserError)))]
 pub enum BymlStringTableNodeIntoStringError<'pool, S: ReadableStream<Type = u8>> {

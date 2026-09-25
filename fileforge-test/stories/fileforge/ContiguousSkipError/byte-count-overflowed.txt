@@ -1,0 +1,14 @@
+× FileForgeLib Error Report ×
+
+i Skip overflowed (fileforge::binary_reader::readable::builtins::contiugous::Con
+                   tiguousSkipError<'_, fileforge::storybook::StoryUserError, fi
+                   leforge::storybook::StoryUserError>)
+  ❯ Skipping 5,000,000,000,000,000,000 items of 4 bytes each is more bytes than
+    the largest possible offset.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+

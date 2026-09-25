@@ -7,7 +7,8 @@ i Skip overflowed (fileforge::binary_reader::readable::builtins::contiugous::Con
                    veName<fileforge::binary_reader::error::common::Read>, filefo
                    rge::binary_reader::error::GetPrimitiveError<'_, fileforge::s
                    torybook::StoryUserError>>>)
-  ❯ Skipping that many items would go past the largest possible position.
+  ❯ Skipping 18,446,744,073,709,551,615 items of 4 bytes each is more bytes than
+    the largest possible offset.
   ❯ This happened while finding a string's entry in a BYML string table.
 
 ⚑ This is a low-level error, intended to be consumed by higher-level error

@@ -10,8 +10,8 @@ use fileforge::{
 };
 use fileforge::{diagnostic::pool::DiagnosticPoolProvider, error::{report::Report, FileforgeError}};
 
-use crate::byml::node::BymlNodeDiscriminants;
-use fileforge::error::render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_FLAG_LINE_TEXT}, builtin::text::r#const::ConstText};
+use crate::byml::node::{node_type_name, BymlNodeDiscriminants};
+use fileforge::error::render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_FLAG_LINE_TEXT, REPORT_INFO_LINE_TEXT}, builtin::text::r#const::ConstText};
 use fileforge::error::render::builtin::number::formatted_unsigned::FormattedUnsigned;
 use fileforge_macros::text;
 use crate::report::{render_field_read, Field, CORRUPTED};
@@ -80,14 +80,34 @@ pub struct BymlNodeDiscriminantVersionConfig {
 
 #[story("file ends at the node type", BymlNodeDiscriminantsReadError::<StoryStream>::ReadValue(read_exhausted::<u8, StoryUserError>(dr!("data.byml" @ 0..32), 32, DiagnosticValue(32, None))))]
 #[story("unknown node type", BymlNodeDiscriminantsReadError::<StoryStream>::UnknownDiscriminant(0x42))]
-#[story("node type not in this version", BymlNodeDiscriminantsReadError::<StoryStream>::InvalidVersion)]
+#[story("node type not in this version", {
+  let error: BymlNodeDiscriminantsReadError<'_, StoryStream> = BymlNodeDiscriminantsReadError::InvalidVersion {
+    node_type: BymlNodeDiscriminants::UnsignedInteger32,
+    id: 0xD3,
+    version: BymlNodeDiscriminantVersionConfig { version_number: 1, feat_binary_data_table: false },
+  };
+  error
+})]
+#[story("binary data table without the feature", {
+  let error: BymlNodeDiscriminantsReadError<'_, StoryStream> = BymlNodeDiscriminantsReadError::InvalidVersion {
+    node_type: BymlNodeDiscriminants::BinaryDataTable,
+    id: 0xC3,
+    version: BymlNodeDiscriminantVersionConfig { version_number: 7, feat_binary_data_table: false },
+  };
+  error
+})]
 pub enum BymlNodeDiscriminantsReadError<'pool, S: ReadableStream> {
   ReadValue(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>),
   UnknownDiscriminant(u8),
-  InvalidVersion,
+  /// `node_type` (read as `id`) isn't allowed by the file's `version`.
+  InvalidVersion {
+    node_type: BymlNodeDiscriminants,
+    id: u8,
+    version: BymlNodeDiscriminantVersionConfig,
+  },
 }
 
-const NODE_TYPE_NOT_IN_VERSION: ConstText = ConstText::new("This node type isn't allowed by the file's BYML version or configuration.", &REPORT_ERROR_TEXT);
+const NO_BINARY_DATA_TABLE: ConstText = ConstText::new("This file doesn't have one.", &REPORT_INFO_LINE_TEXT);
 const UNKNOWN_NODE_TYPE: ConstText = ConstText::new("This usually means the file is corrupted, or uses a BYML version fileforge doesn't know.", &REPORT_FLAG_LINE_TEXT);
 
 impl<'pool, S: ReadableStream> FileforgeError for BymlNodeDiscriminantsReadError<'pool, S> {
@@ -108,10 +128,39 @@ impl<'pool, S: ReadableStream> FileforgeError for BymlNodeDiscriminantsReadError
           .with_flag_line(&UNKNOWN_NODE_TYPE)
           .apply(callback)
       }
-      Self::InvalidVersion => Report::new::<Self>(provider, &"BYML node type not allowed here")
-        .with_info_line(&NODE_TYPE_NOT_IN_VERSION)
-        .with_flag_line(&CORRUPTED)
-        .apply(callback),
+      Self::InvalidVersion { node_type, id, version } => {
+        let id = FormattedUnsigned::new(*id as u128).base(16).uppercase().padding(2).prefix("0x");
+        let name = node_type_name(*node_type);
+        let file_version = FormattedUnsigned::new(version.version_number as u128);
+
+        match node_type.min_version() {
+          Some(min_version) => {
+            let min_version = FormattedUnsigned::new(min_version as u128);
+            let found_text = text!(
+              { matches!(node_type, BymlNodeDiscriminants::BinaryData) }
+                [&REPORT_ERROR_TEXT] "Found node type {&id} ({&name}), which BYML only allows from version {&min_version} on, or in files that have a binary data table.",
+
+              [&REPORT_ERROR_TEXT] "Found node type {&id} ({&name}), which BYML only allows from version {&min_version} on."
+            );
+            let version_text = text!([&REPORT_INFO_LINE_TEXT] "This file is version {&file_version}.");
+
+            Report::new::<Self>(provider, &"BYML node type not allowed here")
+              .with_info_line(&found_text)
+              .with_info_line(&version_text)
+              .with_flag_line(&CORRUPTED)
+              .apply(callback)
+          }
+          None => {
+            let found_text = text!([&REPORT_ERROR_TEXT] "Found node type {&id} ({&name}), which is only allowed in files that have a binary data table.");
+
+            Report::new::<Self>(provider, &"BYML node type not allowed here")
+              .with_info_line(&found_text)
+              .with_info_line(&NO_BINARY_DATA_TABLE)
+              .with_flag_line(&CORRUPTED)
+              .apply(callback)
+          }
+        }
+      }
     }
   }
 }
@@ -127,9 +176,9 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for BymlNodeDiscrim
   type Argument = BymlNodeDiscriminantVersionConfig;
 
   async fn read(reader: &mut BinaryReader<'pool, S>, version: Self::Argument) -> Result<Self, Self::Error> {
-    BymlNodeDiscriminants::resolve(reader.read().await?)
-      .map_err(|e| BymlNodeDiscriminantsReadError::UnknownDiscriminant(e))?
-      .filter_version(version)
-      .ok_or(BymlNodeDiscriminantsReadError::InvalidVersion)
+    let id: u8 = reader.read().await?;
+    let node_type = BymlNodeDiscriminants::resolve(id).map_err(BymlNodeDiscriminantsReadError::UnknownDiscriminant)?;
+
+    node_type.filter_version(version).ok_or(BymlNodeDiscriminantsReadError::InvalidVersion { node_type, id, version })
   }
 }
