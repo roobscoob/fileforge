@@ -1,4 +1,5 @@
 pub mod r#const;
+mod wrap;
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -60,52 +61,33 @@ impl<'l, 't> Text<'l, 't> {
 
 impl<'l, 't> Renderable<'t> for Text<'l, 't> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
+    if self.split_on_words {
+      return wrap::render_wrapped(&self.segments, canvas);
+    }
+
     let start = canvas.get_position();
+
     for element in self.segments.iter() {
       match element {
         TextSegment::Renderable(renderable) => {
           canvas.write(*renderable)?;
         }
         TextSegment::Segment(text, tag) => {
-          if self.split_on_words {
-            for chunk in text.split_word_bounds() {
-              if chunk == "\n" {
-                canvas.cursor_down().set_column(start.column());
-                continue;
-              }
-
-              if canvas.position.right(chunk.len()).column() > canvas.buffer.width() {
-                canvas.cursor_down().set_column(start.column());
-              }
-
-              for grapheme in chunk.graphemes(true) {
-                if let Some(tag) = tag {
-                  if !canvas.set_tagged_char(grapheme, *tag) {
-                    canvas.cursor_down().set_column(start.column()).set_tagged_char(grapheme, *tag);
-                  };
-                } else {
-                  if !canvas.set_char(grapheme) {
-                    canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-                  };
-                }
-              }
+          for grapheme in text.graphemes(true) {
+            if grapheme == "
+" {
+              canvas.cursor_down().set_column(start.column());
+              continue;
             }
-          } else {
-            for grapheme in text.graphemes(true) {
-              if grapheme == "\n" {
-                canvas.cursor_down().set_column(start.column());
-                continue;
-              }
 
-              if let Some(tag) = tag {
-                if !canvas.set_tagged_char(grapheme, *tag) {
-                  canvas.cursor_down().set_column(start.column()).set_tagged_char(grapheme, *tag);
-                };
-              } else {
-                if !canvas.set_char(grapheme) {
-                  canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-                };
-              }
+            if let Some(tag) = tag {
+              if !canvas.set_tagged_char(grapheme, *tag) {
+                canvas.cursor_down().set_column(start.column()).set_tagged_char(grapheme, *tag);
+              };
+            } else {
+              if !canvas.set_char(grapheme) {
+                canvas.cursor_down().set_column(start.column()).set_char(grapheme);
+              };
             }
           }
         }

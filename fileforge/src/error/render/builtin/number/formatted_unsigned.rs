@@ -119,109 +119,120 @@ impl<'tag> FormattedUnsigned<'tag> {
     self
   }
 
-  pub fn length_excluding_separator(&self) -> usize {
-    let mut i = 0;
-
+  /// How many digits are shown, including padding zeros.
+  fn digit_count(&self) -> usize {
+    let mut count = 0;
     let mut value = self.value;
 
     while value > 0 {
       value /= self.base as u128;
-      i += 1;
+      count += 1;
     }
 
-    usize::max(i, self.padding) + self.prefix.map(|v| v.len()).unwrap_or(0)
+    usize::max(count, self.padding)
+  }
+
+  /// How many separators are shown between the digits.
+  fn separator_count(&self) -> usize {
+    match self.separator {
+      Some(separator) if separator.width > 0 => (self.digit_count() - 1) / separator.width,
+      _ => 0,
+    }
+  }
+
+  pub fn length_excluding_separator(&self) -> usize {
+    self.digit_count() + self.prefix.map(|v| v.len()).unwrap_or(0)
   }
 
   pub fn length(&self) -> usize {
-    let mut i = 0;
-    let mut idx = 0;
-    let length = self.length_excluding_separator();
-
-    let mut value = self.value;
-
-    while value > 0 {
-      value /= self.base as u128;
-
-      if let Some(ref separator) = self.separator {
-        if i != 0 {
-          let character_index = length - idx;
-
-          if character_index % separator.width == 0 {
-            i += 1;
-          }
-        }
-      }
-
-      i += 1;
-      idx += 1;
-    }
-
-    usize::max(i, self.padding) + self.prefix.map(|v| v.len()).unwrap_or(0)
+    self.length_excluding_separator() + self.separator_count() * self.separator.map(|separator| separator.text.len()).unwrap_or(0)
   }
 }
 
 impl<'t, 'tag> Renderable<'t> for FormattedUnsigned<'t> {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
-    let mut length = self.length();
+    let write = |canvas: &mut RenderBufferCanvas<'r, 'c, 't>, text: &str| match self.tag {
+      Some(tag) => canvas.set_tagged_str(text, tag),
+      None => canvas.set_str(text),
+    };
 
     if let Some(prefix) = self.prefix {
-      if let Some(tag) = self.tag.as_ref() {
-        canvas.set_tagged_str(prefix, *tag);
-      } else {
-        canvas.set_str(prefix);
-      }
-
-      length -= prefix.len();
+      write(canvas, prefix);
     }
 
     let digits = if self.is_uppercase { DIGITS_UPPER } else { DIGITS_LOWER };
+    let base = self.base as u128;
+    let count = self.digit_count();
 
-    for _ in 0..length {
-      if let Some(tag) = self.tag.as_ref() {
-        canvas.set_tagged_char(digits[0], *tag);
-      } else {
-        canvas.set_char(digits[0]);
-      }
-    }
+    // Most significant digit first. `place` counts digits from the right, so separators group
+    // digits from the right (1,234 rather than 123,4).
+    for place in (0..count).rev() {
+      let digit = match base.checked_pow(place as u32) {
+        Some(power) => (self.value / power) % base,
+        // A power this large exceeds the value, so this is a padding zero.
+        None => 0,
+      };
 
-    let mut value = self.value;
+      write(canvas, digits[digit as usize]);
 
-    let mut index = 0;
-
-    canvas.cursor_left_by(1);
-
-    while value > 0 {
-      if let Some(ref separator) = self.separator {
-        if index != 0 {
-          let character_index = length - index;
-
-          if character_index % separator.width == 0 {
-            if let Some(tag) = self.tag.as_ref() {
-              canvas.set_tagged_str(&separator.text, *tag);
-            } else {
-              canvas.set_str(&separator.text);
-            }
-            canvas.cursor_left_by(2);
-          }
+      if let Some(separator) = self.separator {
+        if place != 0 && separator.width != 0 && place % separator.width == 0 {
+          write(canvas, separator.text);
         }
       }
-
-      let digit = value % (self.base as u128);
-      value /= self.base as u128;
-
-      if let Some(tag) = self.tag.as_ref() {
-        canvas.set_tagged_char(digits[digit as usize], *tag);
-      } else {
-        canvas.set_char(digits[digit as usize]);
-      }
-      canvas.cursor_left_by(2);
-
-      index += 1;
     }
 
-    canvas.set_position(canvas.start_position);
-    canvas.cursor_right_by(self.length());
-
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::{string::String, vec, vec::Vec};
+
+  use super::FormattedUnsigned;
+  use crate::error::render::{
+    buffer::{
+      cell::{tag::context::RenderMode, RenderBufferCell},
+      RenderBuffer,
+    },
+    position::RenderPosition,
+  };
+
+  fn render(number: FormattedUnsigned<'static>) -> String {
+    let mut cells = vec![RenderBufferCell::default(); 80];
+    let mut buffer = RenderBuffer::new(&mut cells, 80, 0);
+    let summary = buffer.canvas_at(RenderPosition::zero()).write(&number).unwrap();
+    assert_eq!(summary.end_position.column(), number.length(), "length() must match what is rendered");
+
+    let mut out = String::new();
+    buffer.flush_into(&mut out, RenderMode::PlainText).unwrap();
+    out.lines().next().unwrap().trim_end().into()
+  }
+
+  #[test]
+  fn separators_group_digits_from_the_right() {
+    let cases: Vec<(u128, &str)> = vec![
+      (0, "0"),
+      (7, "7"),
+      (999, "999"),
+      (1_234, "1,234"),
+      (12_345, "12,345"),
+      (123_456, "123,456"),
+      (1_004_582, "1,004,582"),
+      (u64::MAX as u128, "18,446,744,073,709,551,615"),
+    ];
+
+    for (value, expected) in cases {
+      assert_eq!(render(FormattedUnsigned::new(value).separator(3, ",")), expected);
+    }
+  }
+
+  #[test]
+  fn prefix_padding_and_base() {
+    assert_eq!(render(FormattedUnsigned::new(0xA).base(16).uppercase().padding(2).prefix("0x")), "0x0A");
+    assert_eq!(render(FormattedUnsigned::new(0xBEEF).base(16).prefix("0x")), "0xbeef");
+    assert_eq!(render(FormattedUnsigned::new(5).padding(4)), "0005");
+    assert_eq!(render(FormattedUnsigned::new(1234).padding(6).separator(3, ",")), "001,234");
   }
 }

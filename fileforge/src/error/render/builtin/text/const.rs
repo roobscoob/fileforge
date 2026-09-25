@@ -5,6 +5,8 @@ use crate::error::render::{
   r#trait::renderable::Renderable,
 };
 
+use super::{wrap::render_wrapped, TextSegment};
+
 pub struct ConstText {
   content: &'static str,
   tag: Option<&'static dyn CellTag>,
@@ -36,47 +38,28 @@ impl ConstText {
 
 impl<'t> Renderable<'t> for ConstText {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
+    if self.split_on_words {
+      let tag: Option<&'t dyn CellTag> = self.tag.map(|tag| tag as &'t dyn CellTag);
+      return render_wrapped(&[TextSegment::Segment(self.content, tag)], canvas);
+    }
+
     let start = canvas.get_position();
 
-    if self.split_on_words {
-      for chunk in self.content.split_word_bounds() {
-        if chunk == "\n" {
-          canvas.cursor_down().set_column(start.column());
-          continue;
-        }
-
-        if canvas.position.right(chunk.len()).column() > canvas.buffer.width() {
-          canvas.cursor_down().set_column(start.column());
-        }
-
-        for grapheme in chunk.graphemes(true) {
-          if let Some(tag) = self.tag {
-            if !canvas.set_tagged_char(grapheme, tag) {
-              canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-            };
-          } else {
-            if !canvas.set_char(grapheme) {
-              canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-            };
-          }
-        }
+    for grapheme in self.content.graphemes(true) {
+      if grapheme == "
+" {
+        canvas.cursor_down().set_column(start.column());
+        continue;
       }
-    } else {
-      for grapheme in self.content.graphemes(true) {
-        if grapheme == "\n" {
-          canvas.cursor_down().set_column(start.column());
-          continue;
-        }
 
-        if let Some(tag) = self.tag {
-          if !canvas.set_tagged_char(grapheme, tag) {
-            canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-          };
-        } else {
-          if !canvas.set_char(grapheme) {
-            canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-          };
-        }
+      if let Some(tag) = self.tag {
+        if !canvas.set_tagged_char(grapheme, tag) {
+          canvas.cursor_down().set_column(start.column()).set_char(grapheme);
+        };
+      } else {
+        if !canvas.set_char(grapheme) {
+          canvas.cursor_down().set_column(start.column()).set_char(grapheme);
+        };
       }
     }
 
@@ -86,25 +69,6 @@ impl<'t> Renderable<'t> for ConstText {
 
 impl<'t> Renderable<'t> for &str {
   fn render_into<'r, 'c>(&self, canvas: &mut RenderBufferCanvas<'r, 'c, 't>) -> Result<(), ()> {
-    let start = canvas.get_position();
-
-    for chunk in self.split_word_bounds() {
-      if chunk == "\n" {
-        canvas.cursor_down().set_column(start.column());
-        continue;
-      }
-
-      if canvas.position.right(chunk.len()).column() > canvas.buffer.width() {
-        canvas.cursor_down().set_column(start.column());
-      }
-
-      for grapheme in chunk.graphemes(true) {
-        if !canvas.set_char(grapheme) {
-          canvas.cursor_down().set_column(start.column()).set_char(grapheme);
-        };
-      }
-    }
-
-    Ok(())
+    render_wrapped(&[TextSegment::Segment(self, None)], canvas)
   }
 }

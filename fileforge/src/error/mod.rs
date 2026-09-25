@@ -54,7 +54,6 @@ impl<'pool, const NODE_NAME_SIZE: usize, E: FileforgeError, P: DiagnosticPoolPro
       loop {
         let mut buffer = [RenderBufferCell::default(); 80];
         let mut buffer = RenderBuffer::new(&mut buffer, 80, o);
-        o += 1;
 
         let r = buffer.canvas_at(RenderPosition::zero()).write(&report).unwrap();
 
@@ -63,6 +62,7 @@ impl<'pool, const NODE_NAME_SIZE: usize, E: FileforgeError, P: DiagnosticPoolPro
         }
 
         let _ = buffer.flush_into(f, self.render_mode);
+        o += 1;
       }
     });
 
