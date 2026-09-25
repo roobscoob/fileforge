@@ -122,29 +122,69 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
   }
 
   async fn skip(&mut self, size: u64) -> Result<(), stream::StreamSkipError<Self::SkipError>> {
+    // ensure that we can skip `size` items
+    let end_index = self.index.checked_add(size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
+
     if let Some(item_size) = T::SIZE {
       let total_size = size.checked_mul(item_size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
-      self.index += size;
-      self.reader.skip(total_size).await.map_err(ContiguousSkipError::Stream).map_err(stream::StreamSkipError::User)
-    } else {
-      // ensure that we can read at `size` items
-      self.index.checked_add(size).ok_or(stream::StreamSkipError::User(ContiguousSkipError::Overflowed))?;
+      self.reader.skip(total_size).await.map_err(ContiguousSkipError::Stream).map_err(stream::StreamSkipError::User)?;
 
-      for i in 0..size {
+      // only once the skip succeeded, so a failed skip leaves the index where the reader is
+      self.index = end_index;
+      Ok(())
+    } else {
+      while self.index < end_index {
         self
           .reader
-          .read_with::<T>((self.generator)(self.index + i))
+          .read_with::<T>((self.generator)(self.index))
           .await
           .map_err(|error| ContiguousSkipError::Read {
-            index: self.index + i,
+            index: self.index,
             read_error: error,
           })
           .map_err(stream::StreamSkipError::User)?;
+
+        // one at a time, so a failed read leaves the index at the item that failed
+        self.index += 1;
       }
 
-      self.index += size;
       Ok(())
     }
   }
 }
 
+#[cfg(test)]
+mod tests {
+  use std::vec;
+
+  use super::Contiguous;
+  use crate::{
+    binary_reader::{endianness::Endianness, BinaryReader},
+    provider::hint::ReadHint,
+    stream::{ReadableStream, SINGLE},
+  };
+
+  #[tokio::test]
+  async fn a_failed_fixed_size_skip_leaves_the_index_unchanged() {
+    // Three u32s.
+    let reader = BinaryReader::new_from_provider(vec![0u8, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3], Endianness::BigEndian, ReadHint::new());
+    let mut items = reader.into_with::<Contiguous<_, u32, _>>(|_| ()).await.unwrap();
+
+    assert!(items.skip(1).await.is_ok());
+    assert_eq!(items.offset(), 1);
+
+    assert!(items.skip(5).await.is_err());
+    assert_eq!(items.offset(), 1);
+    assert_eq!(items.read(SINGLE).await.ok(), Some(2), "the reader should still be at item 1");
+  }
+
+  #[tokio::test]
+  async fn a_failed_variable_size_skip_stops_at_the_item_that_failed() {
+    // Two whole [u8; 2] items, then half of a third.
+    let reader = BinaryReader::new_from_provider(vec![1u8, 2, 3, 4, 5], Endianness::BigEndian, ReadHint::new());
+    let mut items = reader.into_with::<Contiguous<_, [u8; 2], _>>(|_| [(); 2]).await.unwrap();
+
+    assert!(items.skip(3).await.is_err());
+    assert_eq!(items.offset(), 2);
+  }
+}

@@ -43,7 +43,7 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for SarcHeader<'poo
 
     reader.set_endianness(endianness);
 
-    let size = reader.get().await.map_err(|e| SarcHeaderReadError::Size(e))?;
+    let size: u32 = reader.get().await.map_err(|e| SarcHeaderReadError::Size(e))?;
     let data_section_offset: u32 = reader.get().await.map_err(|e| SarcHeaderReadError::DataSectionOffset(e))?;
     let version: u16 = reader.get().await.map_err(|e| SarcHeaderReadError::Version(e))?;
     let version = ((version >> 8) as u8, (version & 0xFF) as u8);
