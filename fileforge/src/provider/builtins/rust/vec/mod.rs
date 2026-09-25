@@ -1,6 +1,6 @@
 pub mod partition;
 
-use std::convert::Infallible;
+use core::convert::Infallible;
 
 use crate::provider::{
   builtins::slice::{dynamic::DynamicSliceProvider, fixed::FixedSliceProvider},
@@ -39,7 +39,7 @@ where
   }
 
   fn slice<'a, const SIZE: usize>(&'a self, start: u64) -> Result<Self::StaticSliceProvider<'a, SIZE>, ProviderSliceError<Self::SliceError>> {
-    OutOfBoundsError::assert(SIZE as u64, start, Some(SIZE as u64))?;
+    OutOfBoundsError::assert(self.len() as u64, start, Some(SIZE as u64))?;
 
     let slice = &self[start as usize..(start + SIZE as u64) as usize];
     let slice: &[T; SIZE] = slice.try_into().unwrap();

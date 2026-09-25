@@ -1,4 +1,4 @@
-#![cfg_attr(all(not(feature = "story"), not(test)), no_std)]
+#![cfg_attr(not(test), no_std)]
 #![allow(async_fn_in_trait)]
 
 use core::convert::Infallible;

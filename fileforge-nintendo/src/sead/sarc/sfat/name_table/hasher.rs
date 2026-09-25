@@ -94,12 +94,14 @@ impl Hasher for SfntHasher {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::hash::Hash;
+
+  // note: these use `Hasher::write` rather than `"test".hash(..)`, because `str`'s
+  // `Hash` impl appends a 0xFF terminator byte that the sead algorithm doesn't have.
 
   #[test]
   fn test_unsigned_mode() {
     let mut hasher = SfntHasher::new_unsigned(31);
-    "test".hash(&mut hasher);
+    hasher.write(b"test");
     let hash = hasher.finish();
 
     // Manual calculation: 0*31+116 = 116, 116*31+101 = 3697, etc.
@@ -116,12 +118,12 @@ mod tests {
   #[test]
   fn test_signed_mode() {
     let mut hasher = SfntHasher::new_signed(31);
-    "test".hash(&mut hasher);
+    hasher.write(b"test");
     let hash = hasher.finish();
 
     // For ASCII this should match unsigned
     let mut hasher_unsigned = SfntHasher::new_unsigned(31);
-    "test".hash(&mut hasher_unsigned);
+    hasher_unsigned.write(b"test");
     assert_eq!(hash, hasher_unsigned.finish());
   }
 

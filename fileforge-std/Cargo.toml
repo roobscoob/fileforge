@@ -4,10 +4,10 @@ version = "0.1.2"
 edition = "2021"
 
 [dependencies]
-fileforge = { path = "../fileforge" }
+fileforge = { path = "../fileforge", default-features = false }
 fileforge-macros = { path = "../fileforge-macros" }
 
 [features]
 default = ["alloc", "std"]
-std = ["fileforge/std"]
+std = ["alloc", "fileforge/std"]
 alloc = ["fileforge/alloc"]

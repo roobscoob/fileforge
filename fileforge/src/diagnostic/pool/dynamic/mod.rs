@@ -1,8 +1,6 @@
 pub mod field;
 
-extern crate alloc;
-
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::{
   cell::{Ref, RefCell},
   num::NonZero,

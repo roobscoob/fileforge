@@ -10,7 +10,7 @@ use crate::provider::{error::provider_partition::ProviderPartitionError, Partiti
 use crate::provider::{MutProvider, Provider, ResizableProvider};
 use core::cell::UnsafeCell;
 use core::ops::Range;
-use std::convert::Infallible;
+use core::convert::Infallible;
 
 pub struct Head<'a, T> {
   vec: &'a UnsafeCell<alloc::vec::Vec<T>>,

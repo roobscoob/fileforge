@@ -10,12 +10,12 @@ fileforge-macros = { path = "../fileforge-macros" }
 fileforge-std = { path = "../fileforge-std", default-features = false }
 heapless = "0.9.1"
 intx = "0.1.0"
-strum = { version = "0.27.2", features = ["phf", "derive", "strum_macros"] }
+strum = { version = "0.27.2", default-features = false, features = ["derive"] }
 
 [features]
 default = ["alloc", "std"]
-alloc = ["fileforge/alloc"]
-std = ["fileforge/std"]
+alloc = ["fileforge/alloc", "fileforge-std/alloc"]
+std = ["alloc", "fileforge/std", "fileforge-std/std"]
 
 [dev-dependencies]
 tokio = { version = "1.48.0", features = ["full"] }

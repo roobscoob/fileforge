@@ -14,9 +14,9 @@ inventory = { version = "0.3.19", optional = true }
 
 [features]
 default = ["alloc", "std"]
-story = ["dep:inventory"]
+story = ["std", "dep:inventory"]
 alloc = []
-std = []
+std = ["alloc"]
 
 [dev-dependencies]
 tokio = { version = "1.48.0", features = ["full"] }

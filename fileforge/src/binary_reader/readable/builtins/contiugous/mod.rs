@@ -17,8 +17,6 @@ pub struct Contiguous<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>
   _phantom: PhantomData<fn() -> T>,
 }
 
-extern crate std;
-
 impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64) -> T::Argument> Contiguous<'pool, S, T, Gen> {
   pub async fn finish(mut self, length: u64) -> Result<(), stream::StreamSkipError<ContiguousSkipError<'pool, <S as ReadableStream>::SkipError, <T as Readable<'pool, S>>::Error>>> {
     self.skip(length.saturating_sub(self.index)).await

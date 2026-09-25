@@ -68,6 +68,14 @@ impl Yaz0State {
   }
 
   pub(crate) fn feed_operation(&mut self, operation: Operation) -> Result<(), MalformedStream> {
+    // unread bytes live in the seekback ring buffer, so if they outgrow it `push_byte` would
+    // silently evict bytes the caller hasn't taken yet. callers must `take` pending output
+    // before feeding more; a single block (at most 8 * 273 bytes) always fits.
+    assert!(
+      (self.unread_bytes + operation.len() as u64) as usize <= SEEKBACK_BUFFER_LENGTH,
+      "Seekback Buffer Overflow"
+    );
+
     match operation {
       Operation::Literal(b) => {
         self.push_byte(b);

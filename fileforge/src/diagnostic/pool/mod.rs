@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 pub mod dynamic;
 pub mod fixed;
 
