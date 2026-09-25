@@ -42,7 +42,11 @@ impl Block {
     header
   }
 
-  pub fn split_at_with_mid(self, offset: u64, post_block_state: &Yaz0State) -> Result<(Block, Option<u8>, Option<u8>, Block), MalformedStream> {
+  /// Splits the block at `offset`, a decoded position within it, without feeding any state.
+  ///
+  /// `state_at_offset` is the history as of `offset`: it must already include every byte this
+  /// block decodes to before `offset`. That's what `split_at_with_pre(offset, …)` leaves behind.
+  pub fn split_at_with_mid(self, offset: u64, state_at_offset: &Yaz0State) -> Result<(Block, Option<u8>, Option<u8>, Block), MalformedStream> {
     let total = self.len() as u64;
 
     if offset >= total {
@@ -102,35 +106,41 @@ impl Block {
         }
 
         Operation::ShortReadback { offset: back, length } | Operation::LongReadback { offset: back, length } => {
-          let mut read = post_block_state.last_n(back.get() as usize).unwrap().take(length.get() as usize).cycle();
+          // The history ends at the split point, so it already holds the `k` bytes this operation
+          // decoded to before the split, and the operation continues from `back` bytes behind the
+          // split point.
 
-          // First k bytes go left, remainder goes right.
-          if k > 0 {
-            if k == 1 {
-              left.operations.push(Operation::Literal(read.next().unwrap())).unwrap();
-            } else if k == 2 {
-              left.operations.push(Operation::Literal(read.next().unwrap())).unwrap();
+          // The first k bytes go left. 1 or 2 bytes can't be a readback (the minimum length is 3),
+          // so they become literals: the last k bytes of the history.
+          if k == 1 || k == 2 {
+            let mut before = state_at_offset.last_n(k as usize).unwrap();
+            left.operations.push(Operation::Literal(before.next().unwrap())).unwrap();
+
+            if k == 2 {
+              let second = before.next().unwrap();
 
               if left.operations.is_full() {
-                opt = Some(read.next().unwrap());
+                opt = Some(second);
               } else {
-                left.operations.push(Operation::Literal(read.next().unwrap())).unwrap();
+                left.operations.push(Operation::Literal(second)).unwrap();
               }
-            } else {
-              read.nth(k as usize - 1);
-              left.operations.push(Operation::readback(back.get(), k).unwrap()).unwrap();
             }
+          } else if k >= 3 {
+            left.operations.push(Operation::readback(back.get(), k).unwrap()).unwrap();
           }
+
+          // The remainder goes right. If it's 1 or 2 bytes it becomes literals, starting `back`
+          // bytes behind the split point. It repeats every `back` bytes when it overlaps itself
+          // (`back` smaller than the remainder), hence `cycle`.
           let rem = length.get() - k;
-          if rem > 0 {
-            if rem == 1 {
-              right.operations.push(Operation::Literal(read.next().unwrap())).unwrap();
-            } else if rem == 2 {
-              right.operations.push(Operation::Literal(read.next().unwrap())).unwrap();
-              right.operations.push(Operation::Literal(read.next().unwrap())).unwrap();
-            } else {
-              right.operations.push(Operation::readback(back.get(), rem).unwrap()).unwrap();
+          if rem == 1 || rem == 2 {
+            let mut after = state_at_offset.last_n(back.get() as usize).unwrap().cycle();
+
+            for _ in 0..rem {
+              right.operations.push(Operation::Literal(after.next().unwrap())).unwrap();
             }
+          } else if rem >= 3 {
+            right.operations.push(Operation::readback(back.get(), rem).unwrap()).unwrap();
           }
         }
       }
@@ -338,5 +348,131 @@ impl BlockHeader {
   #[inline]
   pub fn is_exhausted(&self) -> bool {
     self.mask == 0
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::{vec, vec::Vec};
+
+  use super::{Block, Operation};
+  use crate::sead::yaz0::state::Yaz0State;
+
+  fn lit(byte: u8) -> Operation {
+    Operation::Literal(byte)
+  }
+
+  fn rb(back: u16, length: u16) -> Operation {
+    Operation::readback(back, length).unwrap()
+  }
+
+  fn block(ops: &[Operation]) -> Block {
+    Block {
+      operations: heapless::Vec::from_slice(ops).unwrap(),
+    }
+  }
+
+  /// A state whose history is `bytes`, all already taken.
+  fn history(bytes: &[u8]) -> Yaz0State {
+    let mut state = Yaz0State::empty();
+
+    for &byte in bytes {
+      state.feed_operation(lit(byte)).unwrap();
+    }
+
+    state.take(usize::MAX);
+    state
+  }
+
+  fn decode(state: &mut Yaz0State, ops: &[Operation]) -> Vec<u8> {
+    let mut out = Vec::new();
+
+    for &op in ops {
+      state.feed_operation(op).unwrap();
+      out.extend(state.take(usize::MAX));
+    }
+
+    out
+  }
+
+  #[test]
+  fn a_two_byte_remainder_becomes_the_bytes_after_the_split() {
+    // "ABCD", then "copy 4 from 4 back": ABCDABCD. Split at 6, inside the copy (2 bytes in, 2 left).
+    let ops = [lit(b'A'), lit(b'B'), lit(b'C'), lit(b'D'), rb(4, 4)];
+    let (left, opt, underflow, right) = block(&ops).split_at_with_mid(6, &history(b"ABCDAB")).unwrap();
+
+    assert_eq!(&left.operations[..], &[lit(b'A'), lit(b'B'), lit(b'C'), lit(b'D'), lit(b'A'), lit(b'B')]);
+    assert_eq!((opt, underflow), (None, None));
+    assert_eq!(&right.operations[..], &[lit(b'C'), lit(b'D')]);
+  }
+
+  #[test]
+  fn a_one_byte_remainder_becomes_the_byte_after_the_split() {
+    // Split at 7: 3 bytes into the copy stay a readback, 1 is left.
+    let ops = [lit(b'A'), lit(b'B'), lit(b'C'), lit(b'D'), rb(4, 4)];
+    let (left, _, _, right) = block(&ops).split_at_with_mid(7, &history(b"ABCDABC")).unwrap();
+
+    assert_eq!(&left.operations[..], &[lit(b'A'), lit(b'B'), lit(b'C'), lit(b'D'), rb(4, 3)]);
+    assert_eq!(&right.operations[..], &[lit(b'D')]);
+  }
+
+  #[test]
+  fn a_remainder_that_overlaps_itself_repeats() {
+    // "AB", then "copy 4 from 1 back": ABBBBB. At 4 the history's last byte repeats for both remaining bytes.
+    let ops = [lit(b'A'), lit(b'B'), rb(1, 4)];
+    let (_, _, _, right) = block(&ops).split_at_with_mid(4, &history(b"ABBB")).unwrap();
+
+    assert_eq!(&right.operations[..], &[lit(b'B'), lit(b'B')]);
+  }
+
+  #[test]
+  fn every_split_point_decodes_to_the_original_bytes() {
+    // (history before the block, the block's operations)
+    let seven: Vec<Operation> = b"ABCDEFG".iter().map(|&b| lit(b)).collect();
+    let cases: Vec<(&[u8], Vec<Operation>)> = vec![
+      (b"", vec![lit(b'A'), lit(b'B'), lit(b'C'), lit(b'D'), rb(4, 4)]),
+      // A split 3 bytes in with 2 left: shifted reads give the wrong bytes here.
+      (b"", vec![lit(b'A'), lit(b'B'), rb(2, 5)]),
+      // Overlapping copies, which need the history to repeat.
+      (b"", vec![lit(b'A'), lit(b'B'), rb(1, 4)]),
+      (b"", vec![lit(b'A'), lit(b'B'), lit(b'C'), rb(3, 20)]),
+      // Seven literals then a readback: a 2-byte split leaves the left half full (the `opt` byte).
+      (b"", [&seven[..], &[rb(3, 4)]].concat()),
+      // A readback first, then seven literals: a 2-byte remainder overfills the right half (the
+      // underflow byte).
+      (b"XYZ", [&[rb(3, 5)], &seven[..]].concat()),
+    ];
+
+    // Make sure the rare paths are really exercised.
+    let (mut opt_seen, mut underflow_seen) = (false, false);
+
+    for (before, ops) in cases {
+      let expected = decode(&mut history(before), &ops);
+
+      for offset in 0..=expected.len() {
+        let before_offset = [before, &expected[..offset]].concat();
+        let (left, opt, underflow, right) = block(&ops).split_at_with_mid(offset as u64, &history(&before_offset)).unwrap();
+
+        opt_seen |= opt.is_some();
+        underflow_seen |= underflow.is_some();
+
+        let mut decoded_left = decode(&mut history(before), &left.operations);
+        decoded_left.extend(opt);
+        assert_eq!(decoded_left, &expected[..offset], "left half of {ops:?} split at {offset}");
+
+        let mut state = history(&before_offset);
+        let mut decoded_right = Vec::new();
+
+        if let Some(byte) = underflow {
+          decoded_right.push(byte);
+          state = history(&[&before_offset[..], &[byte]].concat());
+        }
+
+        decoded_right.extend(decode(&mut state, &right.operations));
+        assert_eq!(decoded_right, &expected[offset..], "right half of {ops:?} split at {offset}");
+      }
+    }
+
+    assert!(opt_seen && underflow_seen, "the cases should cover a full left half and a full right half");
   }
 }
