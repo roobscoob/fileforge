@@ -1,0 +1,12 @@
+× FileForgeLib Error Report ×
+
+i Can't restore forwards (fileforge::stream::error::stream_restore::StreamRestor
+                          eError<fileforge::storybook::StoryUserError>)
+  ❯ A snapshot can only move a stream backwards, but this one is ahead of it.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+

@@ -2,6 +2,9 @@ use fileforge::error::FileforgeError;
 
 pub mod iso_8859_1;
 
+#[cfg(feature = "story")]
+pub mod story;
+
 pub trait AsciiCodepage: Default {
   type EncodeError: FileforgeError;
   type DecodeError: FileforgeError;

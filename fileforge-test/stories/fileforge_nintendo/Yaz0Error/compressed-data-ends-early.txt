@@ -1,0 +1,11 @@
+× FileForgeLib Error Report ×
+
+i Truncated Yaz0 data (fileforge_nintendo::sead::yaz0::error::Yaz0Error<fileforg
+                       e::storybook::StoryUserError>)
+  ❯ The compressed data ends before reaching the decompressed size given in the
+    header.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+

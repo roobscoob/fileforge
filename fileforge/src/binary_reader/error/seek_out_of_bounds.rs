@@ -1,4 +1,4 @@
-use fileforge_macros::text;
+use fileforge_macros::{story, text};
 
 use crate::{
   binary_reader::error::common::{SeekOffset, LOW_LEVEL_ERROR},
@@ -13,6 +13,26 @@ use crate::{
   },
 };
 
+#[story("beyond the container, with diagnostics", SeekOutOfBounds {
+  seek_offset: SeekOffset::InBounds(100),
+  provider_size: dv!("save.bin" / "header.file_size" @ 0..4 [8]),
+  container_dr: dr!("save.bin" @ 0..8),
+})]
+#[story("beyond the container, no diagnostics", SeekOutOfBounds {
+  seek_offset: SeekOffset::InBounds(100),
+  provider_size: DiagnosticValue(8, None),
+  container_dr: None,
+})]
+#[story("overflowed", SeekOutOfBounds {
+  seek_offset: SeekOffset::Overflowed { base_offset: u64::MAX - 2, add: 16 },
+  provider_size: dv!("save.bin" / "header.file_size" @ 0..4 [8]),
+  container_dr: dr!("save.bin" @ 0..8),
+})]
+#[story("underflowed", SeekOutOfBounds {
+  seek_offset: SeekOffset::Underflow { base_offset: 2, subtract: 6 },
+  provider_size: dv!("save.bin" / "header.file_size" @ 0..4 [8]),
+  container_dr: dr!("save.bin" @ 0..8),
+})]
 pub struct SeekOutOfBounds<'pool> {
   pub seek_offset: SeekOffset,
   pub provider_size: DiagnosticValue<'pool, u64>,

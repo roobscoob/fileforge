@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated BYML string table (fileforge_nintendo::byml::node::string_table::Bym
+                               lStringTableNodeConstructableError<'_, fileforge:
+                               :storybook::StoryStream>)
+  ❯ The file ends partway through the string count (a u24 at 0x21).
+  ❯ It needs 3 bytes there, but only 1 remains.
+  ❯ The file is 34 (0x22) bytes long, but at least 36 (0x24) are needed to
+    include the string count.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+data.byml
+^~~~~~~~~
+This file is truncated
+

@@ -1,0 +1,21 @@
+× FileForgeLib Error Report ×
+
+i Seek out of Bounds (fileforge::binary_reader::error::seek_out_of_bounds::SeekO
+                      utOfBounds<'_>)
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+save.bin
+^~~~~~~~
+│ Failed to seek to 12 (0xC). The seek point was beyond the container's length,
+│ of 8 bytes.
+│
+╰-> header.file_size@[..0×4] = 0x8
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The container's size was derived from here
+
+
+

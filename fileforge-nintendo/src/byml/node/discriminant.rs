@@ -1,3 +1,4 @@
+use fileforge_macros::story;
 use fileforge::{
   binary_reader::{
     error::{common::Read, primitive_name_annotation::PrimitiveName, GetPrimitiveError},
@@ -7,9 +8,13 @@ use fileforge::{
   error::ext::annotations::annotated::Annotated,
   stream::ReadableStream,
 };
-use fileforge_macros::FileforgeError;
+use fileforge::{diagnostic::pool::DiagnosticPoolProvider, error::{report::Report, FileforgeError}};
 
 use crate::byml::node::BymlNodeDiscriminants;
+use fileforge::error::render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_FLAG_LINE_TEXT}, builtin::text::r#const::ConstText};
+use fileforge::error::render::builtin::number::formatted_unsigned::FormattedUnsigned;
+use fileforge_macros::text;
+use crate::report::{render_field_read, Field, CORRUPTED};
 
 impl BymlNodeDiscriminants {
   fn resolve(id: u8) -> Result<BymlNodeDiscriminants, u8> {
@@ -73,15 +78,48 @@ pub struct BymlNodeDiscriminantVersionConfig {
   pub feat_binary_data_table: bool,
 }
 
-#[derive(FileforgeError)]
+#[story("file ends at the node type", BymlNodeDiscriminantsReadError::<StoryStream>::ReadValue(read_exhausted::<u8, StoryUserError>(dr!("data.byml" @ 0..32), 32, DiagnosticValue(32, None))))]
+#[story("unknown node type", BymlNodeDiscriminantsReadError::<StoryStream>::UnknownDiscriminant(0x42))]
+#[story("node type not in this version", BymlNodeDiscriminantsReadError::<StoryStream>::InvalidVersion)]
 pub enum BymlNodeDiscriminantsReadError<'pool, S: ReadableStream> {
-  ReadValue(#[from] Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>),
-
-  #[report(&"Unknown Discriminant :(")]
+  ReadValue(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>),
   UnknownDiscriminant(u8),
-
-  #[report(&"Invalid Version :O")]
   InvalidVersion,
+}
+
+const NODE_TYPE_NOT_IN_VERSION: ConstText = ConstText::new("This node type isn't allowed by the file's BYML version or configuration.", &REPORT_ERROR_TEXT);
+const UNKNOWN_NODE_TYPE: ConstText = ConstText::new("This usually means the file is corrupted, or uses a BYML version fileforge doesn't know.", &REPORT_FLAG_LINE_TEXT);
+
+impl<'pool, S: ReadableStream> FileforgeError for BymlNodeDiscriminantsReadError<'pool, S> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::ReadValue(read) => render_field_read::<Self, S::ReadError, P, ITEM_NAME_SIZE>(
+        read,
+        Field { structure: "BYML node", name: "node type", kind: "a u8" },
+        provider,
+        callback,
+      ),
+      Self::UnknownDiscriminant(node_type) => {
+        let node_type = FormattedUnsigned::new(*node_type as u128).base(16).uppercase().padding(2).prefix("0x");
+        let found_text = text!([&REPORT_ERROR_TEXT] "Found node type {&node_type}, which isn't a BYML node type.");
+
+        Report::new::<Self>(provider, &"Unknown BYML node type")
+          .with_info_line(&found_text)
+          .with_flag_line(&UNKNOWN_NODE_TYPE)
+          .apply(callback)
+      }
+      Self::InvalidVersion => Report::new::<Self>(provider, &"BYML node type not allowed here")
+        .with_info_line(&NODE_TYPE_NOT_IN_VERSION)
+        .with_flag_line(&CORRUPTED)
+        .apply(callback),
+    }
+  }
+}
+
+impl<'pool, S: ReadableStream> From<Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>> for BymlNodeDiscriminantsReadError<'pool, S> {
+  fn from(value: Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>) -> Self {
+    Self::ReadValue(value)
+  }
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for BymlNodeDiscriminants {

@@ -1,0 +1,6 @@
+× FileForgeLib Error Report ×
+
+i Example error from outside the library (fileforge::storybook::StoryUserError)
+  ❯ This happened while reading the key table offset (a u32) of the BYML header.
+
+

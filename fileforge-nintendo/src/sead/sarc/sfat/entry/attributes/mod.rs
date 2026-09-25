@@ -1,16 +1,31 @@
 use core::num::NonZero;
 
-use fileforge_macros::{text, FileforgeError};
+use fileforge_macros::story;
+use fileforge::{diagnostic::pool::DiagnosticPoolProvider, error::{report::Report, FileforgeError}};
+use fileforge::error::render::{buffer::cell::tag::builtin::report::REPORT_ERROR_TEXT, builtin::text::r#const::ConstText};
+use crate::report::{CORRUPTED};
 
 pub struct FilenameAttributes {
   pub sequence: NonZero<u8>,
   pub hash_index: u32,
 }
 
-#[derive(FileforgeError)]
+#[story("zero sequence", FilenameAttributesError::ZeroSequence)]
 pub enum FilenameAttributesError {
-  #[report(&text!("Encountered a 'FilenameAttribute' with a zero sequence."))]
   ZeroSequence,
+}
+
+const ZERO_SEQUENCE: ConstText = ConstText::new("The entry's filename attributes are set, but their first byte (a collision index, which starts at 1) is 0.", &REPORT_ERROR_TEXT);
+
+impl FileforgeError for FilenameAttributesError {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::ZeroSequence => Report::new::<Self>(provider, &"Invalid SFAT filename attributes")
+        .with_info_line(&ZERO_SEQUENCE)
+        .with_flag_line(&CORRUPTED)
+        .apply(callback),
+    }
+  }
 }
 
 impl FilenameAttributes {

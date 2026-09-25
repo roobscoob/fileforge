@@ -1,0 +1,15 @@
+× FileForgeLib Error Report ×
+
+i Truncated BYML header (fileforge_nintendo::byml::header::readable::BymlHeaderR
+                         eadError<'_, fileforge::storybook::StoryUserError>)
+  ❯ The file ends right before the key table offset (a u32 at 0x4).
+  ❯ The file is 4 (0x4) bytes long, but at least 8 (0x8) are needed to include
+    the key table offset.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+data.byml
+^~~~~~~~~
+This file is truncated
+

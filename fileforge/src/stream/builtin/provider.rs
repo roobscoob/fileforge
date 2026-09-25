@@ -1,3 +1,4 @@
+use fileforge_macros::story;
 use core::{fmt::Debug, future::ready};
 
 use crate::{
@@ -282,6 +283,9 @@ where
   }
 }
 
+#[story("poisoned", ProviderOverwriteError::<StoryProvider>::Poisoned(ProviderStreamPoisonedError))]
+#[story("allocation failed", ProviderOverwriteError::<StoryProvider>::Allocate(StoryUserError))]
+#[story("write failed", ProviderOverwriteError::<StoryProvider>::Write(StoryUserError))]
 #[derive(Debug)]
 pub enum ProviderOverwriteError<P: ResizableProvider> {
   Poisoned(ProviderStreamPoisonedError),
@@ -301,6 +305,8 @@ impl<'pool, P: ResizableProvider> FileforgeError for ProviderOverwriteError<P> {
 
 impl<P: ResizableProvider> UserOverwriteError for ProviderOverwriteError<P> {}
 
+#[story("poisoned", ProviderStreamError::<StoryUserError>::Poisoned(ProviderStreamPoisonedError))]
+#[story("provider failed", ProviderStreamError::Specific(StoryUserError))]
 #[derive(Debug)]
 pub enum ProviderStreamError<T: FileforgeError> {
   Poisoned(ProviderStreamPoisonedError),
@@ -325,6 +331,7 @@ impl<T: FileforgeError> FileforgeError for ProviderStreamError<T> {
   }
 }
 
+#[story("poisoned", ProviderStreamPoisonedError)]
 #[derive(Debug)]
 pub struct ProviderStreamPoisonedError;
 

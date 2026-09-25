@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i Example error from outside the library (fileforge::storybook::StoryUserError)
+  ❯ This happened while returning to the start of a value in order to change it.
+  ❯ This happened while updating the decompressed size in the Yaz0 header.
+
+

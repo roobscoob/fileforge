@@ -1,0 +1,6 @@
+× FileForgeLib Error Report ×
+
+i Example error from outside the library (fileforge::storybook::StoryUserError)
+  ❯ This error originated while attempting to write u16
+
+

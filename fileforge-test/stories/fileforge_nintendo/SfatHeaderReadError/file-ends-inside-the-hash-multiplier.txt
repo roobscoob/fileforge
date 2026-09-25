@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated SFAT header (fileforge_nintendo::sead::sarc::sfat::header::readable:
+                         :SfatHeaderReadError<'_, fileforge::storybook::StoryUse
+                         rError>)
+  ❯ The file ends partway through the hash multiplier (a u32 at 0x1C).
+  ❯ It needs 4 bytes there, but only 2 remain.
+  ❯ The file is 30 (0x1E) bytes long, but at least 32 (0x20) are needed to
+    include the hash multiplier.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+

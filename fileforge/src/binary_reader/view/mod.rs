@@ -7,6 +7,12 @@ use crate::{
     snapshot::BinaryReaderSnapshot,
     BinaryReader, MutableMutator,
   },
+  diagnostic::pool::DiagnosticPoolProvider,
+  error::{
+    render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::r#const::ConstText},
+    report::Report,
+    FileforgeError,
+  },
   stream::{error::stream_restore::StreamRestoreError, MutableStream, RestorableStream},
 };
 
@@ -40,6 +46,17 @@ impl<'pool, S: RestorableStream<Type = u8>, T: Readable<'pool, S>> IntoReadable<
 pub enum ViewMutateError<'pool, S: MutableStream<Type = u8> + RestorableStream, T: Mutable<'pool, S> + Readable<'pool, S>> {
   Restore(StreamRestoreError<S::RestoreError>),
   Mutate(<T as Mutable<'pool, S>>::Error),
+}
+
+const RETURNING_TO_VIEW: ConstText = ConstText::new("This happened while returning to the start of a value in order to change it.", &REPORT_INFO_LINE_TEXT);
+
+impl<'pool, S: MutableStream<Type = u8> + RestorableStream, T: Mutable<'pool, S> + Readable<'pool, S>> FileforgeError for ViewMutateError<'pool, S, T> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::Restore(error) => error.render_into_report(provider, |report| report.with_info_line(&RETURNING_TO_VIEW).apply(callback)),
+      Self::Mutate(error) => error.render_into_report(provider, callback),
+    }
+  }
 }
 
 impl<'pool, S: MutableStream<Type = u8> + RestorableStream, T: Mutable<'pool, S> + Readable<'pool, S>> View<'pool, S, T> {

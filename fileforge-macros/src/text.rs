@@ -1,5 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::{collections::HashMap, str::FromStr};
 
 use proc_macro2::{Delimiter, Group, Span, TokenStream};
@@ -45,7 +43,7 @@ fn parse_tag(input: ParseStream) -> syn::Result<Tag> {
   Ok(Tag(group.stream()))
 }
 
-/// Internal representation of what `text!` / `with_text!` need:
+/// Internal representation of what `text!` needs:
 /// - remap_lets: the `let foo = expr;` bindings
 /// - text_expr:  an expression that evaluates to a `Text`
 struct TextExpansion {
@@ -53,7 +51,7 @@ struct TextExpansion {
   text_expr: TokenStream,
 }
 
-/// Shared expansion logic for `text!` and `with_text!`.
+/// Expansion logic for `text!`.
 fn expand_text_like(input: TokenStream) -> Result<TextExpansion, TokenStream> {
   let mut iter = input.into_iter().peekable();
 
@@ -247,49 +245,4 @@ pub fn text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     .into(),
     Err(err) => err.into(),
   }
-}
-
-pub fn with_text(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-  let input_ts: TokenStream = input.into();
-
-  let expansion = match expand_text_like(input_ts.clone()) {
-    Ok(exp) => exp,
-    Err(err) => return err.into(),
-  };
-
-  let TextExpansion { remap_lets, text_expr } = expansion;
-
-  // Create a pseudo-random-ish, but deterministic, struct name based on the input.
-  let mut hasher = DefaultHasher::new();
-  input_ts.to_string().hash(&mut hasher);
-  let hash = hasher.finish();
-  let struct_ident = syn::Ident::new(&format!("Text{}", hash), Span::call_site());
-
-  // Choose crate root: `crate` when compiling inside fileforge, `::fileforge` otherwise.
-  let root = if std::env::var("CARGO_CRATE_NAME").is_ok_and(|v| v.eq("fileforge")) {
-    quote!(crate)
-  } else {
-    quote!(::fileforge)
-  };
-
-  quote! {
-    {
-      struct #struct_ident;
-
-      impl<'tag> #root::error::render::r#trait::renderable::WithRenderable<'tag> for #struct_ident {
-        fn with<T>(callback: impl for<'a> FnOnce(&'a dyn #root::error::render::r#trait::renderable::Renderable<'tag>) -> T) -> T {
-          #(#remap_lets)*
-
-          let text = {
-            #text_expr
-          };
-
-          callback(&text)
-        }
-      }
-
-      #struct_ident
-    }
-  }
-  .into()
 }

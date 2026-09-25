@@ -1,3 +1,4 @@
+use fileforge_macros::story;
 pub mod bool;
 pub mod discriminant;
 pub mod float32;
@@ -11,7 +12,7 @@ use core::future::Future;
 
 use enum_as_inner::EnumAsInner;
 use fileforge::{binary_reader::BinaryReader, stream::ReadableStream, ResultIgnoreExt};
-use fileforge_macros::FileforgeError;
+use fileforge::{diagnostic::pool::DiagnosticPoolProvider, error::{report::Report, FileforgeError}};
 use strum::EnumDiscriminants;
 
 use crate::byml::node::{
@@ -24,6 +25,9 @@ use crate::byml::node::{
   string_table::{BymlStringTableNode, BymlStringTableNodeConstructableError},
   unsigned_integer32::BymlUnsignedInteger32Node,
 };
+use fileforge::error::render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_INFO_LINE_TEXT}, builtin::text::r#const::ConstText};
+use fileforge_macros::text;
+use crate::report::{render_with_context, CORRUPTED};
 
 #[derive(EnumAsInner, EnumDiscriminants)]
 pub enum BymlNode<'pool, S: ReadableStream<Type = u8>> {
@@ -108,15 +112,72 @@ pub trait BymlAnyConstructable<'pool, S: ReadableStream<Type = u8>, E>: Sized {
   ) -> impl Future<Output = Result<Self, Self::DynError>>;
 }
 
-#[derive(FileforgeError)]
+#[story("reader could not be acquired", BymlConstructionError::<StoryUserError, StoryStream>::ReaderAcquire(StoryUserError))]
+#[story("node type failed to read", BymlConstructionError::<StoryUserError, StoryStream>::ReadType(BymlNodeDiscriminantsReadError::UnknownDiscriminant(0x42)))]
+#[story("node type cannot be read dynamically", BymlConstructionError::<StoryUserError, StoryStream>::InvalidDynConstructable(BymlNodeDiscriminants::String))]
+#[story("string table failed", BymlConstructionError::<StoryUserError, StoryStream>::StringTable(BymlStringTableNodeConstructableError::ReadCountError(read_exhausted::<intx::U24, StoryUserError>(dr!("data.byml" @ 0..34), 33, DiagnosticValue(34, None)))))]
 pub enum BymlConstructionError<'pool, E, S: ReadableStream<Type = u8>> {
   ReaderAcquire(E),
-  ReadType(#[from] BymlNodeDiscriminantsReadError<'pool, S>),
-
-  #[report(&"Invalid Dyn Constructable :(")]
+  ReadType(BymlNodeDiscriminantsReadError<'pool, S>),
   InvalidDynConstructable(BymlNodeDiscriminants),
+  StringTable(BymlStringTableNodeConstructableError<'pool, S>),
+}
 
-  StringTable(#[from] BymlStringTableNodeConstructableError<'pool, S>),
+const MOVING_TO_NODE: ConstText = ConstText::new("This happened while moving to a node.", &REPORT_INFO_LINE_TEXT);
+
+/// A node type's name with its article, such as "an array", for reports.
+pub(crate) fn node_type_name(node_type: BymlNodeDiscriminants) -> &'static str {
+  match node_type {
+    BymlNodeDiscriminants::String => "a string",
+    BymlNodeDiscriminants::BinaryData => "a binary data",
+    BymlNodeDiscriminants::BinaryDataWithParameter => "a binary data (with parameter)",
+    BymlNodeDiscriminants::Array => "an array",
+    BymlNodeDiscriminants::Dictionary => "a dictionary",
+    BymlNodeDiscriminants::StringTable => "a string table",
+    BymlNodeDiscriminants::BinaryDataTable => "a binary data table",
+    BymlNodeDiscriminants::Bool => "a boolean",
+    BymlNodeDiscriminants::Integer32 => "a 32-bit integer",
+    BymlNodeDiscriminants::Float32 => "a 32-bit float",
+    BymlNodeDiscriminants::UnsignedInteger32 => "an unsigned 32-bit integer",
+    BymlNodeDiscriminants::Integer64 => "a 64-bit integer",
+    BymlNodeDiscriminants::UnsignedInteger64 => "an unsigned 64-bit integer",
+    BymlNodeDiscriminants::Float64 => "a 64-bit float",
+    BymlNodeDiscriminants::Null => "a null",
+  }
+}
+
+impl<'pool, E, S: ReadableStream<Type = u8>> FileforgeError for BymlConstructionError<'pool, E, S>
+where
+  E: FileforgeError,
+{
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::ReaderAcquire(error) => render_with_context(error, &MOVING_TO_NODE, provider, callback),
+      Self::ReadType(error) => error.render_into_report(provider, callback),
+      Self::InvalidDynConstructable(node_type) => {
+        let node_type = node_type_name(*node_type);
+        let found_text = text!([&REPORT_ERROR_TEXT] "An offset leads to {&node_type} node, but those are always stored in place, never behind an offset.");
+
+        Report::new::<Self>(provider, &"Unexpected BYML node")
+          .with_info_line(&found_text)
+          .with_flag_line(&CORRUPTED)
+          .apply(callback)
+      }
+      Self::StringTable(error) => error.render_into_report(provider, callback),
+    }
+  }
+}
+
+impl<'pool, E, S: ReadableStream<Type = u8>> From<BymlNodeDiscriminantsReadError<'pool, S>> for BymlConstructionError<'pool, E, S> {
+  fn from(value: BymlNodeDiscriminantsReadError<'pool, S>) -> Self {
+    Self::ReadType(value)
+  }
+}
+
+impl<'pool, E, S: ReadableStream<Type = u8>> From<BymlStringTableNodeConstructableError<'pool, S>> for BymlConstructionError<'pool, E, S> {
+  fn from(value: BymlStringTableNodeConstructableError<'pool, S>) -> Self {
+    Self::StringTable(value)
+  }
 }
 
 impl<'pool, S: ReadableStream<Type = u8>, E> BymlAnyConstructable<'pool, S, E> for BymlNode<'pool, S> {

@@ -1,0 +1,10 @@
+× FileForgeLib Error Report ×
+
+i BYML node type not allowed here (fileforge_nintendo::byml::node::discriminant:
+                                   :BymlNodeDiscriminantsReadError<'_, fileforge
+                                   ::storybook::StoryStream>)
+  ❯ This node type isn't allowed by the file's BYML version or configuration.
+
+⚑ This usually means the file is corrupted.
+
+

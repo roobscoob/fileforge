@@ -1,0 +1,12 @@
+× FileForgeLib Error Report ×
+
+i Invalid magic (fileforge_std::magic::MagicError<'_, 4, fileforge::storybook::S
+                 toryUserError>)
+  ❯ Found 42 41 44 21 ("BAD!") where 53 41 52 43 ("SARC") was expected.
+
+⚑ This usually means the data isn't in the expected format, or is corrupted.
+
+archive.sarc / Magic@[..0×4] = 42 41 44 21 ("BAD!")
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               Expected 53 41 52 43 ("SARC") here
+

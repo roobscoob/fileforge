@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i Example error from outside the library (fileforge::storybook::StoryUserError)
+  ❯ This happened while skipping ahead in a value that ends at a terminator,
+    such as a null-terminated string.
+
+

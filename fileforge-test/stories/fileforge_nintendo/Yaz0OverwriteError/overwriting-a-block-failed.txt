@@ -1,0 +1,6 @@
+× FileForgeLib Error Report ×
+
+i Example error from outside the library (fileforge::storybook::StoryUserError)
+  ❯ This happened while rewriting a block of Yaz0-compressed data.
+
+

@@ -1,0 +1,14 @@
+× FileForgeLib Error Report ×
+
+i Seek out of Bounds (fileforge::binary_reader::error::seek_out_of_bounds::SeekO
+                      utOfBounds<'_>)
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+save.bin
+^~~~~~~~
+Failed to seek to -4. The seek point underflowed the 64 bit unsigned integer
+minimum (0).

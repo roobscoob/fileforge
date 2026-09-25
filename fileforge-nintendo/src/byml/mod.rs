@@ -1,13 +1,16 @@
+use fileforge_macros::story;
 use fileforge::{
   binary_reader::{error::SkipError, BinaryReader},
   stream::ReadableStream,
 };
-use fileforge_macros::FileforgeError;
+use fileforge::{diagnostic::pool::DiagnosticPoolProvider, error::{report::Report, FileforgeError}};
 
 use crate::byml::{
   header::BymlHeader,
   node::{discriminant::BymlNodeDiscriminantVersionConfig, BymlAnyConstructable, BymlConstructionError, BymlNode, BymlNodeDiscriminants},
 };
+use fileforge::error::render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_INFO_LINE_TEXT}, builtin::text::r#const::ConstText};
+use crate::report::{render_with_context, CORRUPTED};
 
 pub mod header;
 pub mod node;
@@ -18,11 +21,36 @@ pub struct Byml<'pool, S: ReadableStream<Type = u8>> {
   reader: BinaryReader<'pool, S>,
 }
 
-#[derive(FileforgeError)]
+#[story("out of bounds", IntoDataAtError::<StoryStream>::OutOfBounds)]
+#[story("seek failed", IntoDataAtError::<StoryStream>::SeekError(fileforge::binary_reader::error::SkipError::OutOfBounds(fileforge::binary_reader::error::seek_out_of_bounds::SeekOutOfBounds {
+  seek_offset: fileforge::binary_reader::error::common::SeekOffset::InBounds(64),
+  provider_size: DiagnosticValue(32, None),
+  container_dr: dr!("data.byml" @ 0..32),
+})))]
 pub enum IntoDataAtError<'pool, S: ReadableStream> {
-  #[report(&"Out Of Bounds")]
   OutOfBounds,
-  SeekError(#[from] SkipError<'pool, S::SkipError>),
+  SeekError(SkipError<'pool, S::SkipError>),
+}
+
+const OFFSET_INTO_HEADER: ConstText = ConstText::new("A node's offset points inside the BYML header, where no node data can be.", &REPORT_ERROR_TEXT);
+const MOVING_TO_NODE_DATA: ConstText = ConstText::new("This happened while moving to a node's data.", &REPORT_INFO_LINE_TEXT);
+
+impl<'pool, S: ReadableStream> FileforgeError for IntoDataAtError<'pool, S> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::OutOfBounds => Report::new::<Self>(provider, &"Node offset points into the header")
+        .with_info_line(&OFFSET_INTO_HEADER)
+        .with_flag_line(&CORRUPTED)
+        .apply(callback),
+      Self::SeekError(error) => render_with_context(error, &MOVING_TO_NODE_DATA, provider, callback),
+    }
+  }
+}
+
+impl<'pool, S: ReadableStream> From<SkipError<'pool, S::SkipError>> for IntoDataAtError<'pool, S> {
+  fn from(value: SkipError<'pool, S::SkipError>) -> Self {
+    Self::SeekError(value)
+  }
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> Byml<'pool, S> {

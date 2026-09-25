@@ -1,0 +1,14 @@
+× FileForgeLib Error Report ×
+
+i Not Yaz0-compressed data (fileforge_nintendo::sead::yaz0::header::readable::Ya
+                            z0HeaderReadError<'_, fileforge::storybook::StoryUse
+                            rError>)
+  ❯ Found 42 41 44 21 ("BAD!").
+  ❯ Yaz0-compressed data starts with 59 61 7A 30 ("Yaz0").
+
+⚑ This usually means the data isn't in the expected format, or is corrupted.
+
+archive.szs / Magic@[..0×4] = 42 41 44 21 ("BAD!")
+              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+              Expected 59 61 7A 30 ("Yaz0") here
+

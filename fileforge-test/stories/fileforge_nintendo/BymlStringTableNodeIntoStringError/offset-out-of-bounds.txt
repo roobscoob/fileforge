@@ -1,0 +1,11 @@
+× FileForgeLib Error Report ×
+
+i String offset out of range (fileforge_nintendo::byml::node::string_table::Byml
+                              StringTableNodeIntoStringError<'_, fileforge::stor
+                              ybook::StoryStream>)
+  ❯ A string's offset points into the string table's list of offsets instead of
+    at a string.
+
+⚑ This usually means the file is corrupted.
+
+

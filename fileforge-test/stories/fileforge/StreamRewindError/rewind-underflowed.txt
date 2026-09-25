@@ -1,0 +1,12 @@
+× FileForgeLib Error Report ×
+
+i Rewind underflowed (fileforge::stream::error::stream_rewind::StreamRewindError
+                      <fileforge::storybook::StoryUserError>)
+  ❯ Rewinding 6 items from 0x2 goes before the start of the stream.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+

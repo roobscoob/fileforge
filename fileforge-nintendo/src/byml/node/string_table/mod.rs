@@ -1,3 +1,4 @@
+use fileforge_macros::story;
 use fileforge::binary_reader::primitive::numeric::u24;
 use fileforge::binary_reader::PrimitiveReader;
 use fileforge::stream::builtin::read_until::ReadUntil;
@@ -15,18 +16,33 @@ use fileforge::{
   stream::{ReadableStream, StreamReadError, StreamSkipError, SINGLE},
   ResultIgnoreExt,
 };
-use fileforge_macros::FileforgeError;
+use fileforge::{diagnostic::pool::DiagnosticPoolProvider, error::{report::Report, FileforgeError}};
 
 use crate::byml::node::BymlDynConstructable;
+use fileforge::error::render::{buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_INFO_LINE_TEXT}, builtin::text::r#const::ConstText};
+use crate::report::{render_field_read, render_with_context, Field, CORRUPTED};
 
 pub struct BymlStringTableNode<'pool, S: ReadableStream<Type = u8>> {
   count: u32,
   reader: BinaryReader<'pool, S>,
 }
 
-#[derive(FileforgeError)]
+#[story("file ends inside the string count", BymlStringTableNodeConstructableError::<StoryStream>::ReadCountError(read_exhausted::<intx::U24, StoryUserError>(dr!("data.byml" @ 0..34), 33, DiagnosticValue(34, None))))]
 pub enum BymlStringTableNodeConstructableError<'pool, S: ReadableStream<Type = u8>> {
   ReadCountError(Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>),
+}
+
+impl<'pool, S: ReadableStream<Type = u8>> FileforgeError for BymlStringTableNodeConstructableError<'pool, S> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::ReadCountError(read) => render_field_read::<Self, S::ReadError, P, ITEM_NAME_SIZE>(
+        read,
+        Field { structure: "BYML string table", name: "string count", kind: "a u24" },
+        provider,
+        callback,
+      ),
+    }
+  }
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> BymlDynConstructable<'pool, S> for BymlStringTableNode<'pool, S> {
@@ -40,21 +56,44 @@ impl<'pool, S: ReadableStream<Type = u8>> BymlDynConstructable<'pool, S> for Bym
   }
 }
 
-#[derive(FileforgeError)]
+#[story("failed to skip to the index", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToSkipToIndex(fileforge::stream::error::stream_skip::StreamSkipError::User(fileforge::binary_reader::readable::builtins::contiugous::ContiguousSkipError::Overflowed)))]
+#[story("failed to read the offset", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToReadOffset(fileforge::stream::error::stream_read::StreamReadError::StreamExhausted(fileforge::stream::error::stream_exhausted::StreamExhaustedError { stream_length: 16, read_length: 4, read_offset: 14 })))]
+#[story("failed to consume the address table", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToConsumeAddressTable(fileforge::stream::error::stream_skip::StreamSkipError::User(fileforge::binary_reader::readable::builtins::contiugous::ContiguousSkipError::Overflowed)))]
+#[story("offset out of bounds", BymlStringTableNodeIntoStringError::<StoryStream>::OobOffset)]
+#[story("failed to skip to the string", BymlStringTableNodeIntoStringError::<StoryStream>::FailedToSkipToString(fileforge::binary_reader::error::SkipError::User(StoryUserError)))]
 pub enum BymlStringTableNodeIntoStringError<'pool, S: ReadableStream<Type = u8>> {
-  #[report(&"FailedToSkipToIndex")]
   FailedToSkipToIndex(StreamSkipError<ContiguousSkipError<'pool, S::SkipError, Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>>),
-
-  #[report(&"FailedToReadOffset")]
   FailedToReadOffset(StreamReadError<ArrayReadError<Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>>),
-
-  #[report(&"FailedToConsumeAddressTable")]
   FailedToConsumeAddressTable(StreamSkipError<ContiguousSkipError<'pool, S::SkipError, Annotated<PrimitiveName<Read>, GetPrimitiveError<'pool, S::ReadError>>>>),
-
-  #[report(&"OOB offset :(")]
   OobOffset,
+  FailedToSkipToString(SkipError<'pool, S::SkipError>),
+}
 
-  FailedToSkipToString(#[from] SkipError<'pool, S::SkipError>),
+const FINDING_STRING: ConstText = ConstText::new("This happened while finding a string's entry in a BYML string table.", &REPORT_INFO_LINE_TEXT);
+const READING_STRING_OFFSET: ConstText = ConstText::new("This happened while reading a string's offset from a BYML string table.", &REPORT_INFO_LINE_TEXT);
+const SKIPPING_STRING_OFFSETS: ConstText = ConstText::new("This happened while skipping the rest of a BYML string table's offsets.", &REPORT_INFO_LINE_TEXT);
+const MOVING_TO_STRING: ConstText = ConstText::new("This happened while moving to a string in a BYML string table.", &REPORT_INFO_LINE_TEXT);
+const OFFSET_BEFORE_STRINGS: ConstText = ConstText::new("A string's offset points into the string table's list of offsets instead of at a string.", &REPORT_ERROR_TEXT);
+
+impl<'pool, S: ReadableStream<Type = u8>> FileforgeError for BymlStringTableNodeIntoStringError<'pool, S> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::FailedToSkipToIndex(error) => render_with_context(error, &FINDING_STRING, provider, callback),
+      Self::FailedToReadOffset(error) => render_with_context(error, &READING_STRING_OFFSET, provider, callback),
+      Self::FailedToConsumeAddressTable(error) => render_with_context(error, &SKIPPING_STRING_OFFSETS, provider, callback),
+      Self::OobOffset => Report::new::<Self>(provider, &"String offset out of range")
+        .with_info_line(&OFFSET_BEFORE_STRINGS)
+        .with_flag_line(&CORRUPTED)
+        .apply(callback),
+      Self::FailedToSkipToString(error) => render_with_context(error, &MOVING_TO_STRING, provider, callback),
+    }
+  }
+}
+
+impl<'pool, S: ReadableStream<Type = u8>> From<SkipError<'pool, S::SkipError>> for BymlStringTableNodeIntoStringError<'pool, S> {
+  fn from(value: SkipError<'pool, S::SkipError>) -> Self {
+    Self::FailedToSkipToString(value)
+  }
 }
 
 impl<'pool, S: ReadableStream<Type = u8>> BymlStringTableNode<'pool, S> {

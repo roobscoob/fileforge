@@ -1,4 +1,4 @@
-use fileforge_macros::text;
+use fileforge_macros::{story, text};
 
 use crate::{
   binary_reader::error::common::{ExhaustedType, LOW_LEVEL_ERROR},
@@ -13,6 +13,34 @@ use crate::{
   },
 };
 
+#[story("read past the end, no diagnostics", crate::binary_reader::error::exhausted::ReaderExhaustedError {
+  container: None,
+  length: DiagnosticValue(4, None),
+  offset: 0,
+  stream_length: DiagnosticValue(2, None),
+  t: crate::binary_reader::error::common::Read,
+})]
+#[story("read one byte past the end", crate::binary_reader::error::exhausted::ReaderExhaustedError {
+  container: None,
+  length: DiagnosticValue(4, None),
+  offset: 4,
+  stream_length: DiagnosticValue(7, None),
+  t: crate::binary_reader::error::common::Read,
+})]
+#[story("read past the end, with diagnostics", crate::binary_reader::error::exhausted::ReaderExhaustedError {
+  container: dr!("save.bin" @ 0..24),
+  length: dv!("save.bin" / "header.entry_size" @ 4..8 [16]),
+  offset: 16,
+  stream_length: dv!("save.bin" / "header.file_size" @ 0..4 [24]),
+  t: crate::binary_reader::error::common::Read,
+})]
+#[story("write past the end, with diagnostics", crate::binary_reader::error::exhausted::ReaderExhaustedError {
+  container: dr!("save.bin" @ 0..8),
+  length: DiagnosticValue(4, None),
+  offset: 6,
+  stream_length: dv!("save.bin" / "header.file_size" @ 0..4 [8]),
+  t: crate::binary_reader::error::common::Write,
+})]
 pub struct ReaderExhaustedError<'pool, T: ExhaustedType> {
   pub container: Option<DiagnosticReference<'pool>>,
   pub length: DiagnosticValue<'pool, u64>,

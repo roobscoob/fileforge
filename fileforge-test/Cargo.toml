@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 fileforge = { path = "../fileforge", features = ["story"] }
 fileforge-macros = { path = "../fileforge-macros" }
-fileforge-std = { path = "../fileforge-std" }
-fileforge-nintendo = { path = "../fileforge-nintendo" }
+fileforge-std = { path = "../fileforge-std", features = ["story"] }
+fileforge-nintendo = { path = "../fileforge-nintendo", features = ["story"] }
 heapless = "0.9.1"
 tokio = { version = "1.43.0", features = ["full", "macros"] }
 yaz0 = "0.3.0"

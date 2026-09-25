@@ -25,10 +25,10 @@ for crate in fileforge fileforge-std fileforge-nintendo; do
   check -p "$crate" --no-default-features --features alloc
   check -p "$crate" --no-default-features --target "$NO_STD_TARGET"
   check -p "$crate" --no-default-features --features alloc --target "$NO_STD_TARGET"
+  check -p "$crate" --features story
 done
 
 check -p fileforge --no-default-features --features std
-check -p fileforge --features story
 check --workspace --all-targets
 
 if [ ${#failed[@]} -ne 0 ]; then

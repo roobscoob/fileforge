@@ -11,3 +11,4 @@ fileforge-macros = { path = "../fileforge-macros" }
 default = ["alloc", "std"]
 std = ["alloc", "fileforge/std"]
 alloc = ["fileforge/alloc"]
+story = ["std", "fileforge/story"]

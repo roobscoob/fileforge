@@ -1,0 +1,16 @@
+× FileForgeLib Error Report ×
+
+i Provider Stream Poisoned (fileforge::stream::builtin::provider::ProviderStream
+                            PoisonedError)
+  ❯ This error occurs when a ProviderStream is "poisoned".
+  ❯ Poisoning occurs when a provider encounters an error from the stream it
+    cannot recover from.
+  ❯ If this error is being displayed, you're probably not properly handling a
+    previous error emitted by the ProviderStream
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, Please report this error
+  to the library author.
+
+

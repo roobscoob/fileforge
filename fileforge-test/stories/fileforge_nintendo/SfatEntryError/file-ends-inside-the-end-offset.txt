@@ -1,0 +1,16 @@
+× FileForgeLib Error Report ×
+
+i Truncated SFAT entry (fileforge_nintendo::sead::sarc::sfat::entry::SfatEntryEr
+                        ror<'_, fileforge::storybook::StoryUserError>)
+  ❯ The file ends partway through the data end offset (a u32 at 0x2C).
+  ❯ It needs 4 bytes there, but only 2 remain.
+  ❯ The file is 46 (0x2E) bytes long, but at least 48 (0x30) are needed to
+    include the data end offset.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+

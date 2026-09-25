@@ -1,0 +1,16 @@
+× FileForgeLib Error Report ×
+
+i Truncated BYML header (fileforge_nintendo::byml::header::readable::BymlHeaderR
+                         eadError<'_, fileforge::storybook::StoryUserError>)
+  ❯ The file ends partway through the root node offset (a u32 at 0x10).
+  ❯ It needs 4 bytes there, but only 2 remain.
+  ❯ The file is 18 (0x12) bytes long, but at least 20 (0x14) are needed to
+    include the root node offset.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+data.byml
+^~~~~~~~~
+This file is truncated
+

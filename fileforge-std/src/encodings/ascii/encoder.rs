@@ -1,18 +1,37 @@
+use fileforge_macros::story;
 use fileforge::{
+  diagnostic::pool::DiagnosticPoolProvider,
   encoding::Encoder,
+  error::{
+    render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::r#const::ConstText},
+    report::Report,
+    FileforgeError,
+  },
   stream::{ReadableStream, StreamReadError, UserReadError},
 };
-use fileforge_macros::FileforgeError;
 
 use crate::encodings::ascii::codepages::AsciiCodepage;
 
 pub struct AsciiEncoder<Codepage: AsciiCodepage, S: ReadableStream<Type = u8>>(Codepage, S);
 
-#[derive(FileforgeError, Debug)]
+#[story("stream failed", AsciiEncodeError::<StoryUserError, crate::encodings::ascii::codepages::iso_8859_1::Iso8859_1>::User(StoryUserError))]
+#[story("codepage failed", AsciiEncodeError::<StoryUserError, crate::encodings::ascii::codepages::story::StoryCodepage>::Codepage(StoryUserError))]
+#[derive(Debug)]
 pub enum AsciiEncodeError<E: UserReadError, Codepage: AsciiCodepage> {
-  #[report(&"todo: change")]
   User(E),
   Codepage(Codepage::EncodeError),
+}
+
+const READING_TEXT: ConstText = ConstText::new("This happened while encoding ASCII text.", &REPORT_INFO_LINE_TEXT);
+const CONVERTING_CHARACTER: ConstText = ConstText::new("This happened while the ASCII codepage was converting a character.", &REPORT_INFO_LINE_TEXT);
+
+impl<E: UserReadError, Codepage: AsciiCodepage> FileforgeError for AsciiEncodeError<E, Codepage> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::User(error) => error.render_into_report(provider, |report| report.with_info_line(&READING_TEXT).apply(callback)),
+      Self::Codepage(error) => error.render_into_report(provider, |report| report.with_info_line(&CONVERTING_CHARACTER).apply(callback)),
+    }
+  }
 }
 
 impl<Codepage: AsciiCodepage, S: UserReadError> UserReadError for AsciiEncodeError<S, Codepage> {}

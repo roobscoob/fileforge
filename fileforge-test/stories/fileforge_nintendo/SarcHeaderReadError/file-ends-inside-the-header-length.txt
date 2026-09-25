@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated SARC header (fileforge_nintendo::sead::sarc::header::readable::SarcH
+                         eaderReadError<'_, fileforge::storybook::StoryUserError
+                         >)
+  ❯ The file ends partway through the header length (a u16 at 0x4).
+  ❯ It needs 2 bytes there, but only 1 remains.
+  ❯ The file is 5 (0x5) bytes long, but at least 6 (0x6) are needed to include
+    the header length.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+

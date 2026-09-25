@@ -1,0 +1,12 @@
+× FileForgeLib Error Report ×
+
+i Decompressed data too large (fileforge_nintendo::sead::yaz0::error::overwrite:
+                               :Yaz0OverwriteError<'_, fileforge::storybook::Sto
+                               ryStream, fileforge::storybook::StoryUserError, f
+                               ileforge::storybook::StoryUserError, fileforge::s
+                               torybook::StoryUserError, fileforge::storybook::S
+                               toryUserError>)
+  ❯ After this edit, the data would be over 4 GiB, which is more than a Yaz0
+    header can describe.
+
+

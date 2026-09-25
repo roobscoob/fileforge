@@ -1,0 +1,12 @@
+× FileForgeLib Error Report ×
+
+i Can't shrink compressed data here (fileforge_nintendo::sead::yaz0::parser::err
+                                     or::Yaz0ParserMutateError<fileforge::storyb
+                                     ook::StoryUserError, fileforge::storybook::
+                                     StoryUserError, fileforge::storybook::Story
+                                     UserError, fileforge::storybook::StoryUserE
+                                     rror, fileforge::storybook::StoryUserError>
+  ❯ The new data needs fewer operations than the old. That's only supported at
+    the end of the compressed data.
+
+

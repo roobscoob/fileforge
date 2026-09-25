@@ -1,0 +1,13 @@
+× FileForgeLib Error Report ×
+
+i Stream exhausted (fileforge::stream::error::stream_exhausted::StreamExhaustedE
+                    rror)
+  ❯ Reading 4 items at 0xE goes 2 past the end of the stream.
+  ❯ The stream is 16 items long.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+

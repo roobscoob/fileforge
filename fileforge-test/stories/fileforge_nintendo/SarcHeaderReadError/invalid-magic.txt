@@ -1,0 +1,13 @@
+× FileForgeLib Error Report ×
+
+i Not a SARC archive (fileforge_nintendo::sead::sarc::header::readable::SarcHead
+                      erReadError<'_, fileforge::storybook::StoryUserError>)
+  ❯ Found 42 41 44 21 ("BAD!").
+  ❯ A SARC archive starts with 53 41 52 43 ("SARC").
+
+⚑ This usually means the data isn't in the expected format, or is corrupted.
+
+archive.sarc / Magic@[..0×4] = 42 41 44 21 ("BAD!")
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               Expected 53 41 52 43 ("SARC") here
+

@@ -1,21 +1,32 @@
+use fileforge_macros::{story, text};
 use crate::{
-  binary_reader::readable::{NoneArgument, Readable},
-  error::FileforgeError,
+  binary_reader::readable::Readable,
+  diagnostic::pool::DiagnosticPoolProvider,
+  error::{
+    render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::number::formatted_unsigned::FormattedUnsigned},
+    report::Report,
+    FileforgeError,
+  },
   stream::{self, ReadableStream},
 };
 
+#[story("element failed to read", ArrayReadError {
+  index: 2,
+  error: read_exhausted::<u32, StoryUserError>(dr!("save.bin" @ 0..10), 8, DiagnosticValue(10, None)),
+})]
 pub struct ArrayReadError<E: FileforgeError> {
   index: usize,
   error: E,
 }
 
 impl<E: FileforgeError> FileforgeError for ArrayReadError<E> {
-  fn render_into_report<P: crate::diagnostic::pool::DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
-    &self,
-    provider: P,
-    callback: impl for<'tag, 'b> FnOnce(crate::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
-  ) {
-    todo!()
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    self.error.render_into_report(provider, |report| {
+      let index = FormattedUnsigned::new(self.index as u128).separator(3, ",");
+      let context = text!([&REPORT_INFO_LINE_TEXT] "This happened while reading the item at index {&index} of an array.");
+
+      report.with_info_line(&context).apply(callback)
+    });
   }
 }
 

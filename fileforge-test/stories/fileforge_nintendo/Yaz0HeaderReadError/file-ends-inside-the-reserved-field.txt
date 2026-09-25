@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated Yaz0 header (fileforge_nintendo::sead::yaz0::header::readable::Yaz0H
+                         eaderReadError<'_, fileforge::storybook::StoryUserError
+                         >)
+  ❯ The file ends partway through the reserved field (a u32 at 0xC).
+  ❯ It needs 4 bytes there, but only 2 remain.
+  ❯ The file is 14 (0xE) bytes long, but at least 16 (0x10) are needed to
+    include the reserved field.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.szs
+^~~~~~~~~~~
+This file is truncated
+

@@ -1,0 +1,14 @@
+× FileForgeLib Error Report ×
+
+i Not a BYML file (fileforge_nintendo::byml::header::readable::BymlHeaderReadErr
+                   or<'_, fileforge::storybook::StoryUserError>)
+  ❯ Found 58 58 ("XX").
+  ❯ Big-endian BYML files start with 42 59 ("BY").
+  ❯ Little-endian BYML files start with 59 42 ("YB").
+
+⚑ This usually means the data isn't in the expected format, or is corrupted.
+
+data.byml / ByteOrderMark@[..0×2] = 58 58 ("XX")
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            Expected 42 59 ("BY") or 59 42 ("YB") here
+

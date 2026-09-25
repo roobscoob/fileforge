@@ -1,0 +1,10 @@
+× FileForgeLib Error Report ×
+
+i Corrupt Yaz0 data (fileforge_nintendo::sead::yaz0::state::malformed_stream::Ma
+                     lformedStream)
+  ❯ A back-reference reaches 12 bytes back into the decompressed data.
+  ❯ Only 4 bytes are available to refer back to.
+
+⚑ This usually means the file is corrupted.
+
+

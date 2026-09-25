@@ -1,0 +1,25 @@
+× FileForgeLib Error Report ×
+
+i Reader Exhausted (fileforge::binary_reader::error::exhausted::ReaderExhaustedE
+                    rror<'_, fileforge::binary_reader::error::common::Read>)
+  ❯ Attempted to read 8 bytes outside the range provided by the provider.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+save.bin
+^~~~~~~~
+│ This is the container
+│
+├-> header.file_size@[..0×4] = 0x18
+│   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   Here, the provider supplied 24 (0x18) bytes
+│
+╰-> header.entry_size@[0×4..0×8] = 0x10
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The read requested 16 (0x10) bytes at offset 0x10. This is where the read
+    length originated from.
+
+

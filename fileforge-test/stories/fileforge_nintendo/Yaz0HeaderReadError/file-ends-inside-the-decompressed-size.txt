@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated Yaz0 header (fileforge_nintendo::sead::yaz0::header::readable::Yaz0H
+                         eaderReadError<'_, fileforge::storybook::StoryUserError
+                         >)
+  ❯ The file ends partway through the decompressed size (a u32 at 0x4).
+  ❯ It needs 4 bytes there, but only 2 remain.
+  ❯ The file is 6 (0x6) bytes long, but at least 8 (0x8) are needed to include
+    the decompressed size.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.szs
+^~~~~~~~~~~
+This file is truncated
+

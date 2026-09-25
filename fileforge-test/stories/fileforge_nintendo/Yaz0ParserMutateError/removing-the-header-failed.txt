@@ -1,0 +1,6 @@
+× FileForgeLib Error Report ×
+
+i Example error from outside the library (fileforge::storybook::StoryUserError)
+  ❯ This happened while removing a group header from Yaz0-compressed data.
+
+

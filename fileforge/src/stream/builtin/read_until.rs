@@ -1,9 +1,16 @@
-use fileforge_macros::FileforgeError;
-
-use crate::stream::{
-  self,
-  error::{stream_exhausted::StreamExhaustedError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError},
-  ReadableStream, StreamReadError, StreamSkipError,
+use fileforge_macros::story;
+use crate::{
+  diagnostic::pool::DiagnosticPoolProvider,
+  error::{
+    render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::r#const::ConstText},
+    report::Report,
+    FileforgeError,
+  },
+  stream::{
+    self,
+    error::{stream_exhausted::StreamExhaustedError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError},
+    ReadableStream, StreamReadError, StreamSkipError,
+  },
 };
 
 pub struct ReadUntil<R: ReadableStream> {
@@ -25,9 +32,22 @@ impl<R: ReadableStream> ReadUntil<R> {
   }
 }
 
-#[derive(FileforgeError)]
-#[report(&"TODO: Improve")]
+#[story("read failed while searching for the needle", ReadUntilSkipError::<StoryUserError>(StreamReadError::User(StoryUserError)))]
+#[story("stream ended while searching for the needle", ReadUntilSkipError::<StoryUserError>(StreamReadError::StreamExhausted(
+  crate::stream::error::stream_exhausted::StreamExhaustedError { stream_length: 16, read_length: 1, read_offset: 16 },
+)))]
 pub struct ReadUntilSkipError<E: stream::UserReadError>(StreamReadError<E>);
+
+const SKIPPING_TO_TERMINATOR: ConstText = ConstText::new(
+  "This happened while skipping ahead in a value that ends at a terminator, such as a null-terminated string.",
+  &REPORT_INFO_LINE_TEXT,
+);
+
+impl<E: stream::UserReadError> FileforgeError for ReadUntilSkipError<E> {
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    self.0.render_into_report(provider, |report| report.with_info_line(&SKIPPING_TO_TERMINATOR).apply(callback))
+  }
+}
 
 impl<E: stream::UserReadError> stream::UserSkipError for ReadUntilSkipError<E> {}
 

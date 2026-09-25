@@ -1,0 +1,11 @@
+× FileForgeLib Error Report ×
+
+i Unexpected BYML node (fileforge_nintendo::byml::node::BymlConstructionError<'_
+                        , fileforge::storybook::StoryUserError, fileforge::story
+                        book::StoryStream>)
+  ❯ An offset leads to a string node, but those are always stored in place,
+    never behind an offset.
+
+⚑ This usually means the file is corrupted.
+
+

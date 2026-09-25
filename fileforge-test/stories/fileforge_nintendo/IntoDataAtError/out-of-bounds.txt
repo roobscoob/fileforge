@@ -1,0 +1,9 @@
+× FileForgeLib Error Report ×
+
+i Node offset points into the header (fileforge_nintendo::byml::IntoDataAtError<
+                                      '_, fileforge::storybook::StoryStream>)
+  ❯ A node's offset points inside the BYML header, where no node data can be.
+
+⚑ This usually means the file is corrupted.
+
+

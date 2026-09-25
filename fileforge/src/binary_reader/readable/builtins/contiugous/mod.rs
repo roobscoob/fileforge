@@ -1,12 +1,22 @@
+use fileforge_macros::{story, text};
 use core::{convert::Infallible, marker::PhantomData};
 
 use crate::{
   binary_reader::{
     self,
+    error::common::LOW_LEVEL_ERROR,
     readable::{builtins::array::ArrayReadError, IntoReadable, Readable, RefReadable},
     BinaryReader,
   },
-  error::FileforgeError,
+  diagnostic::pool::DiagnosticPoolProvider,
+  error::{
+    render::{
+      buffer::cell::tag::builtin::report::{REPORT_ERROR_TEXT, REPORT_INFO_LINE_TEXT},
+      builtin::{number::formatted_unsigned::FormattedUnsigned, text::r#const::ConstText},
+    },
+    report::Report,
+    FileforgeError,
+  },
   stream::{self, ReadableStream},
 };
 
@@ -53,18 +63,40 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
   }
 }
 
+#[story("element failed to read", {
+  let error: ContiguousSkipError<'_, StoryUserError, _> = ContiguousSkipError::Read {
+    index: 2,
+    read_error: read_exhausted::<u32, StoryUserError>(dr!("save.bin" @ 0..10), 8, DiagnosticValue(10, None)),
+  };
+  error
+})]
+#[story("skip distance overflowed", ContiguousSkipError::<StoryUserError, StoryUserError>::Overflowed)]
+#[story("stream failed", ContiguousSkipError::<StoryUserError, StoryUserError>::Stream(binary_reader::SkipError::User(StoryUserError)))]
 pub enum ContiguousSkipError<'pool, S: stream::UserSkipError, R: FileforgeError> {
   Overflowed, // todo: item size + size
   Read { index: u64, read_error: R },
   Stream(binary_reader::SkipError<'pool, S>),
 }
+const SKIP_OVERFLOWED: ConstText = ConstText::new("Skipping that many items would go past the largest possible position.", &REPORT_ERROR_TEXT);
+const SKIPPING_ITEMS: ConstText = ConstText::new("This happened while skipping over items.", &REPORT_INFO_LINE_TEXT);
+
 impl<'pool, S: stream::UserSkipError, R: FileforgeError> FileforgeError for ContiguousSkipError<'pool, S, R> {
-  fn render_into_report<P: crate::diagnostic::pool::DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
-    &self,
-    provider: P,
-    callback: impl for<'tag, 'b> FnOnce(crate::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
-  ) {
-    todo!()
+  fn render_into_report<P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(&self, provider: P, callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> ()) {
+    match self {
+      Self::Overflowed => Report::new::<Self>(provider, &"Skip overflowed")
+        .with_info_line(&SKIP_OVERFLOWED)
+        .with_flag_line(LOW_LEVEL_ERROR)
+        .apply(callback),
+
+      Self::Read { index, read_error } => read_error.render_into_report(provider, |report| {
+        let index = FormattedUnsigned::new(*index as u128).separator(3, ",");
+        let context = text!([&REPORT_INFO_LINE_TEXT] "This happened while skipping over the item at index {&index}.");
+
+        report.with_info_line(&context).apply(callback)
+      }),
+
+      Self::Stream(error) => error.render_into_report(provider, |report| report.with_info_line(&SKIPPING_ITEMS).apply(callback)),
+    }
   }
 }
 impl<'pool, S: stream::UserSkipError, E: FileforgeError> stream::UserSkipError for ContiguousSkipError<'pool, S, E> {}
@@ -115,3 +147,4 @@ impl<'pool, S: ReadableStream<Type = u8>, T: Readable<'pool, S>, Gen: FnMut(u64)
     }
   }
 }
+

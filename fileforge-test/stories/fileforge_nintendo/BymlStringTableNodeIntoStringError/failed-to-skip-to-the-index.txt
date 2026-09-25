@@ -1,0 +1,18 @@
+× FileForgeLib Error Report ×
+
+i Skip overflowed (fileforge::binary_reader::readable::builtins::contiugous::Con
+                   tiguousSkipError<'_, fileforge::storybook::StoryUserError, fi
+                   leforge::error::ext::annotations::annotated::Annotated<filefo
+                   rge::binary_reader::error::primitive_name_annotation::Primiti
+                   veName<fileforge::binary_reader::error::common::Read>, filefo
+                   rge::binary_reader::error::GetPrimitiveError<'_, fileforge::s
+                   torybook::StoryUserError>>>)
+  ❯ Skipping that many items would go past the largest possible position.
+  ❯ This happened while finding a string's entry in a BYML string table.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+

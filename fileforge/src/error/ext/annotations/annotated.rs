@@ -1,3 +1,4 @@
+use fileforge_macros::story;
 use core::future::Future;
 
 use crate::{
@@ -5,9 +6,20 @@ use crate::{
   error::{ext::annotations::Annotation, report::Report, FileforgeError},
 };
 
+#[story("read of a u32", read_exhausted::<u32, StoryUserError>(dr!("save.bin" @ 0..6), 4, DiagnosticValue(6, None)))]
+#[story("write of a u16", Annotated {
+  annotation: crate::binary_reader::error::primitive_name_annotation::PrimitiveName::<crate::binary_reader::error::common::Write>::for_type::<u16>(),
+  error: crate::binary_reader::error::SetPrimitiveError::<StoryUserError>::User(StoryUserError),
+})]
 pub struct Annotated<A: Annotation, T: FileforgeError> {
   annotation: A,
   error: T,
+}
+
+impl<A: Annotation, T: FileforgeError> Annotated<A, T> {
+  pub fn error(&self) -> &T {
+    &self.error
+  }
 }
 
 pub trait AnnotationExt<S, E: FileforgeError> {

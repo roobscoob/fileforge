@@ -1,5 +1,6 @@
 pub mod arrow;
 pub mod byte_display;
+pub mod bytes;
 pub mod diagnostic_info;
 pub mod number;
 pub mod raw_string;

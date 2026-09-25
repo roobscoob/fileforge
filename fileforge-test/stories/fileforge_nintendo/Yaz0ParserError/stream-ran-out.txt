@@ -1,0 +1,10 @@
+× FileForgeLib Error Report ×
+
+i Truncated Yaz0 data (fileforge_nintendo::sead::yaz0::parser::error::Yaz0Parser
+                       Error<fileforge::storybook::StoryUserError>)
+  ❯ The compressed data ends where a back-reference should be.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+

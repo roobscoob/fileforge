@@ -1,0 +1,11 @@
+× FileForgeLib Error Report ×
+
+i Unknown BYML node type (fileforge_nintendo::byml::node::discriminant::BymlNode
+                          DiscriminantsReadError<'_, fileforge::storybook::Story
+                          Stream>)
+  ❯ Found node type 0x42, which isn't a BYML node type.
+
+⚑ This usually means the file is corrupted, or uses a BYML version fileforge
+  doesn't know.
+
+

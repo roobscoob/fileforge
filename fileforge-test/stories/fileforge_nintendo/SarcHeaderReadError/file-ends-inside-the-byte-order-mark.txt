@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated SARC header (fileforge_nintendo::sead::sarc::header::readable::SarcH
+                         eaderReadError<'_, fileforge::storybook::StoryUserError
+                         >)
+  ❯ The file ends partway through the byte order mark (2 bytes at 0x6).
+  ❯ It needs 2 bytes there, but only 1 remains.
+  ❯ The file is 7 (0x7) bytes long, but at least 8 (0x8) are needed to include
+    the byte order mark.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+

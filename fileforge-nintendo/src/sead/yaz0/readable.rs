@@ -1,3 +1,4 @@
+use fileforge_macros::story;
 use core::{convert::Infallible, future::Future};
 
 use fileforge::{
@@ -19,6 +20,8 @@ use crate::sead::yaz0::{
   store::{NoSnapshots, Snapshots},
   MaybeSnapshotStore, Yaz0Stream,
 };
+use fileforge::error::render::{buffer::cell::tag::builtin::report::REPORT_INFO_LINE_TEXT, builtin::text::r#const::ConstText};
+use crate::report::{render_with_context};
 
 mod sealed {
   pub trait Sealed {}
@@ -54,10 +57,14 @@ pub trait MutHeaderView<'pool, S1: ReadableStream<Type = u8>, S2: MutableStream<
     S2: 'l;
 }
 
+#[story("subfork failed", HeaderViewError::<StoryUserError, StoryStream>::Subfork(fileforge::binary_reader::error::StaticSubforkError::Stream(StoryUserError)))]
+#[story("header failed to read", HeaderViewError::<StoryUserError, StoryStream>::Into(crate::sead::yaz0::header::readable::Yaz0HeaderReadError::TotalSize(read_exhausted::<u32, StoryUserError>(dr!("archive.szs" @ 0..6), 4, DiagnosticValue(6, None)))))]
 pub enum HeaderViewError<'pool, S1: UserPartitionError, S2: RestorableStream<Type = u8>> {
   Subfork(StaticSubforkError<'pool, S1>),
   Into(<View<'pool, S2, Yaz0Header> as IntoReadable<'pool, S2>>::Error),
 }
+
+const SEPARATING_HEADER: ConstText = ConstText::new("This happened while separating the Yaz0 header from the compressed data.", &REPORT_INFO_LINE_TEXT);
 
 impl<'pool, S1: UserPartitionError, S2: RestorableStream<Type = u8>> FileforgeError for HeaderViewError<'pool, S1, S2> {
   fn render_into_report<P: fileforge::diagnostic::pool::DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
@@ -65,7 +72,10 @@ impl<'pool, S1: UserPartitionError, S2: RestorableStream<Type = u8>> FileforgeEr
     provider: P,
     callback: impl for<'tag, 'b> FnOnce(fileforge::error::report::Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
   ) {
-    unimplemented!()
+    match self {
+      Self::Subfork(error) => render_with_context(error, &SEPARATING_HEADER, provider, callback),
+      Self::Into(error) => error.render_into_report(provider, callback),
+    }
   }
 }
 

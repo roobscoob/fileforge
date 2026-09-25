@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Reader Exhausted (fileforge::binary_reader::error::exhausted::ReaderExhaustedE
+                    rror<'_, fileforge::binary_reader::error::common::Read>)
+  ❯ The provider supplied 2 (0x2) bytes
+  ❯ The read requested 4 (0x4) bytes at offset 0x0
+  ❯ Attempted to read 2 bytes outside the range provided by the provider.
+
+⚑ Some Diagnostics failed to load. You are seeing a minified version with what
+  available data exists.
+
+⚑ This is a low-level error, intended to be consumed by higher-level error
+  handling code. This error is not intended to be displayed to the user. If
+  you're seeing this error and *not* a library author, it may be confusing.
+  Please report this error to the library author.
+
+

@@ -1,0 +1,16 @@
+× FileForgeLib Error Report ×
+
+i Truncated BYML node (fileforge_nintendo::byml::node::discriminant::BymlNodeDis
+                       criminantsReadError<'_, fileforge::storybook::StoryStream
+                       >)
+  ❯ The file ends right before the node type (a u8 at 0x20).
+  ❯ The file is 32 (0x20) bytes long, but at least 33 (0x21) are needed to
+    include the node type.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+data.byml
+^~~~~~~~~
+This file is truncated
+

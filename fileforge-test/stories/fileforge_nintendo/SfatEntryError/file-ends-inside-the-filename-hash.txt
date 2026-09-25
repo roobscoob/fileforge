@@ -1,0 +1,16 @@
+× FileForgeLib Error Report ×
+
+i Truncated SFAT entry (fileforge_nintendo::sead::sarc::sfat::entry::SfatEntryEr
+                        ror<'_, fileforge::storybook::StoryUserError>)
+  ❯ The file ends partway through the filename hash (a u32 at 0x20).
+  ❯ It needs 4 bytes there, but only 2 remain.
+  ❯ The file is 34 (0x22) bytes long, but at least 36 (0x24) are needed to
+    include the filename hash.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+
