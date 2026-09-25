@@ -213,7 +213,11 @@ where
     let offset = self.offset;
     let hint = self.hint;
 
-    match self.provider.partition(self.offset + SIZE as u64) {
+    // Check the whole read first: `offset + size` could overflow, and the error should describe
+    // the read that was asked for, not the provider's view of the split.
+    StreamExhaustedError::assert(self.provider.len(), offset, SIZE as u64).map_err(StreamPartitionError::StreamExhausted)?;
+
+    match self.provider.partition(offset + SIZE as u64) {
       Ok((left, right)) => {
         let mut left = ProviderStream::new(left, hint);
         let right = ProviderStream::new(right, hint);
@@ -268,7 +272,11 @@ where
     let offset = self.offset;
     let hint = self.hint;
 
-    match self.provider.partition(self.offset + size) {
+    // Check the whole read first: `offset + size` could overflow, and the error should describe
+    // the read that was asked for, not the provider's view of the split.
+    StreamExhaustedError::assert(self.provider.len(), offset, size).map_err(StreamPartitionError::StreamExhausted)?;
+
+    match self.provider.partition(offset + size) {
       Ok((left, right)) => {
         let mut left = ProviderStream::new(left, hint);
         let right = ProviderStream::new(right, hint);
