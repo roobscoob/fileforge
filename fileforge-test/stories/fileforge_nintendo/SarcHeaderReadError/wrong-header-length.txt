@@ -1,0 +1,12 @@
+× FileForgeLib Error Report ×
+
+i Invalid SARC header (fileforge_nintendo::sead::sarc::header::readable::SarcHea
+                       derReadError<'_, fileforge::storybook::StoryUserError>)
+  ❯ The SARC header's length is 0x1400, but it must be 0x14.
+
+⚑ This usually means the file is corrupted.
+
+archive.sarc / HeaderLength@[0×4..0×6] = 0x1400
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               Expected 0x14 here
+

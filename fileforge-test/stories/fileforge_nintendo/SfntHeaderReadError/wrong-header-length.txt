@@ -1,0 +1,13 @@
+× FileForgeLib Error Report ×
+
+i Invalid SFNT header (fileforge_nintendo::sead::sarc::sfat::name_table::header:
+                       :SfntHeaderReadError<'_, fileforge::storybook::StoryUserE
+                       rror>)
+  ❯ The SFNT header's length is 0x10, but it must be 0x8.
+
+⚑ This usually means the file is corrupted.
+
+archive.sarc / HeaderLength@[0×34..0×36] = 0x10
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               Expected 0x8 here
+

@@ -1,0 +1,13 @@
+× FileForgeLib Error Report ×
+
+i SARC data overlaps its tables (fileforge_nintendo::sead::sarc::readable::SarcR
+                                 eadError<'_, fileforge::storybook::StoryStream>
+  ❯ The file data is said to start at 0x10, but the archive's tables run until
+    0x58.
+
+⚑ This usually means the file is corrupted.
+
+archive.sarc / DataOffset@[0×0C..0×10] = 0x10
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               The data offset
+

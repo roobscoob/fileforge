@@ -69,7 +69,7 @@ impl<'pool, S: ReadableStream<Type = u8>> Readable<'pool, S> for SfatEntry {
   async fn read(reader: &mut BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
     Ok(SfatEntry {
       filename_hash: reader.get().await.map_err(|e| SfatEntryError::FilenameHashReadError(e))?,
-      filename_attributes: FilenameAttributes::from_bits(reader.get().await.map_err(|e| SfatEntryError::FilenameHashReadError(e))?)?,
+      filename_attributes: FilenameAttributes::from_bits(reader.get().await.map_err(|e| SfatEntryError::FilenameAttributesReadError(e))?)?,
       start_offset: reader.get().await.map_err(|e| SfatEntryError::StartOffsetReadError(e))?,
       end_offset: reader.get().await.map_err(|e| SfatEntryError::EndOffsetReadError(e))?,
     })

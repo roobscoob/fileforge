@@ -1,0 +1,15 @@
+× FileForgeLib Error Report ×
+
+i Truncated SARC archive (fileforge_nintendo::sead::sarc::readable::SarcReadErro
+                          r<'_, fileforge::storybook::StoryStream>)
+  ❯ The file ends partway through the SARC archive's file entries, which run
+    until 0x60.
+  ❯ The file is 64 (0x40) bytes long.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+

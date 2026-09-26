@@ -2,7 +2,7 @@
 
 use fileforge::{
   binary_reader::error::{common::Read, primitive_name_annotation::PrimitiveName, GetPrimitiveError},
-  diagnostic::pool::DiagnosticPoolProvider,
+  diagnostic::{pool::DiagnosticPoolProvider, value::DiagnosticValue},
   error::{
     ext::annotations::annotated::Annotated,
     render::{
@@ -24,7 +24,7 @@ pub(crate) const TRUNCATED: ConstText = ConstText::new(
 
 pub(crate) const CORRUPTED: ConstText = ConstText::new("This usually means the file is corrupted.", &REPORT_FLAG_LINE_TEXT);
 
-const TRUNCATED_FILE_NOTE: ConstText = ConstText::new("This file is truncated", &REPORT_ERROR_TEXT);
+pub(crate) const TRUNCATED_FILE_NOTE: ConstText = ConstText::new("This file is truncated", &REPORT_ERROR_TEXT);
 
 /// A field of a structure, for reports about reading it.
 #[derive(Clone, Copy)]
@@ -163,6 +163,35 @@ pub(crate) fn render_magic<'pool, E, const SIZE: usize, U: UserReadError, P: Dia
     .with_info_line(&found_text)
     .with_info_line(&expected_text)
     .with_flag_line(&WRONG_FORMAT);
+
+  if location.reference().is_some() {
+    report.add_note(ReportNote::new(&note_text).with_location(&location).with_tag(&REPORT_INFO_LINE_TEXT));
+  }
+
+  report.apply(callback);
+}
+
+/// Reports a field that holds `actual`, where only `expected` is valid.
+pub(crate) fn render_wrong_value<'pool, E, T: Copy + Into<u128>, P: DiagnosticPoolProvider + Clone, const ITEM_NAME_SIZE: usize>(
+  actual: &DiagnosticValue<'pool, T>,
+  expected: T,
+  field: Field,
+  title: &'static str,
+  provider: P,
+  callback: impl for<'tag, 'b> FnOnce(Report<'tag, 'b, ITEM_NAME_SIZE, P>) -> (),
+) {
+  let Field { structure, name, .. } = field;
+
+  let hex = |value: T| FormattedUnsigned::new(value.into()).base(16).uppercase().prefix("0x");
+  let found = hex(**actual);
+  let expected = hex(expected);
+
+  let found_text = text!([&REPORT_ERROR_TEXT] "The {&structure}'s {&name} is {&found}, but it must be {&expected}.");
+  let note_text = text!([&REPORT_INFO_LINE_TEXT] "Expected {&expected} here");
+
+  let location = actual.map(hex);
+
+  let mut report = Report::new::<E>(provider, &title).with_info_line(&found_text).with_flag_line(&CORRUPTED);
 
   if location.reference().is_some() {
     report.add_note(ReportNote::new(&note_text).with_location(&location).with_tag(&REPORT_INFO_LINE_TEXT));

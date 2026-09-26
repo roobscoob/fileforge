@@ -1,0 +1,17 @@
+× FileForgeLib Error Report ×
+
+i Truncated SFNT header (fileforge_nintendo::sead::sarc::sfat::name_table::heade
+                         r::SfntHeaderReadError<'_, fileforge::storybook::StoryU
+                         serError>)
+  ❯ The file ends partway through the reserved field (a u16 at 0x36).
+  ❯ It needs 2 bytes there, but only 1 remains.
+  ❯ The file is 55 (0x37) bytes long, but at least 56 (0x38) are needed to
+    include the reserved field.
+
+⚑ The file is probably incomplete, for example because a download or an
+  extraction was interrupted.
+
+archive.sarc
+^~~~~~~~~~~~
+This file is truncated
+

@@ -1,0 +1,13 @@
+× FileForgeLib Error Report ×
+
+i Too many files in SARC archive (fileforge_nintendo::sead::sarc::sfat::header::
+                                  readable::SfatHeaderReadError<'_, fileforge::s
+                                  torybook::StoryUserError>)
+  ❯ The archive lists 16,384 files, but a SARC archive can hold at most 16,383.
+
+⚑ This usually means the file is corrupted.
+
+archive.sarc / FileCount@[0×1A..0×1C] = 16384
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               The file count
+

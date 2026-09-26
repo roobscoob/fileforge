@@ -1,4 +1,5 @@
 pub mod entry;
+pub mod header;
 pub mod hasher;
 
 use fileforge::{binary_reader::BinaryReader, stream::ReadableStream};

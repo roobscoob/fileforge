@@ -1,0 +1,13 @@
+× FileForgeLib Error Report ×
+
+i Unsupported SARC version (fileforge_nintendo::sead::sarc::header::readable::Sa
+                            rcHeaderReadError<'_, fileforge::storybook::StoryUse
+                            rError>)
+  ❯ The SARC header's version is 0x200, but it must be 0x100.
+
+⚑ This usually means the file is corrupted.
+
+archive.sarc / Version@[0×10..0×12] = 0x200
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               Expected 0x100 here
+

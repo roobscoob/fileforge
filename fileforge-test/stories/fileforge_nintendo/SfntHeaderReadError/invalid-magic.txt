@@ -1,0 +1,14 @@
+× FileForgeLib Error Report ×
+
+i Missing SFNT section (fileforge_nintendo::sead::sarc::sfat::name_table::header
+                        ::SfntHeaderReadError<'_, fileforge::storybook::StoryUse
+                        rError>)
+  ❯ Found 42 41 44 21 ("BAD!").
+  ❯ An SFNT section starts with 53 46 4E 54 ("SFNT").
+
+⚑ This usually means the data isn't in the expected format, or is corrupted.
+
+archive.sarc / Magic@[0×30..0×34] = 42 41 44 21 ("BAD!")
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+               Expected 53 46 4E 54 ("SFNT") here
+
