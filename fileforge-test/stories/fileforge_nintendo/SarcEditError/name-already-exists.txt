@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i File already exists (fileforge_nintendo::sead::sarc::edit::SarcEditError<'_, f
+                       ileforge::storybook::StoryStream>)
+  ❯ The archive already has a file with this name, as entry 2.
+
+

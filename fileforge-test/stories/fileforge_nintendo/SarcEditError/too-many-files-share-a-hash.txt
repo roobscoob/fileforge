@@ -1,0 +1,8 @@
+× FileForgeLib Error Report ×
+
+i Too many files share a hash (fileforge_nintendo::sead::sarc::edit::SarcEditErr
+                               or<'_, fileforge::storybook::StoryStream>)
+  ❯ 255 files already share this name's hash, the most a SARC archive can
+    number.
+
+

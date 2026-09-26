@@ -1,7 +1,6 @@
 pub mod entry;
 pub mod header;
 pub mod name_table;
-pub mod stream;
 
 // Note:
 // there's a weird logic hole.

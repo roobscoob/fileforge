@@ -8,6 +8,7 @@ pub const SARC_HEADER_SIZE: u16 = 0x14;
 /// The only SARC version sead accepts.
 pub const SARC_VERSION: u16 = 0x100;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SarcHeader {
   pub endianness: Endianness,
   pub file_size: u32,

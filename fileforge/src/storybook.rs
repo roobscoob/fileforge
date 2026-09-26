@@ -209,6 +209,14 @@ impl stream::MutableStream for StoryStream {
   }
 }
 
+impl stream::ResizableStream for StoryStream {
+  type OverwriteError = StoryUserError;
+
+  async fn overwrite<const SIZE: usize>(&mut self, _: u64, _: [u8; SIZE]) -> Result<(), stream::error::stream_overwrite::StreamOverwriteError<StoryUserError>> {
+    unimplemented!("StoryStream only exists to name types in stories")
+  }
+}
+
 /// A stand-in provider for stories of types that are generic over one. Every error it could
 /// produce is a [`StoryUserError`]. It is never read from; its methods panic.
 #[derive(Debug)]

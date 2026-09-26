@@ -1,0 +1,9 @@
+× FileForgeLib Error Report ×
+
+i Invalid SARC entry (fileforge_nintendo::sead::sarc::error::SarcError<'_, filef
+                      orge::storybook::StoryStream>)
+  ❯ Entry 1's data ends at 0x20, before it starts at 0x40.
+
+⚑ This usually means the file is corrupted.
+
+

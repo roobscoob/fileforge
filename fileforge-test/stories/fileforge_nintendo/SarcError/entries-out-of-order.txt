@@ -1,0 +1,11 @@
+× FileForgeLib Error Report ×
+
+i SARC entries out of order (fileforge_nintendo::sead::sarc::error::SarcError<'_
+                             , fileforge::storybook::StoryStream>)
+  ❯ Entry 3's hash is smaller than entry 2's.
+  ❯ sead finds files with a binary search, so the entries must be sorted by name
+    hash.
+
+⚑ This usually means the file is corrupted.
+
+

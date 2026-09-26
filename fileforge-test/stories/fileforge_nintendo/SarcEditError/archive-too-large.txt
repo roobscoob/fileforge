@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i SARC archive too large (fileforge_nintendo::sead::sarc::edit::SarcEditError<'_
+                          , fileforge::storybook::StoryStream>)
+  ❯ After this edit, an offset in the archive wouldn't fit in its field.
+
+

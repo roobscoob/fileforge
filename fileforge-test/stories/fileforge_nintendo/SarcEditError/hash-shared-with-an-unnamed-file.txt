@@ -1,0 +1,10 @@
+× FileForgeLib Error Report ×
+
+i Name collides with an unnamed file (fileforge_nintendo::sead::sarc::edit::Sarc
+                                      EditError<'_, fileforge::storybook::StoryS
+                                      tream>)
+  ❯ The name's hash is shared with entry 1, which has no name.
+  ❯ An entry without a name can only be found when no other entry shares its
+    hash.
+
+

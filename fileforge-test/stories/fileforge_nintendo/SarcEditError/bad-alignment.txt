@@ -1,0 +1,8 @@
+× FileForgeLib Error Report ×
+
+i Invalid alignment (fileforge_nintendo::sead::sarc::edit::SarcEditError<'_, fil
+                     eforge::storybook::StoryStream>)
+  ❯ The archive's alignment policy asked for an alignment of 12, which isn't a
+    power of two.
+
+

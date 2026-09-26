@@ -1,0 +1,10 @@
+× FileForgeLib Error Report ×
+
+i Invalid SARC collision index (fileforge_nintendo::sead::sarc::error::SarcError
+                                <'_, fileforge::storybook::StoryStream>)
+  ❯ Entry 1 says it's number 4 of the entries with its hash, but there aren't
+    enough entries before it.
+
+⚑ This usually means the file is corrupted.
+
+

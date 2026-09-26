@@ -8,9 +8,11 @@ use fileforge::error::render::{
 };
 use crate::report::{CORRUPTED};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FilenameAttributes {
   pub sequence: NonZero<u8>,
-  pub hash_index: u32,
+  /// Where the name is, as an offset into the name table divided by 4.
+  pub name_offset: u32,
 }
 
 #[story("zero sequence", FilenameAttributesError::ZeroSequence { attributes: 0x0000_1234 })]
@@ -39,14 +41,21 @@ impl FileforgeError for FilenameAttributesError {
 }
 
 impl FilenameAttributes {
+  pub fn to_bits(attributes: Option<FilenameAttributes>) -> u32 {
+    match attributes {
+      None => 0,
+      Some(FilenameAttributes { sequence, name_offset }) => ((sequence.get() as u32) << 24) | (name_offset & 0xFFFFFF),
+    }
+  }
+
   pub fn from_bits(value: u32) -> Result<Option<FilenameAttributes>, FilenameAttributesError> {
     if value == 0 {
       Ok(None)
     } else {
       let sequence = NonZero::new((value >> 24) as u8).ok_or(FilenameAttributesError::ZeroSequence { attributes: value })?;
-      let hash_index = value & 0xFFFFFF;
+      let name_offset = value & 0xFFFFFF;
 
-      Ok(Some(FilenameAttributes { sequence, hash_index }))
+      Ok(Some(FilenameAttributes { sequence, name_offset }))
     }
   }
 }

@@ -1,0 +1,10 @@
+× FileForgeLib Error Report ×
+
+i Unnamed SARC entry collides (fileforge_nintendo::sead::sarc::error::SarcError<
+                               '_, fileforge::storybook::StoryStream>)
+  ❯ Entry 2 shares its hash with another entry, and one of them has no name.
+  ❯ An entry can only leave out its name when no other entry shares its hash.
+
+⚑ This usually means the file is corrupted.
+
+

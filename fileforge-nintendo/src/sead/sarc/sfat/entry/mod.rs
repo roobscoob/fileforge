@@ -18,6 +18,7 @@ use crate::report::{render_field_read, render_with_context, Field};
 
 pub const SFAT_ENTRY_SIZE: u64 = 0x10;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SfatEntry {
   pub filename_hash: u32,
   pub filename_attributes: Option<FilenameAttributes>,

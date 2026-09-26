@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i Too many files (fileforge_nintendo::sead::sarc::edit::SarcEditError<'_, filefo
+                  rge::storybook::StoryStream>)
+  ❯ The archive already has 16,383 files, the most sead reads.
+
+

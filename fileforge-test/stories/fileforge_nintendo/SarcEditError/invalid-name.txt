@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i Invalid file name (fileforge_nintendo::sead::sarc::edit::SarcEditError<'_, fil
+                     eforge::storybook::StoryStream>)
+  ❯ A file's name can't be empty, or contain a null byte.
+
+

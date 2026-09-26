@@ -1,0 +1,11 @@
+× FileForgeLib Error Report ×
+
+i SARC name doesn't match its hash (fileforge_nintendo::sead::sarc::error::SarcE
+                                    rror<'_, fileforge::storybook::StoryStream>)
+  ❯ Entry 1's name hashes to 0x9ABCDEF0, but the entry's hash is 0x12345678.
+  ❯ If the archive is from the Wii U, its names may use the older, unsigned
+    hash: try opening it with HashMode::Unsigned.
+
+⚑ This usually means the file is corrupted.
+
+

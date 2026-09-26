@@ -16,7 +16,7 @@ use fileforge::{
     report::{note::ReportNote, Report},
     FileforgeError,
   },
-  stream::ReadableStream,
+  stream::{ReadableStream, RestorableStream},
 };
 use fileforge_macros::{story, text};
 
@@ -25,6 +25,8 @@ use crate::{
   sead::sarc::{
     header::{readable::SarcHeaderReadError, SarcHeader},
     names_offset,
+    sfat::name_table::hasher::HashMode,
+    AlignmentPolicy, SarcIo,
     sfat::{
       entry::SFAT_ENTRY_SIZE,
       header::{readable::SfatHeaderReadError, SfatHeader},
@@ -37,13 +39,19 @@ use crate::{
 /// Where the data offset sits in the SARC header.
 const DATA_OFFSET_POSITION: u64 = 0xC;
 
-impl<'pool, S: ReadableStream<Type = u8>> IntoReadable<'pool, S> for Sarc<'pool, S> {
-  type Argument = ();
+impl<'pool, S: RestorableStream<Type = u8>, A: AlignmentPolicy> IntoReadable<'pool, S> for Sarc<'pool, S, A> {
+  /// The archive's alignment policy. [`Preserve`](crate::sead::sarc::Preserve), the default, is
+  /// what `into` uses.
+  type Argument = A;
   type Error = SarcReadError<'pool, S>;
 
-  async fn read(mut reader: BinaryReader<'pool, S>, _: Self::Argument) -> Result<Self, Self::Error> {
+  async fn read(mut reader: BinaryReader<'pool, S>, policy: Self::Argument) -> Result<Self, Self::Error> {
+    let origin = reader.offset();
+    let start = reader.snapshot();
+
     let header: SarcHeader = reader.read().await.map_err(SarcReadError::Header)?;
     let sfat: SfatHeader = reader.read().await.map_err(SarcReadError::SfatHeader)?;
+    let entries = reader.snapshot();
 
     reader.skip(sfat.file_count as u64 * SFAT_ENTRY_SIZE).await.map_err(SarcReadError::Entries)?;
 
@@ -52,7 +60,7 @@ impl<'pool, S: ReadableStream<Type = u8>> IntoReadable<'pool, S> for Sarc<'pool,
     let names_offset = names_offset(sfat.file_count);
 
     if (header.data_offset as u64) < names_offset {
-      let position = DATA_OFFSET_POSITION as i128 - reader.stream().offset() as i128;
+      let position = (origin + DATA_OFFSET_POSITION) as i128 - reader.stream().offset() as i128;
 
       return Err(SarcReadError::DataInsideTables {
         data_offset: reader.create_physical_diagnostic(position, Some(4), "DataOffset").saturate(header.data_offset),
@@ -60,7 +68,18 @@ impl<'pool, S: ReadableStream<Type = u8>> IntoReadable<'pool, S> for Sarc<'pool,
       });
     }
 
-    Ok(Sarc { reader, header, sfat })
+    Ok(Sarc {
+      io: SarcIo {
+        reader,
+        origin,
+        start,
+        entries: Some(entries),
+        header,
+        sfat,
+        hash_mode: HashMode::default(),
+      },
+      policy,
+    })
   }
 }
 

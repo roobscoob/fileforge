@@ -1,0 +1,9 @@
+× FileForgeLib Error Report ×
+
+i SARC name outside the name table (fileforge_nintendo::sead::sarc::error::SarcE
+                                    rror<'_, fileforge::storybook::StoryStream>)
+  ❯ Entry 0's name is at 0x140, but the name table ends at 0x100.
+
+⚑ This usually means the file is corrupted.
+
+

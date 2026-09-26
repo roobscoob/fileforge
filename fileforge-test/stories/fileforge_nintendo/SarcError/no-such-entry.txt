@@ -1,0 +1,7 @@
+× FileForgeLib Error Report ×
+
+i No such SARC entry (fileforge_nintendo::sead::sarc::error::SarcError<'_, filef
+                      orge::storybook::StoryStream>)
+  ❯ Asked for entry 5, but the archive only has 3 files.
+
+
