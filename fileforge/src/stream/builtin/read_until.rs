@@ -9,26 +9,35 @@ use crate::{
   stream::{
     self,
     error::{stream_exhausted::StreamExhaustedError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError},
-    ReadableStream, StreamReadError, StreamSkipError,
+    ReadableStream, StreamReadError, StreamSkipError, SINGLE,
   },
 };
 
+/// The elements of a stream up to (not including) the first `needle`, such as a null-terminated
+/// string. Its length isn't known until the needle is found, so it reads the underlying stream one
+/// element at a time and never consumes anything past the needle.
 pub struct ReadUntil<R: ReadableStream> {
   stream: R,
   needle: R::Type,
-  start_offset: u64,
-  needle_offset: Option<u64>,
+  /// How many elements have been consumed, counted from the start of this stream.
+  offset: u64,
+  /// How many elements come before the needle, once it has been found.
+  length: Option<u64>,
 }
 
 impl<R: ReadableStream> ReadUntil<R> {
   pub fn new(stream: R, needle: R::Type) -> Self {
-    let start_offset = stream.offset();
     Self {
       stream,
       needle,
-      start_offset,
-      needle_offset: None,
+      offset: 0,
+      length: None,
     }
+  }
+
+  /// The underlying stream. Once the needle has been found, it sits just after it.
+  pub fn into_inner(self) -> R {
+    self.stream
   }
 }
 
@@ -36,6 +45,7 @@ impl<R: ReadableStream> ReadUntil<R> {
 #[story("stream ended while searching for the needle", ReadUntilSkipError::<StoryUserError>(StreamReadError::StreamExhausted(
   crate::stream::error::stream_exhausted::StreamExhaustedError { stream_length: 16, read_length: 1, read_offset: 16 },
 )))]
+#[derive(Debug)]
 pub struct ReadUntilSkipError<E: stream::UserReadError>(StreamReadError<E>);
 
 const SKIPPING_TO_TERMINATOR: ConstText = ConstText::new(
@@ -60,93 +70,159 @@ where
   type SkipError = ReadUntilSkipError<Self::ReadError>;
 
   fn len(&self) -> Option<u64> {
-    // If we've found the needle, length is from start to needle
-    self.needle_offset.map(|n| n - self.start_offset)
+    self.length
   }
 
   fn remaining(&self) -> Option<u64> {
-    match self.needle_offset {
-      Some(needle_offset) => {
-        let current_offset = self.stream.offset();
-        Some(needle_offset.saturating_sub(current_offset))
-      }
-      None => None,
-    }
+    self.length.map(|length| length - self.offset)
   }
 
   fn offset(&self) -> u64 {
-    self.stream.offset()
+    self.offset
   }
 
+  /// Reads the underlying stream one element at a time: a larger read could consume elements past
+  /// the needle. A read that runs into the needle fails, leaving the stream at its end.
   async fn read<const SIZE: usize, V>(&mut self, reader: impl AsyncFnOnce(&[Self::Type; SIZE]) -> V) -> Result<V, StreamReadError<Self::ReadError>> {
-    let current_offset = self.stream.offset();
-
-    // Check if this read would collide with known needle position
-    if let Some(needle_offset) = self.needle_offset.filter(|&o| current_offset + SIZE as u64 > o) {
-      return Err(StreamReadError::StreamExhausted(StreamExhaustedError {
-        stream_length: needle_offset - self.start_offset,
+    let read_offset = self.offset;
+    let exhausted = |stream_length| {
+      StreamReadError::StreamExhausted(StreamExhaustedError {
+        stream_length,
         read_length: SIZE as u64,
-        read_offset: current_offset - self.start_offset,
-      }));
+        read_offset,
+      })
+    };
+
+    if let Some(length) = self.length.filter(|&length| read_offset + SIZE as u64 > length) {
+      return Err(exhausted(length));
     }
 
-    // Read from underlying stream
-    let result = self
-      .stream
-      .read::<SIZE, _>(async |data| {
-        // Check if needle is in this chunk
-        for (i, &item) in data.iter().enumerate() {
-          if item == self.needle {
-            // Found needle at position i
-            let needle_offset = current_offset + i as u64;
-            self.needle_offset = Some(needle_offset);
+    let mut buffer = heapless::Vec::<R::Type, SIZE>::new();
 
-            // Stream is exhausted - can't provide SIZE elements before needle
-            return Err(StreamReadError::StreamExhausted(StreamExhaustedError {
-              stream_length: needle_offset - self.start_offset,
-              read_length: SIZE as u64,
-              read_offset: current_offset - self.start_offset,
-            }));
-          }
-        }
+    while !buffer.is_full() {
+      let item = self.stream.read(SINGLE).await?;
 
-        // No needle found in this chunk, pass through
-        Ok(reader(data).await)
-      })
-      .await??;
+      if item == self.needle {
+        self.length = Some(self.offset);
+        return Err(exhausted(self.offset));
+      }
 
-    Ok(result)
+      let _ = buffer.push(item);
+      self.offset += 1;
+    }
+
+    let Ok(items) = buffer.into_array::<SIZE>() else { unreachable!("the buffer is full") };
+
+    Ok(reader(&items).await)
   }
 
   async fn skip(&mut self, size: u64) -> Result<(), StreamSkipError<ReadUntilSkipError<Self::ReadError>>> {
-    let current_offset = self.stream.offset();
+    let seek_point = self.offset.saturating_add(size);
+    let out_of_bounds = |stream_length| StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError { stream_length, seek_point });
 
-    // Check if this skip would collide with known needle position
-    if let Some(needle_offset) = self.needle_offset.filter(|&o| current_offset + size > o) {
-      return Err(StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError {
-        stream_length: needle_offset - self.start_offset,
-        seek_point: (current_offset - self.start_offset) + size,
-      }));
+    if let Some(length) = self.length.filter(|&length| seek_point > length) {
+      return Err(out_of_bounds(length));
     }
 
-    // We need to check for needle while skipping
-    // Read one element at a time
-    for _ in 0..size {
-      let offset = self.stream.offset();
-      match self.stream.read::<1, _>(async |data| data[0] == self.needle).await {
-        Ok(true) => {
-          // Found needle during skip
-          self.needle_offset = Some(offset);
-          return Err(StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError {
-            stream_length: offset - self.start_offset,
-            seek_point: (current_offset - self.start_offset) + size,
-          }));
-        }
-        Ok(false) => {}
-        Err(e) => return Err(StreamSkipError::User(ReadUntilSkipError(e))),
+    while self.offset < seek_point {
+      let item = self.stream.read(SINGLE).await.map_err(|e| StreamSkipError::User(ReadUntilSkipError(e)))?;
+
+      if item == self.needle {
+        self.length = Some(self.offset);
+        return Err(out_of_bounds(self.offset));
       }
+
+      self.offset += 1;
     }
 
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::{
+    provider::hint::ReadHint,
+    stream::{
+      builtin::provider::ProviderStream,
+      error::{stream_exhausted::StreamExhaustedError, stream_seek_out_of_bounds::StreamSeekOutOfBoundsError},
+      extensions::readable::ReadableStreamExt,
+      ReadableStream, StreamReadError, StreamSkipError, SINGLE,
+    },
+  };
+
+  fn stream(bytes: &'static [u8]) -> ProviderStream<&'static [u8]> {
+    ProviderStream::new(bytes, ReadHint::new())
+  }
+
+  #[tokio::test]
+  async fn reads_up_to_the_needle() {
+    let mut string = stream(b"abc\0def").read_until(0);
+
+    assert_eq!(string.len(), None);
+    assert_eq!(string.read(async |bytes: &[u8; 2]| *bytes).await.unwrap(), *b"ab");
+    assert_eq!(string.read(SINGLE).await.unwrap(), b'c');
+
+    let error = string.read(SINGLE).await.unwrap_err();
+    assert!(matches!(error, StreamReadError::StreamExhausted(StreamExhaustedError { stream_length: 3, read_length: 1, read_offset: 3 })));
+    assert_eq!((string.offset(), string.len(), string.remaining()), (3, Some(3), Some(0)));
+  }
+
+  #[tokio::test]
+  async fn a_read_across_the_needle_fails_without_reading_past_it() {
+    let mut string = stream(b"abc\0def").read_until(0);
+
+    let error = string.read(async |bytes: &[u8; 4]| *bytes).await.unwrap_err();
+    assert!(matches!(error, StreamReadError::StreamExhausted(StreamExhaustedError { stream_length: 3, read_length: 4, read_offset: 0 })));
+    assert_eq!((string.offset(), string.len()), (3, Some(3)));
+
+    let mut rest = string.into_inner();
+    assert_eq!(rest.read(SINGLE).await.unwrap(), b'd');
+  }
+
+  #[tokio::test]
+  async fn the_offset_counts_from_the_start_of_the_string() {
+    let mut underlying = stream(b"xyabc\0");
+    underlying.skip(2).await.unwrap();
+
+    let mut string = underlying.read_until(0);
+    assert_eq!(string.offset(), 0);
+
+    string.read(SINGLE).await.unwrap();
+    assert_eq!(string.offset(), 1);
+  }
+
+  #[tokio::test]
+  async fn skipping() {
+    let mut string = stream(b"abc\0def").read_until(0);
+
+    string.skip(2).await.unwrap();
+    assert_eq!(string.read(SINGLE).await.unwrap(), b'c');
+
+    let mut string = stream(b"abc\0def").read_until(0);
+    let error = string.skip(5).await.unwrap_err();
+    assert!(matches!(error, StreamSkipError::OutOfBounds(StreamSeekOutOfBoundsError { stream_length: 3, seek_point: 5 })));
+    assert_eq!((string.offset(), string.len()), (3, Some(3)));
+
+    // Now that the length is known, a skip past it fails without reading.
+    assert!(string.skip(1).await.is_err());
+    assert_eq!(string.offset(), 3);
+  }
+
+  #[tokio::test]
+  async fn an_empty_string() {
+    let mut string = stream(b"\0abc").read_until(0);
+
+    assert!(string.read(SINGLE).await.is_err());
+    assert_eq!(string.len(), Some(0));
+  }
+
+  #[tokio::test]
+  async fn a_missing_needle_is_an_error() {
+    let mut string = stream(b"abc").read_until(0);
+
+    string.skip(3).await.unwrap();
+    assert!(string.read(SINGLE).await.is_err());
+    assert_eq!(string.len(), None);
   }
 }

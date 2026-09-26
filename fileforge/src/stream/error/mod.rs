@@ -1,3 +1,4 @@
+pub mod stream_cmp;
 pub mod stream_exhausted;
 pub mod stream_mutate;
 pub mod stream_overwrite;
