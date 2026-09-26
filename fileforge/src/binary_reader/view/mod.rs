@@ -62,6 +62,6 @@ impl<'pool, S: MutableStream<Type = u8> + RestorableStream, T: Mutable<'pool, S>
 impl<'pool, S: MutableStream<Type = u8> + RestorableStream, T: Mutable<'pool, S> + Readable<'pool, S>> View<'pool, S, T> {
   pub async fn mutate<'l>(&'l mut self) -> Result<T::Mutator<'l>, ViewMutateError<'pool, S, T>> {
     self.reader.restore(self.start.clone()).await.map_err(|e| ViewMutateError::Restore(e))?;
-    self.reader.mutate::<T>().await.map_err(|e| ViewMutateError::Mutate(e))
+    self.reader.mutate::<T>(&mut self.value).await.map_err(|e| ViewMutateError::Mutate(e))
   }
 }

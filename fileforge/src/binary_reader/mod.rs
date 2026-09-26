@@ -237,15 +237,15 @@ impl<'pool, S: MutableStream<Type = u8>, const SIZE: usize> PrimitiveWriter<'poo
 }
 
 pub trait MutableMutator<'pool, S: MutableStream<Type = u8>> {
-  async fn mutate<'l, M: Mutable<'pool, S> + 'l>(&'l mut self) -> Result<M::Mutator<'l>, M::Error>
+  async fn mutate<'l, M: Mutable<'pool, S> + 'l>(&'l mut self, value: &'l mut M) -> Result<M::Mutator<'l>, M::Error>
   where
     'pool: 'l,
     S: 'l;
 }
 
 impl<'pool, S: MutableStream<Type = u8>> MutableMutator<'pool, S> for BinaryReader<'pool, S> {
-  async fn mutate<'l, M: Mutable<'pool, S> + 'l>(&'l mut self) -> Result<M::Mutator<'l>, M::Error> {
-    M::mutate(self).await
+  async fn mutate<'l, M: Mutable<'pool, S> + 'l>(&'l mut self, value: &'l mut M) -> Result<M::Mutator<'l>, M::Error> {
+    M::mutate(value, self).await
   }
 }
 

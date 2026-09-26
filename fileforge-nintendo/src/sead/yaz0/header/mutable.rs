@@ -18,6 +18,7 @@ use super::{readable::YAZ0_MAGIC, Yaz0Header};
 // 3: Right after the unused. No more fields are writable.
 pub struct Yaz0HeaderMutator<'pool, 'l, S: MutableStream<Type = u8> + 'l, const FIELD_INDEX: usize> {
   reader: &'l mut BinaryReader<'pool, S>,
+  value: &'l mut Yaz0Header,
 }
 
 impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S, 0> {
@@ -26,12 +27,13 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
     size: u32,
   ) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 1>, Annotated<PrimitiveName<fileforge::binary_reader::error::common::Write>, SetPrimitiveError<'pool, <S as MutableStream>::MutateError>>> {
     self.reader.set(size).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    self.value.decompressed_size = size;
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 
   pub async fn keep_uncompressed_size(self) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 1>, SkipError<'pool, S::SkipError>> {
     self.reader.skip(4).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 }
 
@@ -41,7 +43,7 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
     S: RewindableStream,
   {
     self.reader.rewind(4).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 
   pub async fn with_alignment(
@@ -49,12 +51,13 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
     alignment: u32,
   ) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 2>, Annotated<PrimitiveName<fileforge::binary_reader::error::common::Write>, SetPrimitiveError<'pool, <S as MutableStream>::MutateError>>> {
     self.reader.set(alignment).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    self.value.data_alignment = alignment;
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 
   pub async fn keep_alignment(self) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 2>, SkipError<'pool, S::SkipError>> {
     self.reader.skip(4).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 }
 
@@ -64,7 +67,7 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
     S: RewindableStream,
   {
     self.reader.rewind(4).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 
   pub async fn start(self) -> Result<Yaz0HeaderMutator<'pool, 'l, S, 0>, RewindError<'pool, S::RewindError>>
@@ -72,7 +75,7 @@ impl<'pool, 'l, S: MutableStream<Type = u8> + 'l> Yaz0HeaderMutator<'pool, 'l, S
     S: RewindableStream,
   {
     self.reader.rewind(8).await?;
-    Ok(Yaz0HeaderMutator { reader: self.reader })
+    Ok(Yaz0HeaderMutator { reader: self.reader, value: self.value })
   }
 }
 
@@ -86,12 +89,12 @@ impl<'pool, S: MutableStream<Type = u8>> Mutable<'pool, S> for Yaz0Header {
 
   type Error = MagicError<'pool, 4, S::ReadError>;
 
-  async fn mutate<'l>(reader: &'l mut BinaryReader<'pool, S>) -> Result<Self::Mutator<'l>, Self::Error>
+  async fn mutate<'l>(value: &'l mut Self, reader: &'l mut BinaryReader<'pool, S>) -> Result<Self::Mutator<'l>, Self::Error>
   where
     Self: 'l,
   {
     reader.read_with::<Magic<4>>(YAZ0_MAGIC).await?;
 
-    Ok(Yaz0HeaderMutator { reader })
+    Ok(Yaz0HeaderMutator { reader, value })
   }
 }

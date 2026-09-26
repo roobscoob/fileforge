@@ -35,3 +35,31 @@ impl Yaz0Header {
     self.data_alignment
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use fileforge::{
+    binary_reader::{endianness::Endianness, view::View, BinaryReader},
+    provider::hint::ReadHint,
+  };
+
+  use super::Yaz0Header;
+
+  #[tokio::test]
+  async fn a_view_reports_the_values_it_was_changed_to() {
+    let mut bytes = [&b"Yaz0"[..], &100u32.to_be_bytes(), &0u32.to_be_bytes(), &[0; 4]].concat();
+
+    let reader = BinaryReader::new_from_provider(&mut bytes, Endianness::BigEndian, ReadHint::new());
+    let mut view = reader.into::<View<'_, _, Yaz0Header>>().await.ok().unwrap();
+    assert_eq!(view.decompressed_size(), 100);
+
+    let mutator = view.mutate().await.ok().unwrap();
+    mutator.with_uncompressed_size(250).await.ok().unwrap().with_alignment(16).await.ok().unwrap();
+
+    assert_eq!(view.decompressed_size(), 250);
+    assert_eq!(view.alignment(), 16);
+
+    drop(view);
+    assert_eq!(&bytes[4..12], &[0, 0, 0, 250, 0, 0, 0, 16]);
+  }
+}
