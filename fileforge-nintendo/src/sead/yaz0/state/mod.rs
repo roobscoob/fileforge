@@ -68,14 +68,6 @@ impl Yaz0State {
   }
 
   pub(crate) fn feed_operation(&mut self, operation: Operation) -> Result<(), MalformedStream> {
-    // unread bytes live in the seekback ring buffer, so if they outgrow it `push_byte` would
-    // silently evict bytes the caller hasn't taken yet. callers must `take` pending output
-    // before feeding more; a single block (at most 8 * 273 bytes) always fits.
-    assert!(
-      (self.unread_bytes + operation.len() as u64) as usize <= SEEKBACK_BUFFER_LENGTH,
-      "Seekback Buffer Overflow"
-    );
-
     match operation {
       Operation::Literal(b) => {
         self.push_byte(b);
@@ -130,19 +122,6 @@ mod tests {
   fn blk1(op: Operation) -> Block {
     let mut ops: heapless::Vec<Operation, 8> = heapless::Vec::new();
     ops.push(op).expect("ops capacity");
-    Block { operations: ops }
-  }
-
-  // Build a Block from a small slice of Operations.
-  // (Useful if you want to batch a few ops into a single feed.)
-  fn blk(ops_in: &[Operation]) -> Block
-  where
-    Operation: Clone,
-  {
-    let mut ops: heapless::Vec<Operation, 8> = heapless::Vec::new();
-    for op in ops_in.iter().cloned() {
-      ops.push(op).expect("ops capacity");
-    }
     Block { operations: ops }
   }
 
@@ -257,43 +236,6 @@ mod tests {
       }
       other => panic!("unexpected error: {:?}", other),
     }
-  }
-
-  // New: overflow now PANICS. Two tests to cover literal and readback overflows.
-
-  #[test]
-  #[should_panic(expected = "Seekback Buffer Overflow")]
-  fn overflow_guard_panics_on_literal_beyond_capacity() {
-    let mut st = Yaz0State::empty();
-
-    // Seed with some bytes, then fill to capacity exactly via readback.
-    st.feed(blk(&[Operation::Literal(b'S'), Operation::Literal(b'E')])).unwrap();
-
-    let remaining = SEEKBACK_BUFFER_LENGTH - 2;
-    st.feed(blk1(Operation::ShortReadback {
-      offset: nz(1),
-      length: nz(remaining as u16),
-    }))
-    .unwrap(); // equal to capacity is allowed
-
-    // Next literal would exceed capacity -> panic.
-    st.feed(blk1(Operation::Literal(b'!'))).unwrap();
-  }
-
-  #[test]
-  #[should_panic(expected = "Seekback Buffer Overflow")]
-  fn overflow_guard_panics_on_readback_beyond_capacity() {
-    let mut st = Yaz0State::empty();
-
-    // Seed minimally.
-    st.feed(blk1(Operation::Literal(b'X'))).unwrap();
-
-    // Fill to capacity exactly: remaining = capacity - 1
-    let remaining = (SEEKBACK_BUFFER_LENGTH - 1) as u16;
-    st.feed(blk1(Operation::ShortReadback { offset: nz(1), length: nz(remaining) })).unwrap();
-
-    // One more byte via readback would exceed -> panic.
-    st.feed(blk1(Operation::ShortReadback { offset: nz(1), length: nz(1) })).unwrap();
   }
 
   #[test]

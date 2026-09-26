@@ -173,23 +173,30 @@ where
 
     while let Some(operation) = self.state.compress(&mut replacement_data) {
       self.state.feed_operation(operation).unwrap();
-      current_block.operations.push(operation).unwrap();
 
+      // the block we start from can already be full; flush it before pushing.
       if current_block.is_full() {
         if *length > 0 || offset > 0 {
           self
             .stream
             .mutate(async |data: &mut [Block; 1]| {
-              let new_tail = if offset > 0 {
-                let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
-
-                if tail_underflow.is_some() {
-                  *length -= 1;
-                }
-
-                new_tail
+              let (new_tail, leading) = if offset > 0 {
+                let (_, _, leading, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+                (new_tail, leading)
               } else {
-                data[0].clone()
+                (data[0].clone(), None)
+              };
+
+              // a byte that didn't fit in `new_tail` is the first byte after the edit point. If bytes
+              // are being replaced it's the first of them: consume it, and feed it into the original
+              // history. Otherwise keep it: it leads the tail.
+              let leading = match leading {
+                Some(byte) if *length > 0 => {
+                  *length -= 1;
+                  state.feed(Block::of(Operation::lit(byte))).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+                  None
+                }
+                leading => leading,
               };
 
               let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
@@ -200,8 +207,60 @@ where
 
               *length -= consumed.len() as u64;
 
-              if !new_tail.is_empty() {
-                tail_block = (tail_underflow, new_tail);
+              if !new_tail.is_empty() || leading.is_some() {
+                tail_block = (leading.or(tail_underflow), new_tail);
+              }
+
+              data[0] = current_block.clone();
+
+              Ok::<_, <Self as ResizableStream>::OverwriteError>(())
+            })
+            .await
+            .map_err(|e| Yaz0OverwriteError::MutateBlockFailed(e))??;
+        } else {
+          self.stream.overwrite(0, [current_block.clone()]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+        }
+
+        offset = 0;
+        current_block = Block::empty();
+      }
+
+      current_block.operations.push(operation).unwrap();
+
+      if current_block.is_full() {
+        if *length > 0 || offset > 0 {
+          self
+            .stream
+            .mutate(async |data: &mut [Block; 1]| {
+              let (new_tail, leading) = if offset > 0 {
+                let (_, _, leading, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+                (new_tail, leading)
+              } else {
+                (data[0].clone(), None)
+              };
+
+              // a byte that didn't fit in `new_tail` is the first byte after the edit point. If bytes
+              // are being replaced it's the first of them: consume it, and feed it into the original
+              // history. Otherwise keep it: it leads the tail.
+              let leading = match leading {
+                Some(byte) if *length > 0 => {
+                  *length -= 1;
+                  state.feed(Block::of(Operation::lit(byte))).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+                  None
+                }
+                leading => leading,
+              };
+
+              let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+
+              if consumed_overflow.is_some() {
+                *length -= 1;
+              }
+
+              *length -= consumed.len() as u64;
+
+              if !new_tail.is_empty() || leading.is_some() {
+                tail_block = (leading.or(tail_underflow), new_tail);
               }
 
               data[0] = current_block.clone();
@@ -219,25 +278,33 @@ where
       }
     }
 
-    if *length > 0 {
+    // also consume the original block when the edit starts partway into it
+    if *length > 0 || offset > 0 {
       let mut overwrite_count = 0;
 
       let snapshot = self.stream.snapshot();
 
-      while *length > 0 {
+      while *length > 0 || offset > 0 {
         self
           .stream
           .read(async |data: &[Block; 1]| {
-            let new_tail = if offset > 0 {
-              let (_, _, tail_underflow, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
-
-              if tail_underflow.is_some() {
-                *length -= 1;
-              }
-
-              new_tail
+            let (new_tail, leading) = if offset > 0 {
+              let (_, _, leading, new_tail) = data[0].clone().split_at_with_mid(offset, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+              (new_tail, leading)
             } else {
-              data[0].clone()
+              (data[0].clone(), None)
+            };
+
+            // a byte that didn't fit in `new_tail` is the first byte after the edit point. If bytes
+            // are being replaced it's the first of them: consume it, and feed it into the original
+            // history. Otherwise keep it: it leads the tail.
+            let leading = match leading {
+              Some(byte) if *length > 0 => {
+                *length -= 1;
+                state.feed(Block::of(Operation::lit(byte))).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+                None
+              }
+              leading => leading,
             };
 
             let (consumed, consumed_overflow, tail_underflow, new_tail) = new_tail.split_at_with_pre(*length, state).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
@@ -248,8 +315,8 @@ where
 
             *length -= consumed.len() as u64;
 
-            if !new_tail.is_empty() {
-              tail_block = (tail_underflow, new_tail);
+            if !new_tail.is_empty() || leading.is_some() {
+              tail_block = (leading.or(tail_underflow), new_tail);
             }
 
             Ok::<_, <Self as ResizableStream>::OverwriteError>(())
@@ -267,25 +334,17 @@ where
 
     Ok((current_block, tail_block))
   }
-}
 
-impl<'pool, S: ReadableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE>, Sta: Yaz0StreamReadArgument<'pool, S>> ResizableStream for Yaz0Stream<'pool, S, Sta>
-where
-  <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream + ResizableStream + MutableStream,
-  <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft: MutableStream<Type = u8> + RestorableStream,
-  Sta::HeaderView: MutHeaderView<'pool, S, <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft>,
-  Sta::StoreType: SnapshotStore<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream>,
-{
-  type OverwriteError = Yaz0OverwriteError<
-    'pool,
-    <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft,
-    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as ReadableStream>::ReadError,
-    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::RestoreError,
-    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as MutableStream>::MutateError,
-    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as ResizableStream>::OverwriteError,
-  >;
-
-  async fn overwrite<const SIZE: usize>(&mut self, mut length: u64, data: [Self::Type; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>> {
+  /// Makes the edit, and returns where the block containing the edit point starts: nothing before it
+  /// changes, so the caller can decode forward from there to land after the new data.
+  async fn overwrite_in_place<const SIZE: usize>(
+    &mut self,
+    mut length: u64,
+    data: [u8; SIZE],
+  ) -> Result<
+    (<Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::Snapshot, Yaz0State),
+    StreamOverwriteError<<Self as ResizableStream>::OverwriteError>,
+  > {
     let current_offset = self.offset();
     let current_block = self.state.current_block().clone();
 
@@ -295,6 +354,8 @@ where
     } else {
       assert!(current_offset == 0);
     };
+
+    let start = (self.stream.snapshot(), self.state.clone());
 
     let uncompressed_size = self
       .header
@@ -340,23 +401,43 @@ where
       fork_original_state.feed(Block::of(Operation::lit(overflow))).unwrap();
     }
 
-    fork_original_state.feed(tail.1).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+    fork_original_state.feed(tail.1.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
-    while bytes_seeked < 4096 {
+    // the repair consumes the original blocks after the tail, decoding them against
+    // `original_state`, so it needs the tail's bytes too.
+    if let Some(overflow) = tail.0 {
+      original_state.feed(Block::of(Operation::lit(overflow))).unwrap();
+    }
+    original_state.feed(tail.1.clone()).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+
+    // stop at the end of the data, not only after 4 KB
+    while bytes_seeked < 4096 && self.stream.remaining_decoded_bytes() > 0 {
       let block: Block = self.stream.read(CLONED).await.map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))?;
+
+      // a readback crosses the edit if it reaches back past the tail's start from where it
+      // *starts*; the repair must then cover it, up to the 4096-byte limit (past the limit, the
+      // rest of it can't reach back that far). Check the whole block before splitting it at the
+      // limit: the split turns the head of a readback cut 1 or 2 bytes in into literals.
+      let mut starts_at = bytes_seeked;
+      for operation in block.operations.iter() {
+        if starts_at >= 4096 {
+          break;
+        }
+
+        if let Operation::LongReadback { offset, .. } | Operation::ShortReadback { offset, .. } = operation {
+          if offset.get() as u64 > starts_at {
+            repair_bytes = (starts_at + operation.len() as u64).min(4096);
+          }
+        }
+
+        starts_at += operation.len() as u64;
+      }
+
       let (head, head_overflow, _, _) = block
         .split_at_with_pre(4096 - bytes_seeked, &mut fork_original_state)
         .map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
 
-      for operation in head.operations {
-        bytes_seeked += operation.len() as u64;
-
-        if let Operation::LongReadback { offset, .. } | Operation::ShortReadback { offset, .. } = operation {
-          if (offset.get() as u64).saturating_sub(bytes_seeked) > 0 {
-            repair_bytes = bytes_seeked;
-          }
-        }
-      }
+      bytes_seeked += head.len() as u64;
 
       if head_overflow.is_some() {
         bytes_seeked += 1;
@@ -365,15 +446,24 @@ where
 
     self.stream.restore(pre_read).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
 
-    let repair = fork_original_state.readback().slice(0..(repair_bytes - tail_len) as usize).unwrap();
+    // the repair re-encodes the tail plus everything up to the last crossing readback. The
+    // history ends `bytes_seeked` bytes after the tail's start, so find the window from the end.
+    let repair_bytes = repair_bytes.max(tail_len);
+    let history = fork_original_state.readback();
+    let window_start = history.len() - bytes_seeked as usize;
+    let repair = history.slice(window_start..window_start + repair_bytes as usize).unwrap();
 
-    let repair_len = repair.len();
+    let mut repair_len = repair.len() as u64 - tail_len;
 
-    let (mut block, tail) = self.re_encode_slice(&mut original_state, ReencodeData::With(current_block), &mut (repair_len as u64), repair).await?;
+    let (mut block, tail) = self.re_encode_slice(&mut original_state, ReencodeData::With(current_block), &mut repair_len, repair).await?;
 
     if let Some(byte) = tail.0 {
       // we KNOW block is not full
       block.operations.push(Operation::Literal(byte)).unwrap();
+
+      // the byte is new output now, so the new history needs it too, or everything decoded
+      // against it afterwards (the tail, and `inflate_pair`'s literals) is shifted by one.
+      self.state.feed_operation(Operation::Literal(byte)).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
     }
 
     let mut tail = tail.1;
@@ -385,13 +475,18 @@ where
       inflate_pair([&mut block, &mut tail], &self.state).unwrap();
 
       block = if !block.is_full() {
+        // the original block at the stream position has been absorbed into `block`.
+        // Remove it, or the next read would read (and merge) it again.
+        if overwrite {
+          self.stream.overwrite(1, []).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+        }
+
+        // nothing left to write means nothing to write: an empty block is still a header byte.
         if self.stream.remaining_decoded_bytes() == 0 {
-          self
-            .stream
-            .overwrite(if overwrite { 1 } else { 0 }, [block])
-            .await
-            .map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
-          return Ok(());
+          if !block.is_empty() {
+            self.stream.overwrite(0, [block]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+          }
+          return Ok(start);
         }
 
         block
@@ -411,11 +506,18 @@ where
           .map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
         self.stream.overwrite(0, [tail]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
 
-        return Ok(());
+        return Ok(start);
       };
 
       if block.is_empty() {
-        return Ok(());
+        return Ok(start);
+      }
+
+      // leftovers after writing a full block, but no original data left to merge them with:
+      // write them as the final block and stop, instead of reading past the end.
+      if self.stream.remaining_decoded_bytes() == 0 {
+        self.stream.overwrite(0, [block]).await.map_err(|e| Yaz0OverwriteError::OverwriteBlockFailed(e))?;
+        return Ok(start);
       }
 
       let back = self.stream.snapshot();
@@ -424,6 +526,56 @@ where
 
       overwrite = true;
     }
+  }
+}
+
+impl<'pool, S: ReadableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE>, Sta: Yaz0StreamReadArgument<'pool, S>> ResizableStream for Yaz0Stream<'pool, S, Sta>
+where
+  <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream + ResizableStream + MutableStream,
+  <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft: MutableStream<Type = u8> + RestorableStream,
+  Sta::HeaderView: MutHeaderView<'pool, S, <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft>,
+  Sta::StoreType: SnapshotStore<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream>,
+{
+  type OverwriteError = Yaz0OverwriteError<
+    'pool,
+    <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as ReadableStream>::ReadError,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::RestoreError,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as MutableStream>::MutateError,
+    <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as ResizableStream>::OverwriteError,
+  >;
+
+  async fn overwrite<const SIZE: usize>(&mut self, length: u64, data: [Self::Type; SIZE]) -> Result<(), StreamOverwriteError<Self::OverwriteError>> {
+    let current_offset = self.offset();
+    let size = self.header.value().decompressed_size() as u64;
+
+    // Check the bounds before changing anything, as `ProviderStream` does.
+    if length > size - current_offset {
+      return Err(StreamOverwriteError::StreamExhausted(StreamExhaustedError {
+        read_length: length,
+        read_offset: current_offset,
+        stream_length: size,
+      }));
+    }
+
+    let (snapshot, state) = self.overwrite_in_place(length, data).await?;
+
+    // Land just after the new data, as `ProviderStream` does: go back to the start of the edited
+    // block and decode forward, which leaves the history, the position and the store as a read would.
+    self.stream.restore(snapshot).await.map_err(|e| Yaz0OverwriteError::RestoreFailed(e))?;
+    self.state = state;
+
+    let mut remaining = current_offset + SIZE as u64 - self.offset();
+    remaining -= self.state.take(remaining as usize).len() as u64;
+
+    while remaining > 0 {
+      self.store.store_snapshot(&self.stream, self.state.clone());
+      let block = self.stream.read(CLONED).await.map_err(|e| Yaz0OverwriteError::ReadBlockFailed(e))?;
+      self.state.feed(block).map_err(|e| Yaz0OverwriteError::MalformedStream(e))?;
+      remaining -= self.state.take(remaining as usize).len() as u64;
+    }
+
+    Ok(())
   }
 }
 

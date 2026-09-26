@@ -39,7 +39,8 @@ pub fn inflate_pair(pair: [&mut Block; 2], post_block_state: &Yaz0State) -> Resu
           push_op(&mut left, &mut right, Operation::Literal(readback.next().unwrap()));
         }
 
-        if length == 3 && op_len + 3 <= 16 {
+        // Cracking one readback into three literals adds two operations.
+        if length == 3 && op_len + 2 <= 16 {
           // Crack
 
           push_op(&mut left, &mut right, Operation::Literal(readback.next().unwrap()));
