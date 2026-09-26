@@ -1,15 +1,16 @@
 use core::u32;
 
+use fileforge::control_flow::ControlFlow;
 use fileforge::stream::{
   error::{
-    stream_exhausted::StreamExhaustedError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError,
+    stream_exhausted::StreamExhaustedError, stream_mutate::StreamMutateError, stream_overwrite::StreamOverwriteError, stream_read::StreamReadError, stream_restore::StreamRestoreError,
     stream_seek_out_of_bounds::StreamSeekOutOfBoundsError, stream_skip::StreamSkipError,
   },
   MutableStream, ReadableStream, ResizableStream, RestorableStream, StaticPartitionableStream, CLONED,
 };
 
 use crate::sead::yaz0::{
-  error::{overwrite::Yaz0OverwriteError, Yaz0Error},
+  error::{mutate::Yaz0MutateError, overwrite::Yaz0OverwriteError, Yaz0Error},
   header::YAZ0_HEADER_SIZE,
   parser::{
     block_inflate_pair::inflate_pair,
@@ -112,11 +113,11 @@ impl<'pool, S: ReadableStream<Type = u8>, St: Yaz0StreamReadArgument<'pool, S>> 
   }
 }
 
-impl<'pool, S: ReadableStream<Type = u8>, St: MaybeSnapshotStore<S>, Sta: Yaz0StreamReadArgument<'pool, S, StoreType = St>> RestorableStream for Yaz0Stream<'pool, S, Sta>
+impl<'pool, S: ReadableStream<Type = u8>, Sta: Yaz0StreamReadArgument<'pool, S>> RestorableStream for Yaz0Stream<'pool, S, Sta>
 where
   <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream,
 {
-  type Snapshot = (Yaz0State, St, <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::Snapshot);
+  type Snapshot = (Yaz0State, Sta::StoreType, <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::Snapshot);
   type RestoreError = <Yaz0Parser<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream> as RestorableStream>::RestoreError;
 
   fn snapshot(&self) -> Self::Snapshot {
@@ -579,8 +580,37 @@ where
   }
 }
 
+impl<'pool, S: ReadableStream<Type = u8> + StaticPartitionableStream<YAZ0_HEADER_SIZE>, Sta: Yaz0StreamReadArgument<'pool, S>> MutableStream for Yaz0Stream<'pool, S, Sta>
+where
+  <Sta::HeaderView as HeaderView<'pool, S>>::OtherStream: RestorableStream + ResizableStream + MutableStream,
+  <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft: MutableStream<Type = u8> + RestorableStream,
+  Sta::HeaderView: MutHeaderView<'pool, S, <S as StaticPartitionableStream<YAZ0_HEADER_SIZE>>::PartitionLeft>,
+  Sta::StoreType: SnapshotStore<<Sta::HeaderView as HeaderView<'pool, S>>::OtherStream>,
+{
+  type MutateError = Yaz0MutateError<Self::ReadError, <Self as RestorableStream>::RestoreError, <Self as ResizableStream>::OverwriteError>;
+
+  /// Reads the bytes, returns to them, and overwrites them with the changed ones: a same-size
+  /// [`overwrite`](ResizableStream::overwrite), which re-encodes only locally.
+  async fn mutate<const SIZE: usize, V: ControlFlow>(&mut self, mutator: impl AsyncFnOnce(&mut [u8; SIZE]) -> V) -> Result<V, StreamMutateError<Self::MutateError>> {
+    let snapshot = self.snapshot();
+
+    let mut data = match self.read(async |data: &[u8; SIZE]| *data).await {
+      Ok(data) => data,
+      Err(StreamReadError::StreamExhausted(exhausted)) => return Err(StreamMutateError::StreamExhausted(exhausted)),
+      Err(error) => return Err(StreamMutateError::User(Yaz0MutateError::Read(error))),
+    };
+
+    self.restore(snapshot).await.map_err(|error| StreamMutateError::User(Yaz0MutateError::Restore(error)))?;
+
+    let value = mutator(&mut data).await;
+
+    self.overwrite(SIZE as u64, data).await.map_err(|error| StreamMutateError::User(Yaz0MutateError::Overwrite(error)))?;
+
+    Ok(value)
+  }
+}
+
 // RewindableStream NOT FEASIBLE :(
 // SeekableStream NOT FEASIBLE :(
-// MutableStream FEASIBLE :) GIVEN Substream: RestorableStream + ResizableStream + MutableStream
 // ResizableStream FEASIBLE :) GIVEN Substream: RestorableStream + ResizableStream + MutableStream
 // RestorableStream FEASIBLE :) GIVEN Substream: RestorableStream

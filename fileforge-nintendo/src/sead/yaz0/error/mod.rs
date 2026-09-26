@@ -1,4 +1,5 @@
 use fileforge_macros::story;
+pub mod mutate;
 pub mod overwrite;
 
 use fileforge::{
